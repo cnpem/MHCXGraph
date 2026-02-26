@@ -1,9 +1,11 @@
 # core/edges.py
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 import numpy as np
 import pandas as pd
-from typing import Optional, Iterable
+
 
 def _pairs_under_threshold(coords: np.ndarray, thr: float):
     """Retorna índices (i,j) com i<j e 0<dist<=thr, mais as distâncias."""
@@ -46,7 +48,7 @@ def add_distance_threshold(
     *,
     threshold: float,
     long_interaction_threshold: int = 0,
-    source_df: Optional[pd.DataFrame] = None,
+    source_df: pd.DataFrame | None = None,
     exclude_kinds: Iterable[str] = ("water",),
     **_
 ):

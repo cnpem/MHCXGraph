@@ -1,12 +1,12 @@
 import os
 from pathlib import Path
-from typing import List
 
-def _match_ext(name: str, extensions: List[str]) -> bool:
+
+def _match_ext(name: str, extensions: list[str]) -> bool:
     """Checagem simples por sufixo. Ex.: ['.pdb', '.pdb.gz', '.cif']"""
     return any(name.endswith(ext) for ext in extensions)
 
-def list_pdb_files(pdb_dir: str, extensions: List[str] = None) -> List[str]:
+def list_pdb_files(pdb_dir: str, extensions: list[str] = None) -> list[str]:
     """
     Lista SOMENTE os arquivos do diretório (sem recursão) que batem com extensions
     e imprime o menu de seleção. Retorna apenas os NOMES dos arquivos (como antes).
@@ -30,7 +30,7 @@ def list_pdb_files(pdb_dir: str, extensions: List[str] = None) -> List[str]:
 
     return files
 
-def get_user_selection(pdb_files: List[str], pdb_dir: str):
+def get_user_selection(pdb_files: list[str], pdb_dir: str):
     """
     Pergunta no terminal e retorna [[full_path, file_name], ...]
     Mantém a semântica antiga: '1' significa todos; caso contrário números separados por vírgula.

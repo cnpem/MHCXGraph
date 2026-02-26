@@ -1,22 +1,36 @@
 # core/tracking.py
 from __future__ import annotations
-import os, pickle, json, time, random, string, threading
-from pathlib import Path
+
+import json
+import pickle
+import random
+import string
+import threading
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Optional, Callable, Union
+from pathlib import Path
+from typing import Any
+
 import numpy as np
 
 __all__ = [
-    "init_tracker", "get_current", "set_enabled",
-    "save", "mark", "track", "tracked", "Tracker"
+    "Tracker",
+    "get_current",
+    "init_tracker",
+    "mark",
+    "save",
+    "set_enabled",
+    "track",
+    "tracked"
 ]
 
 # ---------- Config ----------
 
 @dataclass
 class TrackerConfig:
-    root: Union[str, Path] = "CrossSteps"     # diretório raiz p/ todas as execuções
-    outdir: Optional[str] = None              # subdir da execução (ex: run_name). Se None, gera aleatório.
+    root: str | Path = "CrossSteps"     # diretório raiz p/ todas as execuções
+    outdir: str | None = None              # subdir da execução (ex: run_name). Se None, gera aleatório.
     enabled: bool = True                      # liga/desliga persistência
     prefer_npy_for_ndarray: bool = False      # se True, arrays vão como .npy ao invés de .pkl
     add_timestamp_prefix: bool = False        # se True, inclui epoch no prefixo (além do contador)
@@ -53,7 +67,7 @@ class Tracker:
         # prefixo: 001_[ts]stepLabel_
         return f"{idx:03d}_{ts}{step_label}_" if step_label else f"{idx:03d}_"
 
-    def _ensure_dir(self, rel: Optional[Union[str, Path]] = None) -> Path:
+    def _ensure_dir(self, rel: str | Path | None = None) -> Path:
         d = self.base if rel is None else (self.base / rel)
         d.mkdir(parents=True, exist_ok=True)
         return d
@@ -64,9 +78,9 @@ class Tracker:
         key: str,
         obj: Any,
         *,
-        subdir: Optional[str] = None,
-        filename: Optional[str] = None
-    ) -> Optional[Path]:
+        subdir: str | None = None,
+        filename: str | None = None
+    ) -> Path | None:
         """Salva qualquer objeto. Nome: 'NNN_stepLabel_key.pkl' (ou .npy p/ arrays)."""
         if not self.cfg.enabled:
             return None
@@ -94,10 +108,10 @@ class Tracker:
         self,
         step_label: str,
         key: str,
-        info: Union[str, dict, list, int, float, bool, None],
+        info: str | dict | list | int | float | bool | None,
         *,
-        subdir: Optional[str] = None
-    ) -> Optional[Path]:
+        subdir: str | None = None
+    ) -> Path | None:
         """Marca um checkpoint leve em .txt (se str) ou .json (se não for str)."""
         if not self.cfg.enabled:
             return None
@@ -120,7 +134,7 @@ class Tracker:
         step_label: str,
         key: str,
         func: Callable[..., Any],
-        *args, subdir: Optional[str] = None, **kwargs
+        *args, subdir: str | None = None, **kwargs
     ) -> Any:
         """Executa a função, salva o resultado e retorna o valor."""
         result = func(*args, **kwargs)
@@ -138,7 +152,7 @@ class Tracker:
 
 # ---------- Singleton global ----------
 
-_global_tracker: Optional[Tracker] = None
+_global_tracker: Tracker | None = None
 
 def _rand_id(n: int) -> str:
     return "".join(random.choices(string.ascii_lowercase + string.digits, k=n))
@@ -146,14 +160,14 @@ def _rand_id(n: int) -> str:
 def _sanitize(s: str) -> str:
     return "".join(c if c.isalnum() or c in ("-", "_", ".") else "_" for c in str(s))
 
-def _set_global(t: Optional[Tracker]) -> None:
+def _set_global(t: Tracker | None) -> None:
     global _global_tracker
     _global_tracker = t
 
 def init_tracker(
     *,
-    root: Union[str, Path] = "CrossSteps",
-    outdir: Optional[str] = None,
+    root: str | Path = "CrossSteps",
+    outdir: str | None = None,
     enabled: bool = True,
     prefer_npy_for_ndarray: bool = False,
     add_timestamp_prefix: bool = False
@@ -170,7 +184,7 @@ def init_tracker(
     _set_global(tracker)
     return tracker
 
-def get_current(_default_none: bool = False) -> Optional[Tracker]:
+def get_current(_default_none: bool = False) -> Tracker | None:
     if _global_tracker is None:
         if _default_none:
             return None  # usado apenas internamente
@@ -184,18 +198,18 @@ def set_enabled(flag: bool) -> None:
 
 # ---------- atalhos globais (back‑compat) ----------
 
-def save(step: str, key: str, obj: Any, **opts) -> Optional[Path]:
+def save(step: str, key: str, obj: Any, **opts) -> Path | None:
     """Compatível com seu uso: save('create_graphs','Subgraph', obj)."""
     return get_current().save(step, key, obj, **opts)
 
-def mark(step: str, key: str, info: Any, **opts) -> Optional[Path]:
+def mark(step: str, key: str, info: Any, **opts) -> Path | None:
     return get_current().mark(step, key, info, **opts)
 
 def track(step: str, key: str, func: Callable[..., Any], *args, **kwargs) -> Any:
     return get_current().track(step, key, func, *args, **kwargs)
 
 # Decorator opcional para funções – salva retorno automaticamente
-def tracked(step: str, key: str, *, subdir: Optional[str] = None):
+def tracked(step: str, key: str, *, subdir: str | None = None):
     def deco(fn: Callable[..., Any]):
         def wrapper(*args, **kwargs):
             res = fn(*args, **kwargs)

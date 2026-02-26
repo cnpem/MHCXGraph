@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Set, Union
 import json
 import os
 import re
 import time
+from collections.abc import Iterable, Sequence
+from dataclasses import asdict, dataclass
+from typing import Any
+
 
 def _normalize_watch_item(item):
     # Accept:
@@ -48,11 +50,11 @@ def _normalize_watch_item(item):
 class TrackCtx:
     run_id: str
     stage: str                     # "triads" | "combos" | "component" | "frames" | etc.
-    protein_i: Optional[int] = None
-    step_id: Optional[int] = None
-    chunk_id: Optional[int] = None
-    comp_id: Optional[int] = None
-    frame_id: Optional[int] = None
+    protein_i: int | None = None
+    step_id: int | None = None
+    chunk_id: int | None = None
+    comp_id: int | None = None
+    frame_id: int | None = None
 
 
 # -----------------------------
@@ -63,7 +65,7 @@ _NODE_RE = re.compile(r"^(?P<chain>[^:]+):(?P<res>[^:]+):(?P<num>.+)$")
 _NUM_RE  = re.compile(r"^(?P<resseq>-?\d+)(?P<icode>[A-Za-z]?)$")
 
 
-def parse_node_label(node: str) -> Tuple[str, str, int, str]:
+def parse_node_label(node: str) -> tuple[str, str, int, str]:
     """
     Parse "CHAIN:RES:NUM" -> (chain, resname, resseq_int, icode_str)
     Accepts "42", "42A", "-1", "-1B".
@@ -90,7 +92,7 @@ def parse_node_label(node: str) -> Tuple[str, str, int, str]:
     return chain, res, resseq, icode
 
 
-def residue_key(protein_i: int, chain: str, resseq: int, icode: str = "") -> Tuple[int, str, int, str]:
+def residue_key(protein_i: int, chain: str, resseq: int, icode: str = "") -> tuple[int, str, int, str]:
     """
     Canonical watched key. We do NOT include resname, because in PDBs
     you can get weird naming and you usually care about position.
@@ -98,7 +100,7 @@ def residue_key(protein_i: int, chain: str, resseq: int, icode: str = "") -> Tup
     return (protein_i, chain, resseq, icode)
 
 
-def triad_residues_from_absolute(triad_absolute: Tuple[Any, ...]) -> List[str]:
+def triad_residues_from_absolute(triad_absolute: tuple[Any, ...]) -> list[str]:
     """
     triad_absolute = (*triad_abs, *full_describer_absolute)
     triad_abs = [u, center, w] (strings "A:TYR:42")
@@ -118,13 +120,13 @@ def triad_residues_from_absolute(triad_absolute: Tuple[Any, ...]) -> List[str]:
     return out
 
 
-def combo_residues(combo: Tuple[Tuple[Any, ...], ...]) -> List[List[str]]:
+def combo_residues(combo: tuple[tuple[Any, ...], ...]) -> list[list[str]]:
     """
     combo = tuple(per_protein_triad_absolute)
     Each triad absolute begins with 3 residue labels.
     Returns list per protein: [[u,c,w],[u,c,w],...]
     """
-    out: List[List[str]] = []
+    out: list[list[str]] = []
     for tri in combo:
         if not isinstance(tri, tuple) or len(tri) < 3:
             out.append([])
@@ -161,7 +163,7 @@ class ResidueTracker:
 
     def __init__(
         self,
-        watch_residues: Optional[Iterable[Tuple[int, str, int, str]]] = None,
+        watch_residues: Iterable[tuple[int, str, int, str]] | None = None,
         *,
         out_dir: str = "residue_tracking",
         max_examples_per_event: int = 25,
@@ -171,17 +173,17 @@ class ResidueTracker:
         os.makedirs(self.out_dir, exist_ok=True)
 
         raw = list(watch_residues or [])
-        self.watch: Set[Tuple[int, str, int, str]] = set(_normalize_watch_item(x) for x in raw)
+        self.watch: set[tuple[int, str, int, str]] = set(_normalize_watch_item(x) for x in raw)
         self.max_examples_per_event = int(max_examples_per_event)
         self.keep_event_log = bool(keep_event_log)
 
         # events keyed by residue_key -> list of event dicts
-        self.events_by_residue: Dict[Tuple[int, str, int, str], List[Dict[str, Any]]] = {
+        self.events_by_residue: dict[tuple[int, str, int, str], list[dict[str, Any]]] = {
             rk: [] for rk in self.watch
         }
 
         # global summary counters
-        self.summary: Dict[str, Any] = {
+        self.summary: dict[str, Any] = {
             "created_at": time.time(),
             "num_watched": len(self.watch),
             "counts": {
@@ -209,24 +211,24 @@ class ResidueTracker:
     # -------------------------
     # Event helpers
     # -------------------------
-    def _note_global(self, payload: Dict[str, Any]) -> None:
+    def _note_global(self, payload: dict[str, Any]) -> None:
         if not self.keep_event_log:
             return
         path = os.path.join(self.out_dir, "global_events.jsonl")
         with open(path, "a") as f:
             f.write(json.dumps(payload, ensure_ascii=False) + "\n")
 
-    def _add_event(self, rk: Tuple[int, str, int, str], event: Dict[str, Any]) -> None:
+    def _add_event(self, rk: tuple[int, str, int, str], event: dict[str, Any]) -> None:
         if rk not in self.events_by_residue:
             # only store watched residues
             return
         self.events_by_residue[rk].append(event)
 
-    def _ctx_dict(self, ctx: TrackCtx) -> Dict[str, Any]:
+    def _ctx_dict(self, ctx: TrackCtx) -> dict[str, Any]:
         return asdict(ctx)
 
-    def _hit_keys_from_labels(self, protein_i: int, labels: Iterable[str]) -> Set[Tuple[int, str, int, str]]:
-        hits: Set[Tuple[int, str, int, str]] = set()
+    def _hit_keys_from_labels(self, protein_i: int, labels: Iterable[str]) -> set[tuple[int, str, int, str]]:
+        hits: set[tuple[int, str, int, str]] = set()
         for lab in labels:
             try:
                 chain, _res, resseq, icode = parse_node_label(lab)
@@ -240,7 +242,7 @@ class ResidueTracker:
     # -------------------------
     # Public API events
     # -------------------------
-    def triads_built(self, ctx: TrackCtx, token: Any, triads_absolute: Sequence[Tuple[Any, ...]]) -> None:
+    def triads_built(self, ctx: TrackCtx, token: Any, triads_absolute: Sequence[tuple[Any, ...]]) -> None:
         self.summary["counts"]["triads_built"] += 1
 
         # find watched hits in this token list
@@ -251,7 +253,7 @@ class ResidueTracker:
 
         # scan triads_absolute but keep only examples up to limit
         examples = []
-        hits: Set[Tuple[int, str, int, str]] = set()
+        hits: set[tuple[int, str, int, str]] = set()
 
         for tri in triads_absolute:
             labels = triad_residues_from_absolute(tri)
@@ -274,7 +276,7 @@ class ResidueTracker:
         for rk in hits:
             self._add_event(rk, ev)
 
-    def triad_filtered(self, ctx: TrackCtx, reason: str, *, triad_abs: Optional[Tuple[Any, ...]] = None, token: Any = None) -> None:
+    def triad_filtered(self, ctx: TrackCtx, reason: str, *, triad_abs: tuple[Any, ...] | None = None, token: Any = None) -> None:
         self.summary["counts"]["triad_filtered"] += 1
         # record only if triad has watched residue
         if ctx.protein_i is None or triad_abs is None:
@@ -293,12 +295,12 @@ class ResidueTracker:
         for rk in hits:
             self._add_event(rk, ev)
 
-    def combos_built(self, ctx: TrackCtx, token: Any, combos: Sequence[Tuple[Tuple[Any, ...], ...]]) -> None:
+    def combos_built(self, ctx: TrackCtx, token: Any, combos: Sequence[tuple[tuple[Any, ...], ...]]) -> None:
         self.summary["counts"]["combos_built"] += 1
 
         # combos contain per-protein triads. We check each protein positionally.
         examples = []
-        hits: Set[Tuple[int, str, int, str]] = set()
+        hits: set[tuple[int, str, int, str]] = set()
 
         for combo in combos:
             per_prot = combo_residues(combo)
@@ -320,10 +322,10 @@ class ResidueTracker:
         for rk in hits:
             self._add_event(rk, ev)
 
-    def component_selected(self, ctx: TrackCtx, *, component_nodes: Sequence[Any], component_edges: Optional[Sequence[Any]] = None) -> None:
+    def component_selected(self, ctx: TrackCtx, *, component_nodes: Sequence[Any], component_edges: Sequence[Any] | None = None) -> None:
         self.summary["counts"]["component_selected"] += 1
         # nodes are tuples, one residue label per protein, e.g. ("A:TYR:42","B:GLY:9",...)
-        hits: Set[Tuple[int, str, int, str]] = set()
+        hits: set[tuple[int, str, int, str]] = set()
         for node in component_nodes:
             if not isinstance(node, tuple):
                 continue
@@ -349,12 +351,12 @@ class ResidueTracker:
         # no residue detail here unless you pass nodes; keep as global only
         self._note_global({"event": "component_skipped", "ctx": self._ctx_dict(ctx), "reason": reason, "component_size": component_size})
 
-    def frame_accepted(self, ctx: TrackCtx, *, edges_residues: Sequence[Any], edges_indices: Optional[Sequence[Any]] = None) -> None:
+    def frame_accepted(self, ctx: TrackCtx, *, edges_residues: Sequence[Any], edges_indices: Sequence[Any] | None = None) -> None:
         self.summary["counts"]["frame_accepted"] += 1
 
         # edges_residues look like: ((("A:TYR:42","B:..."),(...)), ...)
         # In your convert_edges_to_residues you produce converted_edges as tuples of tuples of residue strings.
-        hits: Set[Tuple[int, str, int, str]] = set()
+        hits: set[tuple[int, str, int, str]] = set()
         examples = []
 
         for e in edges_residues:

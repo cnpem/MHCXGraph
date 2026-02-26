@@ -1,26 +1,23 @@
 from __future__ import annotations
-import tempfile
-
-from MHCXGraph.core.config import GraphConfig, DSSPConfig
-from MHCXGraph.core.metadata import secondary_structure
-from MHCXGraph.core.contact_map import contact_map_from_graph
 
 import json
 import logging
+import tempfile
 from dataclasses import dataclass, field
-
-from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple, Literal
 
 import networkx as nx
 import numpy as np
 import pandas as pd
-from Bio.PDB import MMCIFParser, PDBParser, ShrakeRupley, PDBIO
-from Bio.PDB.Polypeptide import is_aa
-from Bio.PDB.Structure import Structure
+from Bio.PDB import PDBIO, MMCIFParser, PDBParser, ShrakeRupley
 from Bio.PDB.Chain import Chain
-from Bio.PDB.Residue import Residue
 from Bio.PDB.DSSP import DSSP, residue_max_acc
+from Bio.PDB.Polypeptide import is_aa
+from Bio.PDB.Residue import Residue
+from Bio.PDB.Structure import Structure
+
+from MHCXGraph.core.config import DSSPConfig, GraphConfig
+from MHCXGraph.core.contact_map import contact_map_from_graph
+from MHCXGraph.core.metadata import secondary_structure
 
 log = logging.getLogger(__name__)
 
@@ -52,11 +49,11 @@ CANONICAL_AA3 = {
     "ALA","ARG","ASN","ASP","CYS","GLN","GLU","GLY","HIS","ILE",
     "LEU","LYS","MET","PHE","PRO","SER","THR","TRP","TYR","VAL"
 }
-NONCANONICAL_TO_CANONICAL: Dict[str, str] = {}
+NONCANONICAL_TO_CANONICAL: dict[str, str] = {}
 BACKBONE_NAMES = {"N", "CA", "C", "O", "OXT"}
 
 
-def _canonical_of(resname: str) -> Optional[str]:
+def _canonical_of(resname: str) -> str | None:
     """Return canonical 3-letter code for a residue name when available."""
     rn = (resname or "").strip().upper()
     if rn in CANONICAL_AA3:
@@ -77,7 +74,7 @@ def _is_water(res: Residue) -> bool:
 
 def _heavy_atom_coords(res: Residue) -> np.ndarray:
     """Return heavy-atom coordinates of a residue as (N, 3) array."""
-    coords: List[np.ndarray] = []
+    coords: list[np.ndarray] = []
     for atom in res.get_atoms():
         element = getattr(atom, "element", None)
         if element is None:
@@ -185,15 +182,15 @@ class BuiltGraph:
         DSSP summary with an added "rsa" column; includes waters as rows (rsa=1.0).
     """
     graph: nx.Graph
-    residue_index: List[Tuple[str, Residue]]
+    residue_index: list[tuple[str, Residue]]
     residue_centroids: np.ndarray
-    water_index: List[Tuple[str, Residue]] = field(default_factory=list)
-    water_centroids: Optional[np.ndarray] = None
-    distance_matrix: Optional[np.ndarray] = None
-    raw_pdb_df: Optional[pd.DataFrame] = None
-    pdb_df: Optional[pd.DataFrame] = None
-    rgroup_df: Optional[pd.DataFrame] = None
-    dssp_df: Optional[pd.DataFrame] = None
+    water_index: list[tuple[str, Residue]] = field(default_factory=list)
+    water_centroids: np.ndarray | None = None
+    distance_matrix: np.ndarray | None = None
+    raw_pdb_df: pd.DataFrame | None = None
+    pdb_df: pd.DataFrame | None = None
+    rgroup_df: pd.DataFrame | None = None
+    dssp_df: pd.DataFrame | None = None
 
 
 class PDBGraphBuilder:
@@ -213,10 +210,10 @@ class PDBGraphBuilder:
     with filenames ``<stem>_distmat.npy`` and ``<stem>_residue_labels.txt``.
     """
 
-    def __init__(self, pdb_path: str, config: Optional[GraphConfig] = None) -> None:
+    def __init__(self, pdb_path: str, config: GraphConfig | None = None) -> None:
         self.pdb_path = pdb_path
         self.config = config or GraphConfig()
-        self.structure: Optional[Structure] = None
+        self.structure: Structure | None = None
 
     def load(self) -> None:
         """
@@ -257,8 +254,8 @@ class PDBGraphBuilder:
 
 
     def _compute_asa_rsa(
-        self, res_tuples: List[Tuple[str, Residue, np.ndarray]]
-    ) -> Tuple[Dict[str, Tuple[float, Optional[float]]], Optional[pd.DataFrame]]:
+        self, res_tuples: list[tuple[str, Residue, np.ndarray]]
+    ) -> tuple[dict[str, tuple[float, float | None]], pd.DataFrame | None]:
         """
         Compute per-residue ASA and RSA.
 
@@ -289,7 +286,7 @@ class PDBGraphBuilder:
         sr.compute(self.structure, level="R")
 
         def _asa_ref_from_structure() -> float:
-            vals: List[float] = []
+            vals: list[float] = []
             for _, res, _ in res_tuples:
                 aa3 = res.get_resname().strip().upper()
                 if aa3 in CANONICAL_AA3:
@@ -298,7 +295,7 @@ class PDBGraphBuilder:
 
         asa_ref = float(_asa_ref_from_structure())
 
-        out: Dict[str, Tuple[float, Optional[float]]] = {}
+        out: dict[str, tuple[float, float | None]] = {}
 
         if self.config.rsa_method == "dssp":
             model = self.structure[self.config.model_index]
@@ -312,7 +309,7 @@ class PDBGraphBuilder:
                 acc_array=self.config.dssp_acc_array,
             )
             idx2nid = {(res.get_parent().id, res.id): nid for nid, res, _ in res_tuples}
-            rows: List[Dict[str, object]] = []
+            rows: list[dict[str, object]] = []
 
             for key in dssp.keys():
                 nid = idx2nid.get(key)
@@ -395,7 +392,7 @@ class PDBGraphBuilder:
             out[nid] = (asa, None if rsa is None else float(rsa))
 
         return out, None
-   
+
     def _centroid_mask_for_group(self, g: pd.DataFrame) -> pd.Series:
         """
         Return a boolean mask selecting which atoms of a residue group `g` are
@@ -466,7 +463,7 @@ class PDBGraphBuilder:
         out.index.name = "node_id"
         return out
 
-    def _extract_ca_cb(self, raw_df: pd.DataFrame) -> Dict[str, Dict[str, Tuple[float, float, float]]]:
+    def _extract_ca_cb(self, raw_df: pd.DataFrame) -> dict[str, dict[str, tuple[float, float, float]]]:
         """
         Para cada node_id, retorna tuplas (x,y,z) para CA e CB.
         Se não existir, retorna (nan, nan, nan).
@@ -516,9 +513,9 @@ class PDBGraphBuilder:
         )
 
         nan3 = (float("nan"), float("nan"), float("nan"))
-        out: Dict[str, Dict[str, Tuple[float, float, float]]] = {}
+        out: dict[str, dict[str, tuple[float, float, float]]] = {}
 
-        def _to_tuple(row) -> Tuple[float, float, float]:
+        def _to_tuple(row) -> tuple[float, float, float]:
             if row is None or not hasattr(row, "values"):
                 return nan3
             vals = row.values.astype(float)
@@ -531,7 +528,7 @@ class PDBGraphBuilder:
             if n == 0 or not np.isfinite(n):
                 return v
             return v / n
-        
+
 
         for nid in all_nodes:
             ca_t = _to_tuple(ca_tbl.loc[nid] if nid in ca_tbl.index else None)
@@ -598,7 +595,7 @@ class PDBGraphBuilder:
             return pd.Series({"cx": cx, "cy": cy, "cz": cz})
 
         centroids = df.groupby("node_id", sort=False, group_keys=False).apply(_centroid_for_group)
- 
+
         # Representative atom selection (stable) — prefer CA, then CB, water O/OW, else first heavy
         def _score(row) -> int:
             an = str(row["atom_name"]).upper()
@@ -641,7 +638,7 @@ class PDBGraphBuilder:
 
         return reps.reset_index(drop=True)
 
-    def _make_atom_tables(self, chains: List[Chain]) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    def _make_atom_tables(self, chains: list[Chain]) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """
         Build atom-level DataFrames.
 
@@ -721,7 +718,7 @@ class PDBGraphBuilder:
         rgroup_df = rgroup_df.reindex(columns=cols)
         return raw_df, pdb_df, rgroup_df
 
-    def _select_chains(self) -> List[Chain]:
+    def _select_chains(self) -> list[Chain]:
         """
         Select chains according to configuration.
 
@@ -739,7 +736,7 @@ class PDBGraphBuilder:
         model = self.structure[self.config.model_index]
         if self.config.chains is None:
             return [ch for ch in model]
-        chains_found: List[Chain] = []
+        chains_found: list[Chain] = []
         wanted = set(self.config.chains)
         for ch in model:
             if ch.id in wanted:
@@ -748,7 +745,7 @@ class PDBGraphBuilder:
             raise ValueError(f"None of the requested chains were found: {self.config.chains}")
         return chains_found
 
-    def _collect_residues(self, chains: List[Chain]) -> List[Tuple[str, Residue, np.ndarray]]:
+    def _collect_residues(self, chains: list[Chain]) -> list[tuple[str, Residue, np.ndarray]]:
         """
         Collect protein residues and centroids.
 
@@ -757,7 +754,7 @@ class PDBGraphBuilder:
         list of tuple
             (node_id, Residue, centroid) for standard residues only.
         """
-        out: List[Tuple[str, Residue, np.ndarray]] = []
+        out: list[tuple[str, Residue, np.ndarray]] = []
         for ch in chains:
             for res in ch.get_residues():
                 if not _is_protein_residue(res):
@@ -767,7 +764,7 @@ class PDBGraphBuilder:
                 out.append((_node_id(ch.id, res), res, cent))
         return out
 
-    def _collect_waters(self, chains: List[Chain]) -> List[Tuple[str, Residue, np.ndarray]]:
+    def _collect_waters(self, chains: list[Chain]) -> list[tuple[str, Residue, np.ndarray]]:
         """
         Collect water residues and centroids when enabled.
 
@@ -778,7 +775,7 @@ class PDBGraphBuilder:
         """
         if not self.config.include_waters:
             return []
-        out: List[Tuple[str, Residue, np.ndarray]] = []
+        out: list[tuple[str, Residue, np.ndarray]] = []
         for ch in chains:
             for res in ch.get_residues():
                 if _is_water(res):
@@ -789,8 +786,8 @@ class PDBGraphBuilder:
 
     def _collect_nonprotein_residues(
         self,
-        chains: List[Chain],
-    ) -> List[Tuple[str, Residue, np.ndarray, str]]:
+        chains: list[Chain],
+    ) -> list[tuple[str, Residue, np.ndarray, str]]:
         """
         Collects non-protein residues (excluding water) and classifies them as:
 
@@ -800,7 +797,7 @@ class PDBGraphBuilder:
 
         Returns a list of (node_id, Residue, centroid, kind).
         """
-        out: List[Tuple[str, Residue, np.ndarray, str]] = []
+        out: list[tuple[str, Residue, np.ndarray, str]] = []
 
         for ch in chains:
             for res in ch.get_residues():
@@ -812,7 +809,7 @@ class PDBGraphBuilder:
 
                 aa_like = is_aa(res, standard=False)
 
-                kind: Optional[str] = None
+                kind: str | None = None
                 if aa_like and self.config.include_noncanonical_residues:
                     kind = "noncanonical_residue"
                 elif (not aa_like) and self.config.include_ligands:
@@ -870,8 +867,8 @@ class PDBGraphBuilder:
         if not res_tuples:
             raise ValueError("No protein residues found for the selected chains.")
 
-        asa_rsa: Dict[str, Tuple[float, Optional[float]]] = {}
-        dssp_df: Optional[pd.DataFrame] = None
+        asa_rsa: dict[str, tuple[float, float | None]] = {}
+        dssp_df: pd.DataFrame | None = None
         if self.config.compute_rsa:
             if res_tuples:
                 asa_rsa, dssp_df = self._compute_asa_rsa(res_tuples)
@@ -954,9 +951,9 @@ class PDBGraphBuilder:
 
             # if not (condition_1 and condition_2):
             G.add_edge(n1, n2, distance=d, kind="res-res")
-            
-        water_ids: List[str] = []
-        water_centroids: Optional[np.ndarray] = None
+
+        water_ids: list[str] = []
+        water_centroids: np.ndarray | None = None
         if water_tuples:
             water_ids = [t[0] for t in water_tuples]
             water_centroids = np.vstack([t[2] for t in water_tuples])

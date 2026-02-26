@@ -5,11 +5,10 @@ import argparse
 import json
 import logging
 import sys
-import re
-from pathlib import Path
 from collections import defaultdict
 from itertools import combinations
-from typing import Dict, Tuple, List, Literal, Optional, Any
+from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -22,11 +21,11 @@ from utils.preprocessing import create_graphs
 # =============================================================================
 # Leitura do manifest no seu padrão
 # =============================================================================
-def load_manifest(manifest_path: str) -> Dict[str, Any]:
+def load_manifest(manifest_path: str) -> dict[str, Any]:
     if not manifest_path:
         return {}
 
-    with open(manifest_path, "r") as f:
+    with open(manifest_path) as f:
         data = json.load(f)
 
     data.setdefault("settings", {})
@@ -66,10 +65,10 @@ def load_manifest(manifest_path: str) -> Dict[str, Any]:
 # =============================================================================
 # Scan de arquivos e construção de strings de input
 # =============================================================================
-def find_struct_files(dir_path: Path, patterns: List[str] = ["*.pdb", "*.cif"]) -> List[Path]:
+def find_struct_files(dir_path: Path, patterns: list[str] = ["*.pdb", "*.cif"]) -> list[Path]:
     if not dir_path.exists() or not dir_path.is_dir():
         raise FileNotFoundError(f"Pasta não encontrada: {dir_path}")
-    files: List[Path] = []
+    files: list[Path] = []
     for pat in patterns:
         files.extend(dir_path.rglob(pat))
     files = sorted(set(files))
@@ -77,13 +76,13 @@ def find_struct_files(dir_path: Path, patterns: List[str] = ["*.pdb", "*.cif"]) 
         raise RuntimeError(f"Nenhum arquivo .pdb ou .cif encontrado em {dir_path}")
     return files
 
-def build_label_map(files: List[Path]) -> Dict[str, str]:
+def build_label_map(files: list[Path]) -> dict[str, str]:
     """
     Retorna label -> caminho, usando stem como base.
     Resolve colisões com sufixos _2, _3, ...
     """
-    out: Dict[str, str] = {}
-    counts: Dict[str, int] = defaultdict(int)
+    out: dict[str, str] = {}
+    counts: dict[str, int] = defaultdict(int)
     for p in files:
         base = p.stem
         counts[base] += 1
@@ -91,7 +90,7 @@ def build_label_map(files: List[Path]) -> Dict[str, str]:
         out[label] = str(p)
     return out
 
-def files_to_comma_string(files: List[Path]) -> str:
+def files_to_comma_string(files: list[Path]) -> str:
     return ",".join(str(p) for p in files)
 
 
@@ -103,7 +102,7 @@ def _make_json_from_associated_graph(G: AssociatedGraph, out_json: Path) -> None
     Sem noTCR, sem IDs mágicos. Usa stem do arquivo como 'name'.
     """
     graphs_raw = G.graph_data
-    payload: Dict = {"original_graphs": {}}
+    payload: dict = {"original_graphs": {}}
 
     for graph_raw in graphs_raw:
         pdb_file = graph_raw["pdb_file"]
@@ -132,7 +131,7 @@ def _make_json_from_associated_graph(G: AssociatedGraph, out_json: Path) -> None
             nodes = list(comps[0][i].nodes)
             peptide_nodes = [node for node in nodes if all(node_.startswith("C") for node_ in node)]
             mhc_nodes = [node for node in nodes if all(node_.startswith("A") for node_ in node)]
-            mixed_nodes = [node for node in nodes if any(node_.startswith("C") for node_ in node)] 
+            mixed_nodes = [node for node in nodes if any(node_.startswith("C") for node_ in node)]
             edges = list(comps[0][i].edges)
             neighbors = {str(n): [str(nb) for nb in comps[0][i].neighbors(n)] for n in nodes}
             payload[j]["frames"][i] = {"nodes": nodes, "peptide_nodes": peptide_nodes, "mhc_nodes": mhc_nodes, "mixed_nodes": mixed_nodes, "edges": edges, "neighbors": neighbors}
@@ -174,7 +173,7 @@ def node_similarity_for_protein(frame, original_graphs, protein_keys, p):
     prot_name = og.get("name", prot_key)
 
     Vp = set(og["nodes"])
-    
+
     pep_orig_nodes = [node for node in Vp if node.startswith("C")]
     mhc_orig_nodes = [node for node in Vp if node.startswith("A")]
     inst = project_nodes_instances(nodes_assoc, p)
@@ -196,7 +195,7 @@ def node_similarity_for_protein(frame, original_graphs, protein_keys, p):
 
     unique_nodes_per_chain = {k: len(v) for k, v in groups.items()}
     unique_nodes_per_chain_json = json.dumps(unique_nodes_per_chain, ensure_ascii=False)
-    
+
     return dict(
         protein_index=p,
         protein_key=prot_key,
@@ -262,7 +261,7 @@ def summarize_frame_nodes(df_fp_nodes_for_frame):
         "node_cov_p10":         float(np.percentile(cov, 10)),
         "node_cov_p50":         float(np.percentile(cov, 50)),
         "node_cov_p90":         float(np.percentile(cov, 90)),
-        "n_proteins":           int(len(cov)),
+        "n_proteins":           len(cov),
         "mean_dup_rate":        float(df_fp_nodes_for_frame.get("duplication_rate", pd.Series([np.nan])).mean()),
         "mean_graph_size":      float(np.mean(n)),
         "sum_graph_size":       int(np.sum(n)),
@@ -376,7 +375,7 @@ def _save_eval_tables(out_dir: Path, df_fp_nodes: pd.DataFrame, df_frames_nodes_
                 cols = [lead] + [c for c in cols if c != lead]
         df_frames_nodes_w[cols].to_csv(out_dir / "nodes_summary_weighted.csv", index=False)
 
-def _build_associated_graph_from_string(file_string: str, run_name: str, out_dir: Path, manifest: Dict) -> Path:
+def _build_associated_graph_from_string(file_string: str, run_name: str, out_dir: Path, manifest: dict) -> Path:
     """
     Recebe a string única separada por vírgulas com caminhos de arquivos.
     Injeta no manifest e roda create_graphs + AssociatedGraph.
@@ -434,7 +433,7 @@ def _build_associated_graph_from_string(file_string: str, run_name: str, out_dir
 # =============================================================================
 # Modos de execução: ALL, PAIRWISE, BOTH
 # =============================================================================
-def run_all(dir_path: Path, out_root: Path, manifest: Dict) -> Tuple[pd.DataFrame, pd.DataFrame]:
+def run_all(dir_path: Path, out_root: Path, manifest: dict) -> tuple[pd.DataFrame, pd.DataFrame]:
     files = find_struct_files(dir_path)
     file_string = files_to_comma_string(files)
 
@@ -467,7 +466,7 @@ def run_all(dir_path: Path, out_root: Path, manifest: Dict) -> Tuple[pd.DataFram
     return df_fp_nodes, df_frames_nodes_w
 
 
-def run_pairwise(dir_path: Path, out_root: Path, manifest: Dict, score_column: str = "node_cov_wmean") -> Dict[str, pd.DataFrame]:
+def run_pairwise(dir_path: Path, out_root: Path, manifest: dict, score_column: str = "node_cov_wmean") -> dict[str, pd.DataFrame]:
     files = find_struct_files(dir_path)
     labels = build_label_map(files)  # label -> caminho
     refs = sorted(labels.keys())

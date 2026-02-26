@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 import numpy as np
-from typing import Iterable, List, Tuple, Dict, Optional
 
 
 def _valid_coord(x) -> bool:
@@ -18,11 +19,11 @@ def contact_map_from_graph(
     granularity: str,
     exclude_kinds: Iterable[str] = ("water",),
     fallback_to_centroid: bool = True,
-) -> Tuple[
+) -> tuple[
     np.ndarray,
-    List[str],
-    Dict[Tuple[str, str], int],
-    Dict[Tuple[str, str, str], int]
+    list[str],
+    dict[tuple[str, str], int],
+    dict[tuple[str, str, str], int]
 ]:
     """
     Return:
@@ -34,11 +35,11 @@ def contact_map_from_graph(
 
     gran = (granularity or "all_atoms").strip().lower()
 
-    node_order: List[str] = []
-    coords: List[np.ndarray] = []
-    chain_ids: List[str] = []
-    residue_numbers: List[str] = []
-    residue_names: List[str] = []
+    node_order: list[str] = []
+    coords: list[np.ndarray] = []
+    chain_ids: list[str] = []
+    residue_numbers: list[str] = []
+    residue_names: list[str] = []
 
     for nid, d in G.nodes(data=True):
         kind = d.get("kind") or ""
@@ -98,8 +99,8 @@ def contact_map_from_graph(
     residue_map = list(zip(chain_ids, residue_numbers))
     residue_map_all = list(zip(chain_ids, residue_numbers, residue_names))
 
-    residue_map_dict: Dict[Tuple[str, str], int] = {t: i for i, t in enumerate(residue_map)}
-    residue_map_dict_all: Dict[Tuple[str, str, str], int] = {
+    residue_map_dict: dict[tuple[str, str], int] = {t: i for i, t in enumerate(residue_map)}
+    residue_map_dict_all: dict[tuple[str, str, str], int] = {
         t: i for i, t in enumerate(residue_map_all)
     }
 

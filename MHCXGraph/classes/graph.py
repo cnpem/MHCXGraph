@@ -4,31 +4,32 @@ import copy
 import json
 import logging
 import re
+from collections.abc import Callable
 from pathlib import Path
-from typing import TypedDict, Callable, Any, Union, Optional, List, Tuple, Dict
+from typing import Any, TypedDict
 
-import networkx as nx
 import matplotlib.pyplot as plt
+import networkx as nx
 import numpy as np
 import pandas as pd
-from Bio.PDB import Structure, Model, Chain, Residue, Atom
+from Bio.PDB import Atom, Chain, Model, Residue, Structure
 from Bio.PDB.mmcifio import MMCIFIO
+from Bio.PDB.MMCIFParser import MMCIFParser
 from Bio.PDB.PDBIO import PDBIO
 from Bio.PDB.PDBParser import PDBParser
-from Bio.PDB.MMCIFParser import MMCIFParser
 from Bio.PDB.Superimposer import Superimposer
 from pyvis.network import Network
 
 from MHCXGraph.core.config import GraphConfig, make_default_config
 from MHCXGraph.core.pipeline import build_graph_with_config
 from MHCXGraph.core.subgraphs import extract_subgraph
-from MHCXGraph.utils.tools import association_product, add_sphere_residues
+from MHCXGraph.utils.tools import add_sphere_residues, association_product
 
 log = logging.getLogger("CRSProtein")
 
 def _rgba_to_hex(rgba):
     r, g, b, _ = rgba
-    return "#{:02x}{:02x}{:02x}".format(int(r*255), int(g*255), int(b*255))
+    return f"#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}"
 
 class GraphData(TypedDict):
     id: int
@@ -43,7 +44,7 @@ class GraphData(TypedDict):
 class Graph:
     """Represents a protein structure graph (no external framework assumptions)."""
 
-    def __init__(self, graph_path: str, config: Optional[GraphConfig] = None):
+    def __init__(self, graph_path: str, config: GraphConfig | None = None):
         """
         Parameters
         ----------
@@ -61,11 +62,11 @@ class Graph:
 
         self.graph: nx.Graph = build_graph_with_config(pdb_path=graph_path, config=self.config)
 
-        self.subgraphs: Dict[str, Union[nx.Graph, List[str]]] = {}
-        self.pdb_df: Optional[pd.DataFrame] = self.graph.graph.get("pdb_df")
-        self.raw_pdb_df: Optional[pd.DataFrame] = self.graph.graph.get("raw_pdb_df")
-        self.rgroup_df: Optional[pd.DataFrame] = self.graph.graph.get("rgroup_df")
-        self.dssp_df: Optional[pd.DataFrame] = self.graph.graph.get("dssp_df")
+        self.subgraphs: dict[str, nx.Graph | list[str]] = {}
+        self.pdb_df: pd.DataFrame | None = self.graph.graph.get("pdb_df")
+        self.raw_pdb_df: pd.DataFrame | None = self.graph.graph.get("raw_pdb_df")
+        self.rgroup_df: pd.DataFrame | None = self.graph.graph.get("rgroup_df")
+        self.dssp_df: pd.DataFrame | None = self.graph.graph.get("dssp_df")
 
     def get_subgraph(self, name:str):
         if name not in self.subgraphs.keys():
@@ -73,8 +74,8 @@ class Graph:
             return None
         else:
             return self.subgraphs[name]
-    
-    def create_subgraph(self, name: str, node_list: Optional[List] = None, return_node_list: bool = False, **args):
+
+    def create_subgraph(self, name: str, node_list: list | None = None, return_node_list: bool = False, **args):
         if node_list is None:
             node_list = []
 
@@ -85,25 +86,25 @@ class Graph:
             print(f"Subgraph {name} created with success!")
         elif node_list:
             self.subgraphs[name] = self.graph.subgraph(node_list)
-        
+
         if return_node_list:
             subgraphs_name = self.subgraphs[name]
             if isinstance(subgraphs_name, list):
-                return subgraphs_name           
+                return subgraphs_name
             elif isinstance(subgraphs_name, nx.Graph):
-                return subgraphs_name.nodes 
-        
+                return subgraphs_name.nodes
+
     def delete_subraph(self, name: str):
         if name in self.subgraphs.keys():
             del self.subgraphs[name]
         else:
             print(f"{name} isn't in.subgraphs")
 
-    def filter_subgraph(self, 
+    def filter_subgraph(self,
             subgraph_name: str,
             filter_func: Callable[..., Any],
-            name: Union[str, None] = None, 
-            return_node_list: bool = False) -> Union[None, List]:
+            name: str | None = None,
+            return_node_list: bool = False) -> None | list:
 
         subgraphs_sub_name = self.subgraphs[subgraph_name]
 
@@ -111,13 +112,13 @@ class Graph:
             print(f"{subgraph_name} is a list and not a nx.Graph")
             return
 
-        nodes = [i for i in subgraphs_sub_name.nodes if filter_func(i)] 
+        nodes = [i for i in subgraphs_sub_name.nodes if filter_func(i)]
 
         if name:
             self.subgraphs[name] = subgraphs_sub_name.subgraph(nodes)
         else:
             self.subgraphs[subgraph_name] = subgraphs_sub_name.subgraph(nodes)
-       
+
         target = self.subgraphs[name] if name else self.subgraphs[subgraph_name]
         if return_node_list and isinstance(target, nx.Graph):
             return list(target.nodes)
@@ -146,12 +147,12 @@ class Graph:
 
             if return_node_list:
                 subgraph_name = self.subgraphs[name]
-                if isinstance(subgraph_name, nx.Graph): 
+                if isinstance(subgraph_name, nx.Graph):
                     return list(subgraph_name.nodes)
         else:
             print("Some of your subgraph isn't in the subgraph list")
 
-    def to_raw_dict(self) -> Dict[str, Any]:
+    def to_raw_dict(self) -> dict[str, Any]:
         """
         Representação serializável do grafo bruto desta proteína.
         Só usa strings, sem objetos Python estranhos.
@@ -171,7 +172,7 @@ class Graph:
             "edges": edges,
             "neighbors": neighbors,
         }
-    def _nx_to_serializable(self, g: nx.Graph) -> Dict[str, Any]:
+    def _nx_to_serializable(self, g: nx.Graph) -> dict[str, Any]:
         """
         Converte um nx.Graph qualquer em um dicionário simples
         com nodes, edges e vizinhos, tudo como string.
@@ -191,10 +192,10 @@ class Graph:
             "neighbors": neighbors,
         }
 
-    def save_filtered_pdb(self, 
-        g: nx.Graph, 
-        output_path: Union[str, Path],
-        name: str, 
+    def save_filtered_pdb(self,
+        g: nx.Graph,
+        output_path: str | Path,
+        name: str,
         use_cif: bool = False):
 
         path = str(self.graph_path)
@@ -252,7 +253,7 @@ class Graph:
     def save_subgraph_view(
         self,
         g: nx.Graph,
-        output_dir: Union[str, Path],
+        output_dir: str | Path,
         name: str,
         with_html: bool = True,
     ) -> None:
@@ -362,8 +363,8 @@ class Graph:
 
     def save_raw_graph(
         self,
-        output_dir: Union[str, Path],
-        name: Optional[str] = None,
+        output_dir: str | Path,
+        name: str | None = None,
         with_html: bool = True,
     ) -> None:
         """
@@ -465,12 +466,12 @@ class Graph:
 
 class AssociatedGraph:
     """Handles the association of multiple protein graphs."""
-    
-    def __init__(self, 
-                graphs: List[Tuple],  
+
+    def __init__(self,
+                graphs: list[tuple],
                 output_path: str = ".",
                 run_name: str = "",
-                association_config: Optional[Dict[str, Any]] = None):
+                association_config: dict[str, Any] | None = None):
         """
         Initialize an AssociatedGraph instance with a reduced configuration.
         
@@ -484,16 +485,16 @@ class AssociatedGraph:
         else:
             self.association_config = association_config
 
-        self.track_residues = self.association_config.get("track_residues", None) 
+        self.track_residues = self.association_config.get("track_residues", None)
         self.graphs = graphs
         self.output_path = Path(output_path)
         self.run_name = run_name
-        
+
         self.graphs_data = self._prepare_graph_data()
-        
+
         result = association_product(graphs_data=self.graphs_data,
                                     config=self.association_config)
-        
+
         if result is not None:
             self.__dict__.update(result)
             self.associated_graphs = result["AssociatedGraph"]
@@ -550,8 +551,8 @@ class AssociatedGraph:
                 return res
 
         raise KeyError(f"Residue not found for label {label!r} (chain={chain_id}, resnum={resnum}, icode={icode!r})")
-    
-    def _prepare_graph_data(self) -> List[GraphData]:
+
+    def _prepare_graph_data(self) -> list[GraphData]:
         """
         For each (Graph, raw) tuple, build a dictionary with the necessary data:
             - "graph": The Graph instance.
@@ -565,7 +566,7 @@ class AssociatedGraph:
             contact_map = g.graph["contact_map"]
             residue_map = g.graph["residue_map_dict"]
             residue_map_all = g.graph["residue_map_dict_all"]
-          
+
             sorted_nodes = sorted(list(g.nodes()))
 
             data: GraphData = {
@@ -579,9 +580,9 @@ class AssociatedGraph:
                 "pdb_file": pdb_file
             }
             graphs_data.append(data)
-        
+
         return graphs_data
-    
+
 
     def create_pdb_per_protein(self):
         if not isinstance(self.associated_graphs, list):
@@ -685,7 +686,7 @@ class AssociatedGraph:
 
                 new_chain.id = f"{ch.id}{prot_idx}"
                 combo_model.add(new_chain)
-        
+
         output_dir.mkdir(exist_ok=True)
         out_path = output_dir / f"comp{comp_idx}_frame{frame_idx}_all.cif"
         io = MMCIFIO()
@@ -706,7 +707,7 @@ class AssociatedGraph:
 
         """
         parser = PDBParser(QUIET=True)
-        
+
         if self.associated_graphs is not None:
             for comp_idx, (frame_graphs, _) in enumerate(self.associated_graphs):
                 for frame_idx, assoc_graph in enumerate(frame_graphs):
@@ -913,7 +914,7 @@ class AssociatedGraph:
             return
 
         for j, comps in enumerate(self.associated_graphs):
-            for i, graph in enumerate(comps[0]): 
+            for i, graph in enumerate(comps[0]):
                 for node in graph.nodes():
                     residues = [r for r in node]  # flatten
                     chains = [r.split(':')[0] for r in residues]
@@ -946,9 +947,9 @@ class AssociatedGraph:
                 if show:
                     plt.show()
                 if save:
-                    if i == 0 and j == 0: 
+                    if i == 0 and j == 0:
                         filename = "Full Associated Graph Base.png"
-                    elif i == 0 and j !=0: 
+                    elif i == 0 and j !=0:
                         filename = f"{j} - Associated Graph Base.png"
                     else:
                         filename = f"{j} - Associated Graph {i}.png"
@@ -988,7 +989,7 @@ class AssociatedGraph:
                             for n in range(len(self.graphs)):
                                 node_names = [i[n] for i in get_node_names]
                                 list_node_names.append(node_names)
-        
+
                             add_sphere_residues(self.graphs, list_node_names, self.output_path, nodes[0])
 
                         else:
@@ -1015,12 +1016,12 @@ class AssociatedGraph:
         graphs = self.graphs
         associated_graph = self.associated_graphs
         visited = set()
-        
+
         # Initialize the subgraph with the given node
         subgraph = nx.Graph()
         subgraph.add_node(node)
         visited.add(node)
-        
+
         # Queue to store nodes to visit next
         queue = [(node, None)]  # (node, parent)
 
@@ -1029,18 +1030,18 @@ class AssociatedGraph:
             # Once it goes inside the neighbor loop, it will finish it even that it means to generate more neigbors than expected
             # Pop the node and its parent from the queue
             current_node, parent = queue.pop(0)
-            
+
             # If not the starting node, add edge to its parent
             if parent is not None:
                 subgraph.add_edge(current_node, parent)
-            
+
             # Iterate over neighbors of the current node
             neighbors = list(association_graph.neighbors(current_node))
 
-            #get euclidian distance between current node and neighbors to sort the neighbors list 
+            #get euclidian distance between current node and neighbors to sort the neighbors list
             #Mol A
             dists = []
-            
+
             for graph in graphs:
                 graph_matrix = graph[0].graph["pdb_df"]
                 current_node_index = graph_matrix[graph_matrix['node_id'] == current_node[0]].index[0]
@@ -1050,7 +1051,7 @@ class AssociatedGraph:
 
             # Get a average distance for sorting
             average_list = sum(dists)/len(graphs)
-            
+
             # Pair each nodes with its corresponding numeric value
             paired_list = list(zip(average_list, neighbors))
 
@@ -1066,17 +1067,17 @@ class AssociatedGraph:
                 if neighbor not in visited: #try to visit all in the neighbor layer
                     # Add the neighbor to the subgraph
                     subgraph.add_node(neighbor)
-                    
+
                     # Mark neighbor as visited
                     visited.add(neighbor)
-                    
+
                     # Add neighbor to the queue -> so that the neighbor will become current nodes and generate new neighbors
                     queue.append((neighbor, current_node))
-        
+
         # Add edges between selected nodes based on the original graph
         for u in subgraph.nodes():
             for v in subgraph.nodes():
                 if u != v and association_graph.has_edge(u, v):
                     subgraph.add_edge(u, v)
-        
+
         return subgraph

@@ -4,11 +4,11 @@ from itertools import combinations
 from pathlib import Path
 
 from MHCXGraph.cli.cli_parser import parse_args
-from MHCXGraph.workflow.manifest import load_manifest, build_association_config
-from MHCXGraph.workflow.association import run_association_task
-from MHCXGraph.utils.preprocessing import create_graphs
-from MHCXGraph.core.tracking import init_tracker
 from MHCXGraph.core.residue_tracking import ResidueTracker
+from MHCXGraph.core.tracking import init_tracker
+from MHCXGraph.utils.preprocessing import create_graphs
+from MHCXGraph.workflow.association import run_association_task
+from MHCXGraph.workflow.manifest import build_association_config, load_manifest
 
 
 def main():

@@ -1,9 +1,10 @@
-from functools import partial
-from graphein.protein.config import ProteinGraphConfig
-from graphein.protein.edges.distance import add_distance_threshold
-from graphein.protein.features.nodes.dssp import asa, rsa, secondary_structure
-from graphein.protein.config import DSSPConfig
 import json
+from functools import partial
+
+from graphein.protein.config import DSSPConfig, ProteinGraphConfig
+from graphein.protein.edges.distance import add_distance_threshold
+from graphein.protein.features.nodes.dssp import rsa, secondary_structure
+
 
 def make_graph_config(centroid_threshold):
     return ProteinGraphConfig(
@@ -14,8 +15,8 @@ def make_graph_config(centroid_threshold):
     )
 
 def parse_serd_config(json_path: str):
-    with open(json_path, "r") as f:
-        data = json.load(f)       
+    with open(json_path) as f:
+        data = json.load(f)
 
 
 

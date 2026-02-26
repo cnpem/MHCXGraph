@@ -1,10 +1,15 @@
 # core/serial.py
 from __future__ import annotations
-from pathlib import Path
-import json, numpy as np, pandas as pd, networkx as nx
-from networkx.readwrite import json_graph
-from types import SimpleNamespace
+
+import json
 from datetime import datetime
+from pathlib import Path
+from types import SimpleNamespace
+
+import networkx as nx
+import numpy as np
+import pandas as pd
+from networkx.readwrite import json_graph
 
 BASIC = (str, int, float, bool, type(None))
 
@@ -39,7 +44,7 @@ def _sanitize_value(v, outdir: Path, key: str):
     if isinstance(v, set):
         return {"__set__": [_sanitize_value(x, outdir, f"{key}_{i}") for i, x in enumerate(sorted(v, key=str))]}
     if isinstance(v, dict):
-        return {str(k): _sanitize_value(val, outdir, f"{key}_{str(k)}") for k, val in v.items()}
+        return {str(k): _sanitize_value(val, outdir, f"{key}_{k!s}") for k, val in v.items()}
     # SimpleNamespace → dict
     if isinstance(v, SimpleNamespace):
         return _sanitize_value(vars(v), outdir, key)
@@ -102,7 +107,7 @@ def load_graph_bundle(outdir: str) -> nx.Graph:
     ficam disponíveis para quem precisar carregar on-demand.
     """
     outdir = Path(outdir)
-    with open(outdir / "graph.json", "r", encoding="utf-8") as f:
+    with open(outdir / "graph.json", encoding="utf-8") as f:
         data = json.load(f)
 
     G = json_graph.node_link_graph({k: v for k, v in data.items()

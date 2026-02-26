@@ -3,11 +3,10 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
-
 
 
 def _make_json_from_associated_graph(G: AssociatedGraph, out_json: Path) -> None:
@@ -29,7 +28,7 @@ def _make_json_from_associated_graph(G: AssociatedGraph, out_json: Path) -> None
         Output path for the JSON file.
     """
     graphs_raw = G.graphs_data
-    payload: Dict[str, Any] = {"original_graphs": {}}
+    payload: dict[str, Any] = {"original_graphs": {}}
 
     for graph_raw in graphs_raw:
         pdb_file = graph_raw["pdb_file"]
@@ -104,7 +103,7 @@ def _make_json_from_associated_graph(G: AssociatedGraph, out_json: Path) -> None
         json.dump(payload, f, indent=4)
 
 
-def get_protein_keys(original_graphs: Dict[Any, Any]) -> List[str]:
+def get_protein_keys(original_graphs: dict[Any, Any]) -> list[str]:
     """
     Return a list of protein keys sorted numerically if keys are numeric strings.
 
@@ -124,7 +123,7 @@ def get_protein_keys(original_graphs: Dict[Any, Any]) -> List[str]:
     return keys
 
 
-def project_nodes_instances(frame_nodes: List[Any], p: int) -> List[str]:
+def project_nodes_instances(frame_nodes: list[Any], p: int) -> list[str]:
     """
     Project associated nodes onto the p-th protein.
 
@@ -164,7 +163,7 @@ def chain_signature(node_tuple: tuple) -> str:
     return "".join(chains)
 
 
-def unique_chain_signatures(frame_nodes: List[tuple]) -> List[str]:
+def unique_chain_signatures(frame_nodes: list[tuple]) -> list[str]:
     """
     Compute sorted unique chain signatures for all nodes in a frame.
 
@@ -182,11 +181,11 @@ def unique_chain_signatures(frame_nodes: List[tuple]) -> List[str]:
 
 
 def node_similarity_for_protein(
-    frame: Dict[str, Any],
-    original_graphs: Dict[str, Any],
-    protein_keys: List[str],
+    frame: dict[str, Any],
+    original_graphs: dict[str, Any],
+    protein_keys: list[str],
     p: int,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """
     Compute node coverage metrics for a single protein in one frame.
 
@@ -391,7 +390,7 @@ def ivw_mean_proportions(cov, n):
     return wmean(p, w)
 
 
-def summarize_frame_nodes(df_fp_nodes_for_frame: pd.DataFrame) -> Dict[str, Any]:
+def summarize_frame_nodes(df_fp_nodes_for_frame: pd.DataFrame) -> dict[str, Any]:
     """
     Compute weighted summaries for node coverage across proteins in a frame.
 
@@ -419,7 +418,7 @@ def summarize_frame_nodes(df_fp_nodes_for_frame: pd.DataFrame) -> Dict[str, Any]
         "node_cov_p10": float(np.percentile(cov, 10)),
         "node_cov_p50": float(np.percentile(cov, 50)),
         "node_cov_p90": float(np.percentile(cov, 90)),
-        "n_proteins": int(len(cov)),
+        "n_proteins": len(cov),
         "mean_dup_rate": float(
             df_fp_nodes_for_frame.get(
                 "duplication_rate", pd.Series([np.nan])
@@ -433,8 +432,8 @@ def summarize_frame_nodes(df_fp_nodes_for_frame: pd.DataFrame) -> Dict[str, Any]
 def evaluate_frame_nodes(
     component_id: Any,
     frame_id: Any,
-    data: Dict[str, Any],
-) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+    data: dict[str, Any],
+) -> tuple[pd.DataFrame, dict[str, Any]]:
     """
     Evaluate node coverage metrics for one frame across all proteins.
 
@@ -496,7 +495,7 @@ def evaluate_frame_nodes(
 
 def evaluate_all_frames_nodes(
     json_path: Path,
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Evaluate node coverage for all components and frames from a JSON file.
 
@@ -520,8 +519,8 @@ def evaluate_all_frames_nodes(
     except Exception:
         pass
 
-    all_fp: List[pd.DataFrame] = []
-    summaries: List[Dict[str, Any]] = []
+    all_fp: list[pd.DataFrame] = []
+    summaries: list[dict[str, Any]] = []
     for comp_id in component_ids:
         frames = data[comp_id]["frames"]
         frame_ids = list(frames.keys())
@@ -561,7 +560,7 @@ def evaluate_all_frames_nodes(
 
 def evaluate_all_frames_nodes_weighted(
     json_path: Path,
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Evaluate weighted node coverage summaries for all frames.
 
@@ -579,7 +578,7 @@ def evaluate_all_frames_nodes_weighted(
     """
     df_fp_nodes, _ = evaluate_all_frames_nodes(json_path)
 
-    summaries: List[Dict[str, Any]] = []
+    summaries: list[dict[str, Any]] = []
     if df_fp_nodes.empty:
         return df_fp_nodes, pd.DataFrame()
 

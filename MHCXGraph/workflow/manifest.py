@@ -1,14 +1,14 @@
 import json
 import os
 import shutil
+from typing import Any
 
-from typing import Dict, Any
 
-def load_manifest(manifest_path: str) -> Dict[str, Any]:
+def load_manifest(manifest_path: str) -> dict[str, Any]:
     if not manifest_path:
         return {}
 
-    with open(manifest_path, "r") as f:
+    with open(manifest_path) as f:
         data = json.load(f)
 
     data.setdefault("settings", {})
@@ -21,7 +21,7 @@ def load_manifest(manifest_path: str) -> Dict[str, Any]:
     S.setdefault("output_path", "./outputs")
 
     os.makedirs(S["output_path"], exist_ok=True)
-    
+
     shutil.copy2(manifest_path, S["output_path"]+"/manifest.json")
     S.setdefault("debug", False)
     S.setdefault("track_steps", False)
@@ -49,12 +49,12 @@ def load_manifest(manifest_path: str) -> Dict[str, Any]:
 
     S.setdefault("filter_triads_by_chain", None)
     S.setdefault("classes", {})
-    
+
     S.setdefault("watch_residues", None)
 
     return data
 
-def build_association_config(settings: Dict[str, Any], run_mode: str, tracker_residues) -> Dict[str, Any]:
+def build_association_config(settings: dict[str, Any], run_mode: str, tracker_residues) -> dict[str, Any]:
     """
     Build the association_config dict passed to AssociatedGraph.
 
@@ -82,7 +82,7 @@ def build_association_config(settings: Dict[str, Any], run_mode: str, tracker_re
         "classes":                  settings.get("classes", {}),
         "max_chunks":               settings.get("max_chunks"),
         "rsa_table":                settings.get("rsa_table", "Wilke"),
-        "filter_triads_by_chain":   settings.get("filter_triads_by_chain", None),
+        "filter_triads_by_chain":   settings.get("filter_triads_by_chain"),
         "watch_residues":           tracker_residues
     }
 

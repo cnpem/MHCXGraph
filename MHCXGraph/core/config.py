@@ -14,9 +14,9 @@ and a helper factory (`make_default_config`). The configuration covers:
 Tracking is external and not represented here.
 """
 
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable, Optional, Literal, Union
-
+from typing import Literal
 
 Granularity = Literal["all_atoms", "backbone", "side_chain", "ca_only"]
 # from enum import Enum
@@ -84,7 +84,7 @@ class GraphConfig:
         Enables additional logging when supported by the caller.
     """
     # Selection and waters
-    chains: Optional[Iterable[str]] = None
+    chains: Iterable[str] | None = None
     include_waters: bool = True
 
     # Geometry / graph
@@ -122,7 +122,7 @@ def make_default_config(
     *,
     edge_threshold: float = 10.0,
     granularity: Granularity = "all_atoms",
-    chains: Optional[Iterable[str]] = None,
+    chains: Iterable[str] | None = None,
     compute_rsa: bool = True,
     # rsa_method = "dssp",
     rsa_method: Literal["sr", "dssp"] = "dssp",

@@ -4,8 +4,8 @@ from pathlib import Path
 from MHCXGraph.classes.graph import AssociatedGraph
 from MHCXGraph.utils.analysis import (
     _make_json_from_associated_graph,
-    evaluate_all_frames_nodes_weighted,
     _save_eval_tables,
+    evaluate_all_frames_nodes_weighted,
 )
 
 

@@ -1,17 +1,17 @@
-from MHCXGraph.classes.graph import Graph
-from MHCXGraph.io_utils.pdb_io import list_pdb_files, get_user_selection
-from MHCXGraph.core.tracking import save
-from MHCXGraph.core.config import make_default_config
-
 import logging
-from pathlib import Path
-import time
-import networkx as nx
-from typing import Tuple, List, Dict, Optional, Any, Union
-from memory_profiler import profile
-import gemmi
 import os
 import re
+import time
+from pathlib import Path
+from typing import Any
+
+import gemmi
+import networkx as nx
+
+from MHCXGraph.classes.graph import Graph
+from MHCXGraph.core.config import make_default_config
+from MHCXGraph.core.tracking import save
+from MHCXGraph.io_utils.pdb_io import get_user_selection, list_pdb_files
 
 logger = logging.getLogger("Preprocessing")
 
@@ -21,7 +21,7 @@ class LogicError(Exception):
 
 
 def _eval_logic_expression(expr: str,
-                           sets: Dict[str, set],
+                           sets: dict[str, set],
                            universe: set) -> set:
     """Evaluate a boolean expression over named sets using &, |, ! and parentheses."""
     if not expr or not expr.strip():
@@ -93,7 +93,7 @@ def _eval_logic_expression(expr: str,
 
 def remove_water_from_pdb(source_file, dest_file):
     """Remove water molecules from a PDB or mmCIF file and save the cleaned version safely."""
-    
+
     if os.path.exists(dest_file) or "_nOH" in source_file:
         logger.debug(f"The file {dest_file} already exists.")
         return
@@ -114,17 +114,17 @@ def remove_water_from_pdb(source_file, dest_file):
         st.write_pdb(dest_file)
 
     logger.debug(f"Saved cleaned structure without waters: {dest_file}")
-    
+
 def get_exposed_residues(graph: Graph, rsa_filter = 0.1, asa_filter = 100.0, selection_params=None) -> nx.Graph:
     selection_params = selection_params or {}
     logic_expr = selection_params.get("logic")
 
-    graph.create_subgraph(name="exposed_residues", rsa_threshold=rsa_filter, asa_threshold=asa_filter) 
+    graph.create_subgraph(name="exposed_residues", rsa_threshold=rsa_filter, asa_threshold=asa_filter)
     exposed = graph.get_subgraph("exposed_residues")
     if exposed is None or exposed.number_of_nodes() == 0:
         raise Exception("No exposed residues found")
 
-    sets: Dict[str, set] = {}
+    sets: dict[str, set] = {}
     sets["exposed"] = set(exposed.nodes())
 
     universe = set(graph.graph.nodes())
@@ -139,7 +139,7 @@ def get_exposed_residues(graph: Graph, rsa_filter = 0.1, asa_filter = 100.0, sel
         base_nodes = set(chains_sub.nodes()) if chains_sub is not None else set()
         sets["chains"] = set(chains_sub.nodes()) if chains_sub is not None else set()
 
-        by_chain: Dict[str, set] = {}
+        by_chain: dict[str, set] = {}
         for n in base_nodes:
             d = G.nodes[n]
             cid = d.get("chain_id") or d.get("chain")
@@ -154,8 +154,8 @@ def get_exposed_residues(graph: Graph, rsa_filter = 0.1, asa_filter = 100.0, sel
         if not isinstance(residues_cfg, dict):
             raise TypeError(f"`residues` must be dict, got {type(residues_cfg)}")
 
-        selected_nodes: List[str] = []
-        per_chain: Dict[str, set] = {}
+        selected_nodes: list[str] = []
+        per_chain: dict[str, set] = {}
 
         for n, d in G.nodes(data=True):
             cid = d.get("chain_id") or d.get("chain")
@@ -176,7 +176,7 @@ def get_exposed_residues(graph: Graph, rsa_filter = 0.1, asa_filter = 100.0, sel
 
         for cid, nodes in per_chain.items():
             sets[f"residues:{cid}"] = nodes
-    
+
     if "structures" in selection_params:
         structures_cfg = selection_params["structures"]
 
@@ -186,7 +186,7 @@ def get_exposed_residues(graph: Graph, rsa_filter = 0.1, asa_filter = 100.0, sel
             base_nodes = set(s_sub.nodes()) if s_sub is not None else set()
             sets["structures"] = base_nodes
 
-            by_chain: Dict[str, set] = {}
+            by_chain: dict[str, set] = {}
             for n in base_nodes:
                 d = G.nodes[n]
                 cid = d.get("chain_id") or d.get("chain")
@@ -204,8 +204,8 @@ def get_exposed_residues(graph: Graph, rsa_filter = 0.1, asa_filter = 100.0, sel
             }
             default_structs = set(structures_cfg.get("*", []))
 
-            selected_nodes: List[str] = []
-            per_chain: Dict[str, set] = {}
+            selected_nodes: list[str] = []
+            per_chain: dict[str, set] = {}
 
             for n, d in G.nodes(data=True):
                 label = str(n)
@@ -240,7 +240,7 @@ def get_exposed_residues(graph: Graph, rsa_filter = 0.1, asa_filter = 100.0, sel
             )
 
     if not logic_expr:
-        union_sets: List[set] = []
+        union_sets: list[set] = []
         for key in ("residues", "chains", "structures"):
             s = sets.get(key)
             if s:
@@ -288,7 +288,7 @@ def _name_contains(fname: str, cond: Any) -> bool:
     except Exception:
         return False
 
-def _merge_constraints(base: Dict[str, Any], add: Dict[str, Any]) -> Dict[str, Any]:
+def _merge_constraints(base: dict[str, Any], add: dict[str, Any]) -> dict[str, Any]:
     """
     Merge chain, residue, and structure constraints from two selector blocks.
 
@@ -307,7 +307,7 @@ def _merge_constraints(base: Dict[str, Any], add: Dict[str, Any]) -> Dict[str, A
         field is preserved either as a list or as a dict; mixing both
         representations across inputs is not allowed and raises TypeError.
     """
-    out: Dict[str, Any] = {
+    out: dict[str, Any] = {
         "chains": [],
         "residues": {},
         "structures": None,
@@ -365,9 +365,9 @@ def _infer_is_dir_or_file(path_str: str) -> str:
     typical_exts = [".pdb", ".pdb.gz", ".cif", ".ent", ".mmcif"]
     return "file" if any(path_str.endswith(ext) for ext in typical_exts) else "dir"
 
-def list_struct_files(folder: Path, extensions: List[str]) -> List[Path]:
+def list_struct_files(folder: Path, extensions: list[str]) -> list[Path]:
     exts = set(extensions or [".pdb", ".pdb.gz", ".cif"])
-    files: List[Path] = []
+    files: list[Path] = []
     for p in folder.rglob("*"):
         if p.is_file():
             for ext in exts:
@@ -418,13 +418,13 @@ def collect_selected_files_from_manifest(manifest):
             out.append(it)
     return out
 
-def resolve_selection_params_for_file(file_path: Path, manifest: Dict[str, Any]) -> Dict[str, Any]:
+def resolve_selection_params_for_file(file_path: Path, manifest: dict[str, Any]) -> dict[str, Any]:
     if not manifest:
         return {}
     fname = file_path.name
     fpath_str = str(file_path.resolve())
-    merged: Dict[str, Any] = {}
-    merged_logic: Optional[str] = None
+    merged: dict[str, Any] = {}
+    merged_logic: str | None = None
 
     for rule in manifest.get("inputs", []):
         paths = rule.get("path")
@@ -479,13 +479,13 @@ def resolve_selection_params_for_file(file_path: Path, manifest: Dict[str, Any])
 
     return merged
 
-def create_graphs(manifest: Dict) -> List[Tuple]:
+def create_graphs(manifest: dict) -> list[tuple]:
 
     S = manifest["settings"]
 
     output_path = Path(S["output_path"]).expanduser().resolve()
     output_path.mkdir(parents=True, exist_ok=True)
-    
+
     # Retrieve the list of files passed via manifest.
     selected_files = collect_selected_files_from_manifest(manifest)
     if not selected_files:
@@ -500,7 +500,7 @@ def create_graphs(manifest: Dict) -> List[Tuple]:
         include_noncanonical_residues=S["include_noncanonical_residues"]
     )
 
-    graphs: List[Tuple] = []
+    graphs: list[tuple] = []
     start = time.perf_counter()
     for file_info in selected_files:
         orig_path = Path(file_info["input_path"]).resolve()

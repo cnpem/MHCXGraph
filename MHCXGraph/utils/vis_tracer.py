@@ -1,8 +1,9 @@
 # utils/vis_tracer.py
 from pathlib import Path
-import numpy as np
-import networkx as nx
+
 import matplotlib.pyplot as plt
+import networkx as nx
+import numpy as np
 
 try:
     import imageio.v2 as imageio  # para GIF
@@ -168,7 +169,7 @@ class TraversalTracer:
                 if self.G.has_node(u) and self.G.has_node(v) and self.G.has_edge(u, v):
                     H.add_edge(u, v)
             nx.draw_networkx_edges(H, self.pos, ax=ax, width=2.5, alpha=0.95)
-        
+
         ax.set_title(f"anchor={self.anchor} current={list(current)} chosen={len(chosen)} frontier={len(frontier)}", fontsize=8)
         ax.set_axis_off()
 

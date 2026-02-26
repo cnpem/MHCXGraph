@@ -1,6 +1,8 @@
 from __future__ import annotations
-from typing import Any, Dict, Optional
+
 from statistics import mean
+from typing import Any
+
 
 def _graph_mean(values):
     vals = [v for v in values if v is not None]
@@ -44,7 +46,7 @@ def secondary_structure(G, **ctx):
     # Se 'enabled' existir e for False, aborta. Se não existir, considera habilitado.
     if structure is None or not residue_map:
         return G
-    if dssp_cfg is not None and hasattr(dssp_cfg, "enabled") and not bool(getattr(dssp_cfg, "enabled")):
+    if dssp_cfg is not None and hasattr(dssp_cfg, "enabled") and not bool(dssp_cfg.enabled):
         return G
 
     try:

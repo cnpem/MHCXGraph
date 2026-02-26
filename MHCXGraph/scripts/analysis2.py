@@ -1,18 +1,19 @@
 from __future__ import annotations
 
 import json
-
-from pathlib import Path
-from collections import defaultdict
-import numpy as np
+import logging
 import re
+import sys
+from collections import defaultdict
+from itertools import combinations
+from pathlib import Path
+from typing import Literal
+
+import numpy as np
+import pandas as pd
 from graph.graph import AssociatedGraph
 from utils.preprocessing import create_graphs
-from itertools import combinations
-import pandas as pd
-from typing import Dict, Tuple, List, Literal, Optional
-import logging
-import sys, os
+
 
 def get_protein_keys(original_graphs: dict):
     keys = list(original_graphs.keys())
@@ -55,7 +56,7 @@ def  node_similarity_for_protein(frame, original_graphs, protein_keys, p):
     og = original_graphs[prot_key]
     prot_name = og.get("name", prot_key)
 
-    Vp = set(og["nodes"]) 
+    Vp = set(og["nodes"])
 
     inst = project_nodes_instances(nodes_assoc, p)
     Up   = set(inst)
@@ -144,7 +145,7 @@ def summarize_frame_nodes(df_fp_nodes_for_frame):
         "node_cov_p10":         float(np.percentile(cov, 10)),
         "node_cov_p50":         float(np.percentile(cov, 50)),
         "node_cov_p90":         float(np.percentile(cov, 90)),
-        "n_proteins":           int(len(cov)),
+        "n_proteins":           len(cov),
         "mean_dup_rate":        float(df_fp_nodes_for_frame.get("duplication_rate", pd.Series([np.nan])).mean()),
         "mean_graph_size":      float(np.mean(n)),
         "sum_graph_size":       int(np.sum(n)),
@@ -262,7 +263,7 @@ def _make_json_from_associated_graph(G, out_json: Path) -> None:
         Output path (will be created/overwritten).
     """
     graphs_raw = G.graph_data
-    payload: Dict = {"original_graphs": {}}
+    payload: dict = {"original_graphs": {}}
 
     for graph_raw in graphs_raw:
         pdb_file = graph_raw["pdb_file"]
@@ -317,7 +318,7 @@ def _save_eval_tables(out_dir: Path, df_fp_nodes: pd.DataFrame, df_frames_nodes_
         df_frames_nodes_w[cols].to_csv(out_dir / "nodes_summary_weighted.csv", index=False)
 
 
-def _build_associated_graph(files_name: str, run_name: str, out_dir: Path, manifest: Dict):
+def _build_associated_graph(files_name: str, run_name: str, out_dir: Path, manifest: dict):
     """
     Build graphs + AssociatedGraph and persist JSON.
 
@@ -392,7 +393,7 @@ def run_allxall_per_group(
     cross_df: pd.DataFrame,
     manifest: dict,
     root: str = "Analysis/CrossGraphs"
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Run the "All × All" flow once per TCR_pair_id and aggregate outputs.
 
@@ -477,7 +478,7 @@ def run_pairwise_per_group(
     manifest: dict,
     root: str = "Analysis/CrossGraphs",
     score_column: str = "node_cov_wmean"
-) -> Dict[str, Dict[str, pd.DataFrame]]:
+) -> dict[str, dict[str, pd.DataFrame]]:
     """
     Run the Pairwise flow (within each TCR_pair_id) and build similarity matrices.
     For each pair, also save the standard per-run evaluation tables.
@@ -500,7 +501,7 @@ def run_pairwise_per_group(
     dict
         Mapping pair_id -> {"max": DataFrame, "mean": DataFrame}
     """
-    out: Dict[str, Dict[str, pd.DataFrame]] = {}
+    out: dict[str, dict[str, pd.DataFrame]] = {}
 
     for pair_id, group in cross_df.groupby("TCR_pair_id"):
         refs = [str(x).strip() for x in group["PDB_ID"]]
@@ -593,7 +594,7 @@ def run_cross_analysis(
         - "pairwise": {"matrices": dict(pair_id -> {"max": df, "mean": df})}
         - "both": union of the above.
     """
-    results: Dict[str, object] = {}
+    results: dict[str, object] = {}
 
     if mode in ("all", "both"):
         df_all_fp, df_all_frames = run_allxall_per_group(cross_df, manifest, root=root)

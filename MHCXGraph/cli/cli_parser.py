@@ -1,5 +1,6 @@
 import argparse
 
+
 def none_or_float(value):
     if value == 'None':
         return None
@@ -30,23 +31,23 @@ def parse_args():
     # parser.add_argument('--run_name', type=str, default='test',
     #                     help='Name for storing results in the output folder')
     # parser.add_argument('--association_mode', type=str, default='identity',
-    #                     help='Mode for creating association nodes. Identify or similarity.')  
+    #                     help='Mode for creating association nodes. Identify or similarity.')
     # parser.add_argument('--exclude_waters', type=str2bool, default=True,
-    #                     help='Exclude water molecules from the graphs.')    
+    #                     help='Exclude water molecules from the graphs.')
     # parser.add_argument('--track_residues', type=str, default=None,
-    #                     help='List of residues to track in the process of association. If not provided, none will be tracked.')                                  
+    #                     help='List of residues to track in the process of association. If not provided, none will be tracked.')
     # parser.add_argument('--track_steps', type=str2bool, default=False,
     #                     help='Track steps in the association process. If True, it will track the steps, otherwise it will not.')
     # parser.add_argument('--centroid_granularity', type=str, default='all_atoms',
     #                     help='Granularity for building the graphs. Options are: all_atoms, backbone, side_chain, ca_only.')
-    
+
     # parser.add_argument('--output_path', type=str, default='~/',
     #                     help='Path to store output results.')
     # parser.add_argument('--factors_path', type=str, default=None,
     #                     help="Factors for calculating the residue similarity ")
     # parser.add_argument('--classes_path', type=str, default=None,
     #                     help="JSON File with the residues, RSA or depth agrouped by classes.")
-    
+
     # parser.add_argument('--manifest', type=str, default=None,
     #                     help="Path to Json file which contains the list of constrains to be used for each pdb file")
 
@@ -66,7 +67,7 @@ def parse_args():
     #                     help="The number of bins that the depth will be equally discretized")
     # parser.add_argument('--distance_bins', type=int, default=5,
     #                     help="The number of bins that the distance will be equally discretized")
- 
+
     # parser.add_argument('--serd_config', type=str, default=None,
     #                     help="Path to Json file which contains the SERD configuration" )
     # parser.add_argument('--angle_diff', type=float, default=20.0,
