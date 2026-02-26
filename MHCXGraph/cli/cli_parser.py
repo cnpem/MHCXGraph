@@ -1,7 +1,5 @@
 import argparse
 
-from NPGuestsInSMC.src import parser
-
 
 def none_or_float(value):
     if value == "None":
