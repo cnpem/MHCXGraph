@@ -1,5 +1,7 @@
 import argparse
 
+from NPGuestsInSMC.src import parser
+
 
 def none_or_float(value):
     if value == "None":
@@ -32,6 +34,7 @@ def parse_args():
         required=True,
         help="Path to the JSON manifest with complete set of parameters and settings.",
     )
+    parser.add_argument("-v", "--verbose", action="store_true")
     # parser.add_argument('--folder_path', type=str, default=None,
     #                     help='Folder path with PDB input files.')
     # parser.add_argument('--files_name', type=str, default=None,
