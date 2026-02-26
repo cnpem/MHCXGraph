@@ -1,2 +1,106 @@
+[build-system]
+requires = ["setuptools>=77.0.3,<81", "wheel>=0.45.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "MHCXGraph"
+description = "A python package for graph-based detection of structurally similar surface regions in protein complexes, with a focus on peptide-MHC (pMHC) systems involved in T cell receptor (TCR) recognition."
+authors = [
+    { name = "Carlos D. M. S. Simões ", email = "carlos.simoes@lnbio.cnpem.br" },
+    { name = "Rocio R. Maidana" },
+    { name = "João V. S. Guerra" },
+    { name = "Helder V. Ribeiro-Filho", email = "helder.ribeiro@lnbio.cnpem.br" },
+]
+maintainers = [
+    { name = "Carlos D. M. S. Simões ", email = "carlos.simoes@lnbio.cnpem.br" },
+]
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+readme = { file = "README.md", content-type = "text/markdown" }
+requires-python = ">=3.10,<4.0"
+keywords = [
+    "bioinformatics",
+    "structural biology",
+    "protein complexes",
+    "peptide-MHC",
+    "T cell receptor",
+    "graph-based analysis",
+    "cross-reactivity",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    'Programming Language :: Python',
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3 :: Only",
+    'Operating System :: Microsoft :: Windows',
+    'Operating System :: Unix',
+    'Operating System :: MacOS',
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+dependencies = [
+    "biopython>=1.86",
+    "gemmi>=0.7.4",
+    "matplotlib>=3.10.8",
+    "networkx>=3.4.2",
+    "numpy>=2.2.6",
+    "pandas>=2.3.3",
+    "pyvis>=0.3.2",
+    "scikit-learn>=1.7.2",
+]
+dynamic = ["version"]
+
+[project.urls]
+homepage = "https://github.com/cnpem/MHCXGraph/"
+documentation = "https://cnpem.github.io/MHCXGraph/"
+issues = "https://github.com/cnpem/MHCXGraph/issues"
+
 [project.scripts]
-ImmunoGraph = "immunograph.app:main"
+ImmunoGraph = "MHCXGraph.app:main"
+
+[project.optional-dependencies]
+dev = ["mypy>=1.15.0", "pre-commit>=4.1.0", "pytest>=8.3.5", "ruff>=0.11.0"]
+docs = [
+    "mkdocs>=1.6.1",
+    "mkdocstrings[python]>=0.29.0",
+    "mkdocs-material>=9.6.9",
+]
+
+[tool.setuptools]
+packages = ["MHCXGraph"]
+
+[tool.setuptools.dynamic]
+version = { attr = "MHCXGraph.__version__" }
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+fix = true
+
+[tool.ruff.lint]
+select = [
+    "A",
+    "B",
+    "C4",
+    "C90",
+    "E",
+    "F",
+    "I",
+    "PGH",
+    "RUF",
+    "S",
+    "SIM",
+    "T10",
+    "TRY",
+    "UP",
+    "W",
+    "YTT",
+]
+ignore = ["TRY003", "E501"]

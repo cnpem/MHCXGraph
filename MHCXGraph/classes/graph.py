@@ -19,10 +19,10 @@ from Bio.PDB.MMCIFParser import MMCIFParser
 from Bio.PDB.Superimposer import Superimposer
 from pyvis.network import Network
 
-from immunograph.core.config import GraphConfig, make_default_config
-from immunograph.core.pipeline import build_graph_with_config
-from immunograph.core.subgraphs import extract_subgraph
-from immunograph.utils.tools import association_product, add_sphere_residues
+from MHCXGraph.core.config import GraphConfig, make_default_config
+from MHCXGraph.core.pipeline import build_graph_with_config
+from MHCXGraph.core.subgraphs import extract_subgraph
+from MHCXGraph.utils.tools import association_product, add_sphere_residues
 
 log = logging.getLogger("CRSProtein")
 

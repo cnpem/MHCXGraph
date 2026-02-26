@@ -1,8 +1,8 @@
 import json
 from pathlib import Path
 
-from immunograph.classes.graph import AssociatedGraph
-from immunograph.utils.analysis import (
+from MHCXGraph.classes.graph import AssociatedGraph
+from MHCXGraph.utils.analysis import (
     _make_json_from_associated_graph,
     evaluate_all_frames_nodes_weighted,
     _save_eval_tables,
@@ -20,7 +20,9 @@ def run_association_task(graphs, output_path, run_name, association_config, log)
     task_config = association_config.copy()
     task_config["output_path"] = str(output_path)
 
-    log.info(f"Starting run '{run_name}' in mode: {task_config['run_mode']} with {len(graphs)} graphs.")
+    log.info(
+        f"Starting run '{run_name}' in mode: {task_config['run_mode']} with {len(graphs)} graphs."
+    )
     log.info(f"Output directory: {output_path}")
 
     G = AssociatedGraph(
@@ -37,7 +39,7 @@ def run_association_task(graphs, output_path, run_name, association_config, log)
     log.debug(f"Drawing Graph for {run_name}")
     G.draw_graph_interactive(show=False, save=True)
     # G.draw_graph(show=False, save=True)
-    
+
     G.create_pdb_per_protein()
     G.align_all_frames()
 
@@ -60,7 +62,7 @@ def run_association_task(graphs, output_path, run_name, association_config, log)
             graph_data[j]["frames"][i] = {
                 "nodes": nodes,
                 "edges": edges,
-                "neighbors": neighbors
+                "neighbors": neighbors,
             }
 
     output_json = output_path / f"graph_{run_name}.json"
@@ -88,5 +90,3 @@ def run_association_task(graphs, output_path, run_name, association_config, log)
         log.info(f"Evaluation tables saved in {output_path}")
     except Exception as e:
         log.error(f"Failed to compute evaluation tables: {e}")
-
-

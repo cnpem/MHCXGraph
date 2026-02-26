@@ -1,9 +1,9 @@
 from __future__ import annotations
 import tempfile
 
-from immunograph.core.config import GraphConfig, DSSPConfig
-from immunograph.core.metadata import secondary_structure
-from immunograph.core.contact_map import contact_map_from_graph
+from MHCXGraph.core.config import GraphConfig, DSSPConfig
+from MHCXGraph.core.metadata import secondary_structure
+from MHCXGraph.core.contact_map import contact_map_from_graph
 
 import json
 import logging

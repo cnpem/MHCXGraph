@@ -4,8 +4,8 @@ from dataclasses import asdict
 from pathlib import Path
 import networkx as nx
 
-from immunograph.core.pdb_graph_builder import PDBGraphBuilder
-from immunograph.core.config import GraphConfig
+from MHCXGraph.core.pdb_graph_builder import PDBGraphBuilder
+from MHCXGraph.core.config import GraphConfig
 
 def build_graph_with_config(pdb_path: str, config: GraphConfig) -> nx.Graph:
     """

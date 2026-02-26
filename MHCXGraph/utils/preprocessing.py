@@ -1,7 +1,7 @@
-from immunograph.classes.graph import Graph
-from immunograph.io_utils.pdb_io import list_pdb_files, get_user_selection
-from immunograph.core.tracking import save
-from immunograph.core.config import make_default_config
+from MHCXGraph.classes.graph import Graph
+from MHCXGraph.io_utils.pdb_io import list_pdb_files, get_user_selection
+from MHCXGraph.core.tracking import save
+from MHCXGraph.core.config import make_default_config
 
 import logging
 from pathlib import Path

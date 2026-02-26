@@ -1,6 +1,6 @@
 from __future__ import annotations 
-from immunograph.core.residue_tracking import ResidueTracker, TrackCtx
-from immunograph.core.tracking import save
+from MHCXGraph.core.residue_tracking import ResidueTracker, TrackCtx
+from MHCXGraph.core.tracking import save
 
 import numpy as np
 from itertools import combinations, product, chain
@@ -20,7 +20,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 import json
 import math
 import bisect
-from immunograph.utils.vis_tracer import TraversalTracer
+from MHCXGraph.utils.vis_tracer import TraversalTracer
 
 log = logging.getLogger("CRSProtein")
 
