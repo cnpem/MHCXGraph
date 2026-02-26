@@ -63,7 +63,7 @@ documentation = "https://cnpem.github.io/MHCXGraph/"
 issues = "https://github.com/cnpem/MHCXGraph/issues"
 
 [project.scripts]
-ImmunoGraph = "MHCXGraph.app:main"
+MHCXGraph = "MHCXGraph.app:main"
 
 [project.optional-dependencies]
 dev = ["mypy>=1.15.0", "pre-commit>=4.1.0", "pytest>=8.3.5", "ruff>=0.11.0"]
