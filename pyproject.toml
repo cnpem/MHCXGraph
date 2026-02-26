@@ -103,4 +103,3 @@ select = [
     "W",
     "YTT",
 ]
-ignore = ["TRY003", "E501"]
