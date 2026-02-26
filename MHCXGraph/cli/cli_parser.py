@@ -26,6 +26,7 @@ def parse_args():
         "(TCR) recognition."
     )
     parser.add_argument(
+        "manifest",
         type=str,
         metavar="<path>",
         required=True,
