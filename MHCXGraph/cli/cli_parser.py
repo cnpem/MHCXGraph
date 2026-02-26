@@ -2,24 +2,35 @@ import argparse
 
 
 def none_or_float(value):
-    if value == 'None':
+    if value == "None":
         return None
     return float(value)
+
 
 def str2bool(v):
     if isinstance(v, bool):
         return v
-    if v.lower() in ('yes', 'true', 't', '1'):
+    if v.lower() in ("yes", "true", "t", "1"):
         return True
-    elif v.lower() in ('no', 'false', 'f', '0'):
+    elif v.lower() in ("no", "false", "f", "0"):
         return False
-    raise argparse.ArgumentTypeError('Boolean value expected.')
+    raise argparse.ArgumentTypeError("Boolean value expected.")
+
 
 def parse_args():
     """Configura e retorna os argumentos CLI."""
-    parser = argparse.ArgumentParser(description="Building common subgraphs")
-    parser.add_argument("--manifest", type=str, required=True,
-                help="Path to the unified JSON manifest.")
+    parser = argparse.ArgumentParser(
+        description="A python package for graph-based detection of "
+        "structurally similar surface regions in protein complexes, with a "
+        "focus on peptide-MHC (pMHC) systems involved in T cell receptor "
+        "(TCR) recognition."
+    )
+    parser.add_argument(
+        type=str,
+        metavar="<path>",
+        required=True,
+        help="Path to the JSON manifest with complete set of parameters and settings.",
+    )
     # parser.add_argument('--folder_path', type=str, default=None,
     #                     help='Folder path with PDB input files.')
     # parser.add_argument('--files_name', type=str, default=None,
