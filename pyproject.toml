@@ -73,8 +73,9 @@ docs = [
     "mkdocs-material>=9.6.9",
 ]
 
-[tool.setuptools]
-packages = ["MHCXGraph"]
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["MHCXGraph*"]
 
 [tool.setuptools.dynamic]
 version = { attr = "MHCXGraph.__version__" }
