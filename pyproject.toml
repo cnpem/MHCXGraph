@@ -53,7 +53,8 @@ dependencies = [
     "numpy>=2.2.6",
     "pandas>=2.3.3",
     "pyvis>=0.3.2",
-    "psutil"
+    "psutil",
+    "coloredlogs>=15.0.1",
 ]
 dynamic = ["version"]
 
