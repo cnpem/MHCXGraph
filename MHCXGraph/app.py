@@ -10,7 +10,7 @@ from MHCXGraph.core.tracking import init_tracker
 from MHCXGraph.utils.preprocessing import create_graphs
 from MHCXGraph.workflow.association import run_association_task
 from MHCXGraph.workflow.manifest import build_association_config, load_manifest
-
+from MHCXGraph.utils.logging_utils import setup_logging, get_log
 
 def main():
     args = parse_args()
@@ -28,7 +28,7 @@ def main():
     init_tracker(
         root="CrossSteps",
         outdir=base_output_path / base_run_name,
-        enabled=S.get("track_steps", False),
+        enabled=S.get("debug_tracking", False),
         prefer_npy_for_ndarray=True,
         add_timestamp_prefix=False,
     )
@@ -36,33 +36,19 @@ def main():
     logging.getLogger("matplotlib").setLevel(logging.ERROR)
     logging.basicConfig(
         stream=sys.stdout,
-        level=logging.DEBUG if S.get("debug", False) else logging.INFO,
+        level=logging.DEBUG if S.get("debug_logs", False) else logging.INFO,
     )
 
-    log = logging.getLogger("MHCXGraph")
-    log.setLevel(logging.DEBUG if S.get("debug", False) else logging.INFO)
-
-    log.info(f"Current log level: {logging.getLevelName(log.level)}")
-
-    debug_log_path = base_output_path / base_run_name / "debug.log"
-    debug_log_path.parent.mkdir(parents=True, exist_ok=True)
-
-    file_handler = logging.FileHandler(debug_log_path, mode="a", encoding="utf-8")
-    file_handler.setLevel(logging.DEBUG)
-
-    formatter = logging.Formatter(
-        "%(asctime)s [%(levelname)s] %(name)s | %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S"
+    setup_logging(
+        outdir=Path(base_output_path) / base_run_name,
+        debug=bool(S.get("debug_logs", False)),
+        verbose=bool(S.get("verbose", False)),
     )
-    file_handler.setFormatter(formatter)
 
-    # Attach only to your logger
-    log.addHandler(file_handler)
-    coloredlogs.install(level='DEBUG', logger=log)
+    log = get_log()
 
     log.debug("Debug file logging initialized")
-    
-
+ 
     graphs = create_graphs(manifest)
     base_association_config = build_association_config(S, run_mode, tracker_residues)
 

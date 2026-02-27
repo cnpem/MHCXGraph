@@ -6,7 +6,10 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 
-log = logging.getLogger(__name__)
+from MHCXGraph.utils.logging_utils import get_log
+
+# log = logging.getLogger(__name__)
+log = get_log()
 
 """
 Subgraph utilities for protein structure graphs.

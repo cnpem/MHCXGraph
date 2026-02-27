@@ -18,9 +18,10 @@ from Bio.PDB.Structure import Structure
 from MHCXGraph.core.config import DSSPConfig, GraphConfig
 from MHCXGraph.core.contact_map import contact_map_from_graph
 from MHCXGraph.core.metadata import secondary_structure
+from MHCXGraph.utils.logging_utils import get_log
 
-log = logging.getLogger(__name__)
-
+# log = logging.getLogger(__name__)
+log = get_log()
 """
 Structural graph builder for pMHC using Bio.PDB and NetworkX.
 

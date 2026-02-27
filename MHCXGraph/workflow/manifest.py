@@ -23,8 +23,9 @@ def load_manifest(manifest_path: str) -> dict[str, Any]:
     os.makedirs(S["output_path"], exist_ok=True)
 
     shutil.copy2(manifest_path, S["output_path"]+"/manifest.json")
-    S.setdefault("debug", False)
-    S.setdefault("track_steps", False)
+    S.setdefault("debug_logs", False)
+    S.setdefault("verbose", False)
+    S.setdefault("debug_tracking", False)
     S.setdefault("rsa_table", "Wilke")
 
     S.setdefault("edge_threshold", 8.5)
@@ -83,6 +84,8 @@ def build_association_config(settings: dict[str, Any], run_mode: str, tracker_re
         "max_chunks":               settings.get("max_chunks"),
         "rsa_table":                settings.get("rsa_table", "Wilke"),
         "filter_triads_by_chain":   settings.get("filter_triads_by_chain"),
-        "watch_residues":           tracker_residues
+        "watch_residues":           tracker_residues,
+        "debug_logs":               settings.get("debug_logs", False),
+        "verbose":                  settings.get("verbose", False)
     }
 

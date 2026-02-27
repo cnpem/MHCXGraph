@@ -23,10 +23,10 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 from MHCXGraph.core.residue_tracking import ResidueTracker, TrackCtx
 from MHCXGraph.core.tracking import save
-from MHCXGraph.utils.vis_tracer import TraversalTracer
+from MHCXGraph.utils.logging_utils import get_log
 
-log = logging.getLogger("MHCXGraph")
-
+# log = logging.getlog("MHCXGraph")
+log = get_log()
 #Ts = TypeVarTuple("Ts")
 
 # Triad = Tuple[str, str, str, Unpack[Ts]]
@@ -103,7 +103,6 @@ def filter_maps_by_nodes(data: dict,
                         distance_threshold: float = 10.0,
                     ) -> tuple[dict, dict]:
 
-    logger = logging.getLogger("association.filter_maps_by_nodes")
 
     contact_maps = data["contact_maps"]
     rsa_maps = data["rsa_maps"]
@@ -124,7 +123,7 @@ def filter_maps_by_nodes(data: dict,
         for i, node in enumerate(nodes):
             parts = node.split(":")
             if len(parts) != 3:
-                logger.warning(f"Node '{node}' does not have three parts separated by ':'")
+                log.warning(f"Node '{node}' does not have three parts separated by ':'")
                 continue
 
             chain, res_name, res_num_str = parts
@@ -696,8 +695,8 @@ def find_triads(graph_data, classes, config, checks, protein_index, tracker: Res
             tracker.triads_built(ctx=ctx, token=triad, triads_absolute=data["triads_absolute"])
 
 
-    logging.info(f"N Nodes: {n_nodes} | N Edges: {n_edges} | N Triad: {n_triad} | Unique Triad: {len(triads.keys())}")
-    logging.debug(f"Counters: {counters}")
+    log.info(f"N Nodes: {n_nodes} | N Edges: {n_edges} | N Triad: {n_triad} | Unique Triad: {len(triads.keys())}")
+    log.debug(f"Counters: {counters}")
 
     return triads
 
@@ -1513,22 +1512,6 @@ def process_chunk(step_idx, chunk_idx, chunk_triads, graphs_data, global_state, 
         save(f"comp_id_{comp_id}", "coherent_matrices", coherent_matrices)
         save(f"comp_id_{comp_id}", "coherent_maps", coherent_maps)
 
-        debugar_ = True if len(nodes) > 300 else False
-
-
-        # Tracer for DFS debugging, not useful in real application
-        tracer = TraversalTracer(
-            out_dir=Path(config["output_path"]) / "viz_runs",
-            fmt="mp4",
-            fps=12,
-            sample_every=50,
-            max_frames=2000,
-            dpi=110,
-            enabled=False
-        )
-
-        if not debugar_:
-            tracer.enabled = False
 
         steps_end = True if step_idx == steps else False
         frames, union_graph, error = generate_frames(
@@ -1539,8 +1522,7 @@ def process_chunk(step_idx, chunk_idx, chunk_triads, graphs_data, global_state, 
             chunk_id=chunk_idx,
             step=step_idx,
             config=config,
-            debug=debugar_,
-            tracer=tracer,
+            debug=config["debug_logs"],
             nodes=nodes,
             steps_end=steps_end,
             residue_tracker=residue_tracker
@@ -1574,7 +1556,6 @@ def process_chunk(step_idx, chunk_idx, chunk_triads, graphs_data, global_state, 
 def association_product(graphs_data: list,
                         config: dict,
                         debug: bool = True) -> dict[str, list] | None:
-    logger = logging.getLogger("association.association_product")
 
     residue_tracker = config.get("watch_residues")
 
@@ -1634,11 +1615,11 @@ def association_product(graphs_data: list,
         "nodes_graphs": graph_collection["nodes_graphs"]
     }
 
-    logger.info("Creating pruned and thresholded arrays...")
+    log.info("Creating pruned and thresholded arrays...")
     matrices_dict, maps = filter_maps_by_nodes(filter_input,
                                             distance_threshold=config["edge_threshold"],
                                             matrices_dict=matrices_dict)
-    logger.info("Arrays created successfully!")
+    log.info("Arrays created successfully!")
 
     current_value = 0
     maps["residue_maps_unique_break"] = {}
@@ -1724,7 +1705,7 @@ def association_product(graphs_data: list,
         "AssociatedGraph": final_graphs
     }
 
-def generate_frames(component_graph, matrices, maps, len_component, chunk_id, step, config, debug=False, debug_every=5000, tracer: TraversalTracer | None=None, nodes=None, steps_end=False, residue_tracker: ResidueTracker | None=None):
+def generate_frames(component_graph, matrices, maps, len_component, chunk_id, step, config, debug=False, debug_every=5000, nodes=None, steps_end=False, residue_tracker: ResidueTracker | None=None):
     """
     Build frames by branching on coherent groups of the frontier.
 
@@ -2342,54 +2323,4 @@ def add_sphere_residues(graphs, list_node_names_mol, output_path, node_name):
         io = PDBIO()
         io.set_structure(new_structure)
         io.save(path.join(output_path,f'spheres_{name}_{node_name}.pdb'))
-
-def convert_1aa3aa(AA):
-    amino_acid_codes = {
-    'A': 'ALA',
-    'R': 'ARG',
-    'N': 'ASN',
-    'D': 'ASP',
-    'C': 'CYS',
-    'E': 'GLU',
-    'Q': 'GLN',
-    'G': 'GLY',
-    'H': 'HIS',
-    'I': 'ILE',
-    'L': 'LEU',
-    'K': 'LYS',
-    'M': 'MET',
-    'F': 'PHE',
-    'P': 'PRO',
-    'S': 'SER',
-    'T': 'THR',
-    'W': 'TRP',
-    'Y': 'TYR',
-    'V': 'VAL'}
-
-    return amino_acid_codes[AA]
-
-def convert_3aa1aa(AA):
-    amino_acid_codes = {
-    'ALA': 'A',
-    'ARG': 'R',
-    'ASN': 'N',
-    'ASP': 'D',
-    'CYS': 'C',
-    'GLU': 'E',
-    'GLN': 'Q',
-    'GLY': 'G',
-    'HIS': 'H',
-    'ILE': 'I',
-    'LEU': 'L',
-    'LYS': 'K',
-    'MET': 'M',
-    'PHE': 'F',
-    'PRO': 'P',
-    'SER': 'S',
-    'THR': 'T',
-    'TRP': 'W',
-    'TYR': 'Y',
-    'VAL': 'V'}
-
-    return amino_acid_codes[AA]
 
