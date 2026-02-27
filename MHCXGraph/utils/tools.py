@@ -1517,7 +1517,7 @@ def process_chunk(step_idx, chunk_idx, chunk_triads, graphs_data, global_state, 
 
         # Tracer for DFS debugging, not useful in real application
         tracer = TraversalTracer(
-            out_dir="viz_runs",
+            out_dir=config["output_path"] / "viz_runs",
             fmt="mp4",
             fps=12,
             sample_every=50,

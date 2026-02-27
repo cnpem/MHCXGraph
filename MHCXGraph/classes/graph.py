@@ -889,7 +889,7 @@ class AssociatedGraph:
                         local=True
                     )
 
-                    with open(str(full), "w+") as out:
+                    with open(str(full), "w+", encoding="utf-8") as out:
                         out.write(html)
 
                     log.info(f"{j}: saved graph {i} to {full}")
@@ -901,7 +901,7 @@ class AssociatedGraph:
                         local=True
                     )
 
-                    with open(str(tmpfile), "w+") as out:
+                    with open(str(tmpfile), "w+", encoding="utf-8") as out:
                         out.write(html)
 
     def draw_graph(self, show=False, save=True):

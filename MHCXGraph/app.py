@@ -26,7 +26,7 @@ def main():
 
     init_tracker(
         root="CrossSteps",
-        outdir=base_run_name,
+        outdir=base_output_path / base_run_name,
         enabled=S.get("track_steps", False),
         prefer_npy_for_ndarray=True,
         add_timestamp_prefix=False,

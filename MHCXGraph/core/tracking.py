@@ -171,18 +171,21 @@ def init_tracker(
     enabled: bool = True,
     prefer_npy_for_ndarray: bool = False,
     add_timestamp_prefix: bool = False
-) -> Tracker:
+) -> Tracker | None:
     """Inicializa/atualiza o tracker global com sua configuração."""
-    cfg = TrackerConfig(
-        root=root,
-        outdir=outdir,
-        enabled=enabled,
-        prefer_npy_for_ndarray=prefer_npy_for_ndarray,
-        add_timestamp_prefix=add_timestamp_prefix,
-    )
-    tracker = Tracker(cfg)
-    _set_global(tracker)
-    return tracker
+    if enabled:
+        cfg = TrackerConfig(
+            root=root,
+            outdir=outdir,
+            enabled=enabled,
+            prefer_npy_for_ndarray=prefer_npy_for_ndarray,
+            add_timestamp_prefix=add_timestamp_prefix,
+        )
+        tracker = Tracker(cfg)
+        _set_global(tracker)
+        return tracker
+    else:
+        return None
 
 def get_current(_default_none: bool = False) -> Tracker | None:
     if _global_tracker is None:
