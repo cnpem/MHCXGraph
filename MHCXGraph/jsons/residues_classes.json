@@ -1,5 +1,4 @@
 {
-    
     "residues": {
         "HID": ["ALA", "VAL", "LEU", "ILE", "MET"],
         "POL": ["SER", "THR", "ASN", "GLN", "CYS"],
