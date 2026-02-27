@@ -45,7 +45,7 @@ class Tracker:
 
         run_dir = cfg.outdir or _rand_id(6)
         self.base = Path(cfg.root) / run_dir
-        self.base.mkdir(parents=True, exist_ok=True)
+        if self.cfg.enabled: self.base.mkdir(parents=True, exist_ok=True)
 
         # metadados mínimos da execução
         meta = {
@@ -53,7 +53,7 @@ class Tracker:
             "run_dir": str(self.base),
             "enabled": cfg.enabled,
         }
-        (self.base / "_meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
+        if self.cfg.enabled: (self.base / "_meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
 
     # contador incremental seguro (thread-safe)
     def _next_index(self) -> int:
@@ -171,21 +171,18 @@ def init_tracker(
     enabled: bool = True,
     prefer_npy_for_ndarray: bool = False,
     add_timestamp_prefix: bool = False
-) -> Tracker | None:
+) -> Tracker:
     """Inicializa/atualiza o tracker global com sua configuração."""
-    if enabled:
-        cfg = TrackerConfig(
-            root=root,
-            outdir=outdir,
-            enabled=enabled,
-            prefer_npy_for_ndarray=prefer_npy_for_ndarray,
-            add_timestamp_prefix=add_timestamp_prefix,
-        )
-        tracker = Tracker(cfg)
-        _set_global(tracker)
-        return tracker
-    else:
-        return None
+    cfg = TrackerConfig(
+        root=root,
+        outdir=outdir,
+        enabled=enabled,
+        prefer_npy_for_ndarray=prefer_npy_for_ndarray,
+        add_timestamp_prefix=add_timestamp_prefix,
+    )
+    tracker = Tracker(cfg)
+    _set_global(tracker)
+    return tracker
 
 def get_current(_default_none: bool = False) -> Tracker | None:
     if _global_tracker is None:

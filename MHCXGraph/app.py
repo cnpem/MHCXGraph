@@ -1,4 +1,5 @@
 import logging
+import coloredlogs
 import sys
 from itertools import combinations
 from pathlib import Path
@@ -39,7 +40,8 @@ def main():
     )
     log = logging.getLogger("CRSProtein")
     log.setLevel(logging.DEBUG if S.get("debug", False) else logging.INFO)
-
+    coloredlogs.install(level='DEBUG', logger=log)
+    
     graphs = create_graphs(manifest)
     base_association_config = build_association_config(S, run_mode, tracker_residues)
 

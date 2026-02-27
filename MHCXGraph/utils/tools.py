@@ -10,6 +10,7 @@ from collections.abc import Sequence  #, TypeVarTuple, Unpack
 from itertools import chain, combinations, product
 from os import path
 from typing import Any
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -1517,7 +1518,7 @@ def process_chunk(step_idx, chunk_idx, chunk_triads, graphs_data, global_state, 
 
         # Tracer for DFS debugging, not useful in real application
         tracer = TraversalTracer(
-            out_dir=config["output_path"] / "viz_runs",
+            out_dir=Path(config["output_path"]) / "viz_runs",
             fmt="mp4",
             fps=12,
             sample_every=50,
