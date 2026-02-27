@@ -20,14 +20,24 @@ class ConsoleFilter(logging.Filter):
             return False
         return True
 
-
 class VerboseLoggerAdapter(logging.LoggerAdapter):
-    def vinfo(self, msg, *args, **kwargs):
-        extra = dict(kwargs.pop("extra", {}))
-        extra["verbose_only"] = True
-        kwargs["extra"] = extra
-        self.logger.info(msg, *args, **kwargs)
+    def vinfo(self, verbose_msg, brief_msg=None, *args, **kwargs):
+        """
+        verbose_msg: message shown when verbose is ON
+        brief_msg: message shown when verbose is OFF
+        """
 
+        logger = self.logger
+        verbose_flag = getattr(logger, "mhcx_verbose", False)
+
+        if verbose_flag:
+            extra = dict(kwargs.pop("extra", {}))
+            extra["verbose_only"] = True
+            kwargs["extra"] = extra
+            logger.info(verbose_msg, *args, **kwargs)
+        else:
+            if brief_msg is not None:
+                logger.info(brief_msg, *args, **kwargs)
 
 def setup_logging(
     *,
@@ -41,6 +51,7 @@ def setup_logging(
     root = logging.getLogger("MHCXGraph")
     root.handlers.clear()
     root.propagate = False
+    root.mhcx_verbose = verbose  # type: ignore[attr-defined]
     root.setLevel(logging.DEBUG)
 
     outdir.mkdir(parents=True, exist_ok=True)

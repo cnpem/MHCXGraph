@@ -124,7 +124,7 @@ def res_tuples_to_df(res_tuples):
             chain_id = id_str.split(":")[0]
         except Exception:
             chain_id = None
-        hetflag, resseq, icode = residue.get_id()
+        _, resseq, icode = residue.get_id()
         residue_number = int(resseq)
         insertion = "" if icode == " " else str(icode)
         residue_name_obj = residue.get_resname().strip()
@@ -285,17 +285,6 @@ class PDBGraphBuilder:
 
         sr = ShrakeRupley(probe_radius=self.config.probe_radius, n_points=self.config.n_points)
         sr.compute(self.structure, level="R")
-
-        def _asa_ref_from_structure() -> float:
-            vals: list[float] = []
-            for _, res, _ in res_tuples:
-                aa3 = res.get_resname().strip().upper()
-                if aa3 in CANONICAL_AA3:
-                    vals.append(float(getattr(res, "sasa", 0.0)))
-            return max(vals) if vals else 200.0
-
-        asa_ref = float(_asa_ref_from_structure())
-
         out: dict[str, tuple[float, float | None]] = {}
 
         if self.config.rsa_method == "dssp":
@@ -375,7 +364,6 @@ class PDBGraphBuilder:
 
             return out, dssp_df
 
-        # SR-only path
         for nid, res, _ in res_tuples:
             asa = float(getattr(res, "sasa", 0.0))
             aa3 = res.get_resname().strip().upper()
@@ -805,11 +793,7 @@ class PDBGraphBuilder:
                 if _is_protein_residue(res) or _is_water(res):
                     continue
 
-                hetflag, resseq, icode = res.id
-                resname = res.get_resname().strip().upper()
-
                 aa_like = is_aa(res, standard=False)
-
                 kind: str | None = None
                 if aa_like and self.config.include_noncanonical_residues:
                     kind = "noncanonical_residue"

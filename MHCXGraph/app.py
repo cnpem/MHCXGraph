@@ -15,20 +15,20 @@ from MHCXGraph.utils.logging_utils import setup_logging, get_log
 def main():
     args = parse_args()
     manifest = load_manifest(args.manifest)
-    S = manifest["settings"]
+    settings = manifest["settings"]
 
-    base_run_name = S["run_name"]
-    base_output_path = Path(S["output_path"])
-    run_mode = S.get("run_mode", "all")
+    base_run_name = settings["run_name"]
+    base_output_path = Path(settings["output_path"])
+    run_mode = settings.get("run_mode", "all")
 
     tracker_residues = (
-        ResidueTracker(S.get("watch_residues")) if S["watch_residues"] else None
+        ResidueTracker(settings.get("watch_residues")) if settings["watch_residues"] else None
     )
 
     init_tracker(
         root="CrossSteps",
         outdir=base_output_path / base_run_name,
-        enabled=S.get("debug_tracking", False),
+        enabled=settings.get("debug_tracking", False),
         prefer_npy_for_ndarray=True,
         add_timestamp_prefix=False,
     )
@@ -36,21 +36,22 @@ def main():
     logging.getLogger("matplotlib").setLevel(logging.ERROR)
     logging.basicConfig(
         stream=sys.stdout,
-        level=logging.DEBUG if S.get("debug_logs", False) else logging.INFO,
+        level=logging.DEBUG if settings.get("debug_logs", False) else logging.INFO,
     )
 
     setup_logging(
         outdir=Path(base_output_path) / base_run_name,
-        debug=bool(S.get("debug_logs", False)),
-        verbose=bool(S.get("verbose", False)),
+        debug=bool(settings.get("debug_logs", False)),
+        verbose=bool(settings.get("verbose", False)),
     )
 
     log = get_log()
-
+    log.info("Initializing MHCXGraph...")
     log.debug("Debug file logging initialized")
- 
+
     graphs = create_graphs(manifest)
-    base_association_config = build_association_config(S, run_mode, tracker_residues)
+
+    base_association_config = build_association_config(settings, run_mode, tracker_residues)
 
     if run_mode == "all":
         target_dir = base_output_path / "ALL"

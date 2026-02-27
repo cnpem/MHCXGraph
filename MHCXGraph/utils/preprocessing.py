@@ -12,8 +12,9 @@ from MHCXGraph.classes.graph import Graph
 from MHCXGraph.core.config import make_default_config
 from MHCXGraph.core.tracking import save
 from MHCXGraph.io_utils.pdb_io import get_user_selection, list_pdb_files
+from MHCXGraph.utils.logging_utils import get_log
 
-logger = logging.getLogger("Preprocessing")
+log = get_log()
 
 class LogicError(Exception):
     """Logic error while evaluating boolean set expression."""
@@ -480,32 +481,34 @@ def resolve_selection_params_for_file(file_path: Path, manifest: dict[str, Any])
     return merged
 
 def create_graphs(manifest: dict) -> list[tuple]:
+    settings = manifest["settings"]
 
-    S = manifest["settings"]
-
-    output_path = Path(S["output_path"]).expanduser().resolve()
+    output_path = Path(settings["output_path"]).expanduser().resolve()
+    log.vinfo(f"Trying to create output directory in {output_path}", "Creating output diretory")
     output_path.mkdir(parents=True, exist_ok=True)
-
+    
     # Retrieve the list of files passed via manifest.
     selected_files = collect_selected_files_from_manifest(manifest)
     if not selected_files:
-        raise Exception("Nenhum arquivo selecionado a partir do manifest")
+        msg = "None file was selected from manifest."
+        log.warning(msg)
+        raise Exception(msg)
 
     graph_config = make_default_config(
-        edge_threshold=S["edge_threshold"],
-        granularity=S["node_granularity"],
-        include_waters=S["include_waters"],
-        dssp_acc_array=S["rsa_table"],
-        include_ligands=S["include_ligands"],
-        include_noncanonical_residues=S["include_noncanonical_residues"]
+        edge_threshold=settings["edge_threshold"],
+        granularity=settings["node_granularity"],
+        include_waters=settings["include_waters"],
+        dssp_acc_array=settings["rsa_table"],
+        include_ligands=settings["include_ligands"],
+        include_noncanonical_residues=settings["include_noncanonical_residues"]
     )
 
     graphs: list[tuple] = []
     start = time.perf_counter()
     for file_info in selected_files:
         orig_path = Path(file_info["input_path"]).resolve()
-        dest_path = Path(S["output_path"]).resolve()
-        if not S["include_waters"]:
+        dest_path = Path(settings["output_path"]).resolve()
+        if not settings["include_waters"]:
             cleaned_name = file_info["name"]
             if cleaned_name.endswith(".pdb.gz"):
                 cleaned_name = cleaned_name[:-7] + "_nOH.pdb" if "_nOH.pdb" not in cleaned_name else cleaned_name
@@ -526,8 +529,8 @@ def create_graphs(manifest: dict) -> list[tuple]:
 
         subgraph = get_exposed_residues(
             graph=graph_instance,
-            rsa_filter=S.get("rsa_filter"),
-            asa_filter=S.get("asa_filter"),
+            rsa_filter=settings.get("rsa_filter"),
+            asa_filter=settings.get("asa_filter"),
             selection_params=selection_params or {},
         )
 
@@ -553,5 +556,5 @@ def create_graphs(manifest: dict) -> list[tuple]:
 
     end = time.perf_counter()
 
-    logger.debug(f"Took {end - start:.6f} seconds to create graphs")
+    log.vinfo(f"Took {end - start:.6f} seconds to create graphs")
     return graphs

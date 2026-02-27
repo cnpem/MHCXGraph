@@ -95,7 +95,7 @@ class GraphConfig:
     # ASA / RSA
     compute_rsa: bool = True
     # rsa_method = "dssp"
-    rsa_method: Literal["sr", "dssp"]  = "dssp"
+    rsa_method: Literal["sr", "dssp"] = "dssp"
     dssp_exec: str = "mkdssp"
     # dssp_acc_array = "Wilke"
     dssp_acc_array: Literal["Sander", "Wilke", "Miller"] = "Wilke",

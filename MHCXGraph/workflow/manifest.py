@@ -15,43 +15,44 @@ def load_manifest(manifest_path: str) -> dict[str, Any]:
     data.setdefault("inputs", [])
     data.setdefault("selectors", {})
 
-    S = data["settings"]
-    S.setdefault("run_name", "test")
-    S.setdefault("run_mode", "all")
-    S.setdefault("output_path", "./outputs")
+    settings = data["settings"]
 
-    os.makedirs(S["output_path"], exist_ok=True)
+    settings.setdefault("run_name", "test")
+    settings.setdefault("run_mode", "all")
+    settings.setdefault("output_path", "./outputs")
 
-    shutil.copy2(manifest_path, S["output_path"]+"/manifest.json")
-    S.setdefault("debug_logs", False)
-    S.setdefault("verbose", False)
-    S.setdefault("debug_tracking", False)
-    S.setdefault("rsa_table", "Wilke")
+    os.makedirs(settings["output_path"], exist_ok=True)
 
-    S.setdefault("edge_threshold", 8.5)
-    S.setdefault("close_tolerance", 1.0)
-    S.setdefault("node_granularity", "all_atoms")
+    shutil.copy2(manifest_path, settings["output_path"]+"/manifest.json")
+    settings.setdefault("debug_logs", False)
+    settings.setdefault("verbose", False)
+    settings.setdefault("debug_tracking", False)
+    settings.setdefault("rsa_table", "Wilke")
 
-    S.setdefault("include_ligands", True)
-    S.setdefault("include_noncanonical_residues", True)
-    S.setdefault("include_waters", True)
+    settings.setdefault("edge_threshold", 8.5)
+    settings.setdefault("close_tolerance", 1.0)
+    settings.setdefault("node_granularity", "all_atoms")
 
-    S.setdefault("triad_rsa", False)
-    S.setdefault("rsa_filter", 0.1)
-    S.setdefault("asa_filter", 100)
-    S.setdefault("close_tolerance_rsa", 0.1)
-    S.setdefault("distance_std_threshold", 3.0)
-    S.setdefault("distance_diff_threshold", 1.0)
+    settings.setdefault("include_ligands", True)
+    settings.setdefault("include_noncanonical_residues", True)
+    settings.setdefault("include_waters", True)
 
-    S.setdefault("rsa_bin_width", 20)
-    S.setdefault("distance_bin_width", 2.0)
+    settings.setdefault("triad_rsa", False)
+    settings.setdefault("rsa_filter", 0.1)
+    settings.setdefault("asa_filter", 100)
+    settings.setdefault("close_tolerance_rsa", 0.1)
+    settings.setdefault("distance_std_threshold", 3.0)
+    settings.setdefault("distance_diff_threshold", 1.0)
 
-    S.setdefault("max_chunks", 5)
+    settings.setdefault("rsa_bin_width", 20)
+    settings.setdefault("distance_bin_width", 2.0)
 
-    S.setdefault("filter_triads_by_chain", None)
-    S.setdefault("classes", {})
+    settings.setdefault("max_chunks", 5)
 
-    S.setdefault("watch_residues", None)
+    settings.setdefault("filter_triads_by_chain", None)
+    settings.setdefault("classes", {})
+
+    settings.setdefault("watch_residues", None)
 
     return data
 

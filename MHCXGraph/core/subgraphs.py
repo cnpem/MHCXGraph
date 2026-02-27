@@ -104,31 +104,6 @@ def _ensure_set(x) -> set:
     except Exception:
         return {str(x)}
 
-
-def _update_coords_graph(g: nx.Graph) -> None:
-    """
-    Populate `g.graph['coords']` and `g.graph['residue_labels']` from nodes.
-
-    Parameters
-    ----------
-    g
-        Graph.
-    """
-    labels = list(g.nodes())
-    coords = []
-    missing = 0
-    for n in labels:
-        arr = _node_coords(g.nodes[n])
-        if arr is None:
-            missing += 1
-            arr = np.array([np.nan, np.nan, np.nan], dtype=float)
-        coords.append(arr)
-    g.graph["residue_labels"] = labels
-    g.graph["coords"] = np.vstack(coords) if coords else np.zeros((0, 3), dtype=float)
-    if missing:
-        log.debug(f"[subgraph] {missing} nodes without coords/centroid; filled with NaN.")
-
-
 def compute_distmat(pdb_df: pd.DataFrame) -> np.ndarray:
     """
     Compute Euclidean distance matrix between nodes.

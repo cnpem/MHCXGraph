@@ -1,72 +1,32 @@
 from __future__ import annotations
 
-import bisect
 import json
-import logging
 import math
 import os
 import time
-from collections.abc import Sequence  #, TypeVarTuple, Unpack
+from collections.abc import Sequence
+from typing import TypeVarTuple, Unpack
 from itertools import chain, combinations, product
 from os import path
 from typing import Any
-from pathlib import Path
 
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-import pandas as pd
 from Bio.PDB.Atom import Atom
 from Bio.PDB.PDBParser import PDBParser
 from Bio.PDB.Residue import Residue
-from sklearn.metrics.pairwise import cosine_similarity
 
 from MHCXGraph.core.residue_tracking import ResidueTracker, TrackCtx
 from MHCXGraph.core.tracking import save
 from MHCXGraph.utils.logging_utils import get_log
 
-# log = logging.getlog("MHCXGraph")
 log = get_log()
-#Ts = TypeVarTuple("Ts")
+Ts = TypeVarTuple("Ts")
 
-# Triad = Tuple[str, str, str, Unpack[Ts]]
-# Combo = Tuple[Triad, ...]
-# Filtered = Dict[Tuple, List[Combo]]
-
-def save_pdb_with_spheres(atomic_data, selected_residues_data, pdb_filename):
-    """
-    Salva o arquivo PDB com esferas para os resíduos selecionados.
-
-    Parameters
-    ----------
-    atomic_data : numpy.ndarray
-        Dados atômicos da estrutura.
-    selected_residues_data : list
-        Lista com os dados dos resíduos selecionados, incluindo coordenadas e profundidade.
-    pdb_filename : str
-        Nome do arquivo PDB de saída.
-    """
-
-
-    with open(pdb_filename, 'w') as f:
-        # Adiciona os átomos originais
-        for row in atomic_data:
-            atom_line = f"ATOM  {int(row[0]):5d}  {row[3]:<4} {row[2]:<3} {row[1]:<1} {int(row[4]):>4} {row[5]:>8.3f}{row[6]:>8.3f}{row[7]:>8.3f}{row[8]:>6.2f}{row[9]:>6.2f}\n"
-            f.write(atom_line)
-
-        # Adiciona as esferas para os resíduos selecionados
-        for residue in selected_residues_data:
-            residue_number = residue["ResidueNumber"]
-            chain = residue["Chain"]
-            coordinates = residue["Coordinates"]
-            radius = 1.5  # Definindo um raio para a es fera
-
-            sphere_line = "HETATM{:5d}  SPC {:<3} {:<1} {:>4}   {:>8.3f}{:>8.3f}{:>8.3f}  1.00  0.00           SPH\n".format(
-                residue_number * 100, "SPC", chain, residue_number, coordinates[0], coordinates[1], coordinates[2]
-            )
-            f.write(sphere_line)
-
-    print(f"PDB com esferas salvo em {pdb_filename}")
+Triad = tuple[str, str, str, Unpack[Ts]]
+Combo = tuple[Triad, ...]
+Filtered = dict[tuple, list[Combo]]
 
 def convert_edges_to_residues(edges: set[frozenset], maps: dict) -> tuple[list, list, list]:
     """Convert the edges that contains tuple of indices to tuple of residues
@@ -156,24 +116,6 @@ def filter_maps_by_nodes(data: dict,
 
     return matrices_dict, maps
 
-def indices_graphs(nodes_lists: list[list]) -> list[tuple[int, int]]:
-    """Make a list that contains indices that indicates the position of each protein in graph
-
-    Args:
-        nodes_list (List): A list of protein's resdiues. Each List has their own residues.
-
-    Returns:
-        ranges (List[Tuple]): A list of indicesthat indicates the position of each protein in matrix
-    """
-
-    current = 0
-    ranges = []
-    for nodes in nodes_lists:
-        length = len(nodes)
-        ranges.append((current, current + length))
-        current += length
-    return ranges
-
 def value_to_class(
     value: float,
     bin_width: float,        # Fixed size of each division
@@ -243,125 +185,6 @@ def value_to_class(
             classes.append(j)
 
     return classes or None
-
-
-
-def backup_value_to_class(
-    value: float,
-    bin_width: float,        # Fixed size of each division
-    threshold: float,
-    inverse: bool = False,
-    upper_bound: float = 100.0,
-    close_tolerance: float = 0.1,  # Absolute tolerance in 'value' units
-    ) -> int | list[int] | None:
-    """
-    Non-inverse:
-      - Domain: (0, threshold]
-      - Bins: (L, R] spaced by bin_width. Last bin may be smaller than bin_width.
-      - Uncertainty: half of the bin_width.
-      - If |value - center_of_bin| <= close_tolerance, returns [class_index].
-      - Otherwise, returns all classes whose bins intersect with [value - inc, value + inc].
-
-    Inverse:
-      - Domain: [threshold, upper_bound]
-      - Same multi-class behavior as non-inverse, but bins live on [threshold, upper_bound].
-    """
-    if bin_width <= 0:
-        return None
-
-    if not inverse:
-        # Out of bounds check
-        if value <= 0 or value > threshold:
-            return None
-
-        # Calculate total number of divisions
-        n_divisions = math.ceil(threshold / bin_width)
-
-        # Identify the primary bin index (1-based)
-        i = math.ceil(value / bin_width)
-        i = max(1, min(i, n_divisions))
-
-        # Actual bin boundaries (last bin may be smaller)
-        current_bin_left = (i - 1) * bin_width
-        current_bin_right = min(i * bin_width, threshold)
-        current_bin_actual_width = current_bin_right - current_bin_left
-
-        bin_center = current_bin_left + (current_bin_actual_width / 2.0)
-
-        # Clamp tolerance to at most half the actual bin width
-        tol = max(0.0, float(close_tolerance))
-        tol = min(tol, (current_bin_actual_width / 2.0) - 1e-12)
-
-        if abs(value - bin_center) <= tol:
-            return [i]
-
-        inc = bin_width / 2.0
-        low = value - inc
-        high = value + inc
-
-        classes: list[int] = []
-        for j in range(1, n_divisions + 1):
-            L = (j - 1) * bin_width
-            R = min(j * bin_width, threshold)
-            if (low < R) and (high > L):
-                classes.append(j)
-
-        return classes if classes else None
-
-    # Inverse logic: mapping values from threshold up to upper_bound
-    if value < threshold or value > upper_bound:
-        return None
-
-    span = upper_bound - threshold
-    if span <= 0:
-        return None
-
-    n_divisions = math.ceil(span / bin_width)
-
-    # Put the inverse domain on a local axis starting at 0
-    rel_value = value - threshold
-
-    # Primary bin index (1-based)
-    i = math.ceil(rel_value / bin_width)
-    i = max(1, min(i, n_divisions))
-
-    # Actual bin boundaries in the inverse domain (last bin may be smaller)
-    current_bin_left = (i - 1) * bin_width
-    current_bin_right = min(i * bin_width, span)
-    current_bin_actual_width = current_bin_right - current_bin_left
-
-    bin_center = current_bin_left + (current_bin_actual_width / 2.0)
-
-    tol = max(0.0, float(close_tolerance))
-    tol = min(tol, (current_bin_actual_width / 2.0) - 1e-12)
-
-    if abs(rel_value - bin_center) <= tol:
-        return [i]
-
-    inc = bin_width / 2.0
-    low = rel_value - inc
-    high = rel_value + inc
-
-    # Clamp to inverse domain [0, span]
-    low = max(0.0, low)
-    high = min(span, high)
-
-    classes: list[int] = []
-    for j in range(1, n_divisions + 1):
-        L = (j - 1) * bin_width
-        R = min(j * bin_width, span)
-        if (low < R) and (high > L):
-            classes.append(j)
-
-    return classes if classes else None
-
-def create_classes_bin(total_length: float, bin_width: float):
-    """Creates a dictionary of bins with their respective ranges."""
-    n_bins = math.ceil(total_length / bin_width)
-    return {
-        str(n + 1): (n * bin_width, min((n + 1) * bin_width, total_length))
-        for n in range(n_bins)
-    }
 
 def find_class(classes: dict[str, dict[str, float]], value: float):
     """
@@ -570,11 +393,6 @@ def find_triads(graph_data, classes, config, checks, protein_index, tracker: Res
             else:
                 u_res_class, center_res_class, w_res_class = u_res, center_res, w_res
 
-
-            u_resChain = str(u_split[2]) + u_split[0]
-            center_resChain = str(center_split[2]) + center_split[0]
-            w_resChain = str(w_split[2]) + w_split[0]
-
             d1 = contact_map[u_index, center_index]
             d2 = contact_map[u_index, w_index]
             d3 = contact_map[center_index, w_index]
@@ -699,82 +517,6 @@ def find_triads(graph_data, classes, config, checks, protein_index, tracker: Res
     log.debug(f"Counters: {counters}")
 
     return triads
-
-def create_residues_classes(path, residues_similarity_cutoff):
-
-    atchley_factors = pd.read_csv(path, index_col = 0)
-
-    sim = cosine_similarity(atchley_factors.values)
-    aas = [convert_1aa3aa(aa) for aa in atchley_factors.index.tolist()]
-
-    parent = {aa: aa for aa in aas}
-
-    def find(x):
-        while parent[x] != x:
-            parent[x] = parent[parent[x]]
-            x = parent[x]
-        return x
-
-    def union(x, y):
-        root_x, root_y = find(x), find(y)
-        if root_x != root_y:
-            parent[root_y] = root_x
-
-    for i in range(len(aas)):
-        for j in range(i+1, len(aas)):
-            if sim[i, j] >= residues_similarity_cutoff:
-                union(aas[i], aas[j])
-
-    root_to_class = {}
-
-    residue_to_class = {}
-    class_id = 1
-    for aa in aas:
-        root = find(aa)
-        if root not in root_to_class:
-            root_to_class[root] = f"C{class_id}"
-            class_id += 1
-        residue_to_class[aa] = root_to_class[root]
-
-    return residue_to_class
-
-ROLE_TO_PAIR_IDX = {
-    "UC": (0, 1),  # (u, c)
-    "UW": (0, 2),  # (u, w)
-    "CW": (1, 2),  # (c, w)
-}
-
-def _build_index(abs_list):
-    """
-    abs_list: lista de tuplas (r1, r2, r3, d1, d2, d3)
-    Retorna estruturas de índice por d1/d2/d3 e vetor de registros.
-    """
-    records = list(abs_list)
-    by_d1 = sorted((rec[-3], i) for i, rec in enumerate(records))  # (d1, id)
-    by_d2 = sorted((rec[-2], i) for i, rec in enumerate(records))  # (d2, id)
-    by_d3 = sorted((rec[-1], i) for i, rec in enumerate(records))  # (d3, id)
-
-    keys_d1 = [k for k, _ in by_d1]
-    keys_d2 = [k for k, _ in by_d2]
-    keys_d3 = [k for k, _ in by_d3]
-
-    return {
-        "records": records,
-        "by_d1": by_d1, "keys_d1": keys_d1,
-        "by_d2": by_d2, "keys_d2": keys_d2,
-        "by_d3": by_d3, "keys_d3": keys_d3,
-    }
-
-
-def _range_ids(keys, sorted_pairs, lo, hi):
-    """
-    sorted_pairs: lista ordenada de (chave, id)
-    retorna conjunto de ids com chave em [lo, hi]
-    """
-    L = bisect.bisect_left(keys, lo)
-    R = bisect.bisect_right(keys, hi)
-    # coletar ids só do range
-    return {sorted_pairs[j][1] for j in range(L, R)}
 
 def cross_protein_triads(step_idx, chunk_idx, triads_per_protein, diff, check_distances=True):
     common_tokens = set.intersection(*(set(d.keys()) for d in triads_per_protein))
@@ -916,204 +658,10 @@ def cross_protein_triads(step_idx, chunk_idx, triads_per_protein, diff, check_di
                 "triads_full": combos_full,
                 "triads_absolute": combos_abs,
                 "triads_absolute_d1": combos_abs,
-                "bounds": combos_bounds # <-- CACHE SALVO PARA O PRÓXIMO PASSO
+                "bounds": combos_bounds
             }
 
     return cross
-
-# def cross_protein_triads_backup(step_idx, chunk_idx, triads_per_protein, diff, check_distances=True):
-#     """
-#     triads_per_protein: list of dictionaries per protein.
-#       For a token t:
-#         triads_per_protein[p][t]["triads_absolute_d1"]  -> list (r1,r2,r3,d1,d2,d3)
-#     diff: tolerance for the difference of distances
-#     """
-#     common_tokens = set.intersection(*(set(d.keys()) for d in triads_per_protein))
-#     cross = dict()
-
-#     # ---------- helpers ----------
-#     def _index_by_abs_d1(triads_abs_d1_list):
-#         """
-#         triads_abs_d1_list: lista de triads_absolute já ordenada por d1
-#         retorna índice -> posição na lista original (a própria ordem serve)
-#         """
-#         return list(range(len(triads_abs_d1_list)))
-
-#     def _build_sorted_key_list(records, k):
-#         """
-#         records: lista de triads_absolute
-#         k: -3, -2, -1 para d1,d2,d3
-#         retorna keys e pares (key, idx)
-#         """
-#         pairs = sorted((rec[k], i) for i, rec in enumerate(records))
-#         keys = [x for x, _ in pairs]
-#         return keys, pairs
-
-#     def _range_ids(keys, pairs, lo, hi):
-#         L = bisect.bisect_left(keys, lo)
-#         R = bisect.bisect_right(keys, hi)
-#         return {pairs[j][1] for j in range(L, R)}
-
-#     for token in common_tokens:
-#         if check_distances:
-#             triads_len = [len(prot[token].get("triads_full", [])) for prot in triads_per_protein]
-#         else:
-#             triads_len = [len(prot[token].get("triads_full", [])) for prot in triads_per_protein]
-#         prod_triads = math.prod(triads_len) if triads_len else 0
-#         log.debug(f"Token: {token} | Qtd in each protein: {triads_len} | Total teoric combinations: {prod_triads}")
-
-#     for token in common_tokens:
-#         if check_distances:
-#             # obter listas absolutas por proteína para este token
-#             abs_d1_lists = [prot[token].get("triads_absolute_d1", []) for prot in triads_per_protein]
-#             if any(len(lst) == 0 for lst in abs_d1_lists):
-#                 continue
-
-#             full_lists = [prot[token].get("triads_full", []) for prot in triads_per_protein]
-#             abs_lists  = [prot[token].get("triads_absolute", []) for prot in triads_per_protein]
-
-#             look_full = []
-#             look_abs  = []
-#             for p in range(len(triads_per_protein)):
-#                 m_full = {}
-#                 for t_full in full_lists[p]:
-#                     # t_full não tem d1,d2,d3 absolutos; não dá pra mapear por ele sozinho.
-#                     # Então vamos mapear pelo prefixo (u,c,w, chi, rsa1,rsa2,rsa3) e deixar resolver com abs via triads_absolute
-#                     key = t_full[:-3]
-#                     m_full.setdefault(key, []).append(t_full)
-#                 look_full.append(m_full)
-
-#                 m_abs = {}
-#                 for t_abs in abs_lists[p]:
-#                     key = t_abs[:-3]
-#                     m_abs.setdefault(key, []).append(t_abs)
-#                 look_abs.append(m_abs)
-
-#             idxs = []
-#             for recs in abs_d1_lists:
-#                 keys_d1, by_d1 = _build_sorted_key_list(recs, -3)
-#                 keys_d2, by_d2 = _build_sorted_key_list(recs, -2)
-#                 keys_d3, by_d3 = _build_sorted_key_list(recs, -1)
-#                 idxs.append({
-#                     "records": recs,
-#                     "keys_d1": keys_d1, "by_d1": by_d1,
-#                     "keys_d2": keys_d2, "by_d2": by_d2,
-#                     "keys_d3": keys_d3, "by_d3": by_d3,
-#                 })
-
-#             ref_p = min(range(len(idxs)), key=lambda p: len(idxs[p]["records"]))
-#             other_ps = [p for p in range(len(idxs)) if p != ref_p]
-#             ref_records = idxs[ref_p]["records"]
-
-#             combos_full = []
-#             combos_abs  = []
-#             combos_abs_d1 = []
-
-#             w1 = w2 = w3 = diff
-
-#             for ref_rec in ref_records:
-#                 d1_ref, d2_ref, d3_ref = ref_rec[-3], ref_rec[-2], ref_rec[-1]
-
-#                 candidates_by_p = []
-#                 ok = True
-#                 for p in other_ps:
-#                     idx = idxs[p]
-#                     cand1 = _range_ids(idx["keys_d1"], idx["by_d1"], d1_ref - w1, d1_ref + w1)
-#                     if not cand1: ok = False; break
-#                     cand2 = _range_ids(idx["keys_d2"], idx["by_d2"], d2_ref - w2, d2_ref + w2)
-#                     if not cand2: ok = False; break
-#                     cand3 = _range_ids(idx["keys_d3"], idx["by_d3"], d3_ref - w3, d3_ref + w3)
-#                     if not cand3: ok = False; break
-
-#                     cands = cand1 & cand2 & cand3
-#                     if not cands: ok = False; break
-
-#                     candidates_by_p.append([idx["records"][i] for i in cands])
-
-#                 if not ok:
-#                     continue
-
-#                 for tail in product(*candidates_by_p):
-#                     # montar combo_abs_d1 na ordem original das proteínas
-#                     tmp_abs = [None] * len(idxs)
-#                     tmp_abs[ref_p] = ref_rec
-#                     k = 0
-#                     for p in other_ps:
-#                         tmp_abs[p] = tail[k]
-#                         k += 1
-#                     combo_abs_d1 = tuple(tmp_abs)
-
-#                     combo_abs = combo_abs_d1  # mesmo tipo e shape
-
-#                     tmp_full = []
-#                     for p, t_abs in enumerate(combo_abs):
-#                         key = t_abs[:-3]
-#                         full_cands = look_full[p].get(key, [])
-#                         if not full_cands:
-#                             tmp_full = None
-#                             break
-#                         tmp_full.append(full_cands[0])
-#                     if tmp_full is None:
-#                         continue
-
-#                     combos_abs_d1.append(combo_abs_d1)
-#                     combos_abs.append(combo_abs)
-#                     combos_full.append(tuple(tmp_full))
-
-#             if not combos_full:
-#                 continue
-
-#             cross[token] = {
-#                 "count": len(combos_full),
-#                 "triads_full": combos_full,
-#                 "triads_absolute": combos_abs,
-#                 "triads_absolute_d1": combos_abs_d1,
-#             }
-#         else:
-#             def _is_triad(x):
-#                 # triad: (U, C, W, ..., d1,d2,d3) então x[0] é string tipo "A:GLU:19"
-#                 return isinstance(x, tuple) and len(x) >= 3 and isinstance(x[0], str) and ":" in x[0]
-
-#             def _is_combo(x):
-#                 # combo: tuple of triads, então x[0] é uma triad
-#                 return isinstance(x, tuple) and len(x) > 0 and _is_triad(x[0])
-
-#             def _ensure_combo(item):
-#                 # item pode ser triad ou combo
-#                 if _is_combo(item):
-#                     return item
-#                 if _is_triad(item):
-#                     return (item,)
-#                 raise TypeError(f"Expected triad or combo, got {type(item)}: {item}")
-
-#             lists_full = [[_ensure_combo(c) for c in prot[token].get("triads_full", [])] for prot in triads_per_protein]
-#             lists_abs  = [[_ensure_combo(c) for c in prot[token].get("triads_absolute", [])] for prot in triads_per_protein]
-
-#             if any(len(lst) == 0 for lst in lists_full) or any(len(lst) == 0 for lst in lists_abs):
-#                 continue
-
-#             combos_full = []
-#             combos_abs  = []
-
-#             for inner_full, inner_abs in zip(product(*lists_full), product(*lists_abs)):
-#                 flat_full = tuple(chain.from_iterable(inner_full))
-#                 flat_abs  = tuple(chain.from_iterable(inner_abs))
-
-#                 combos_full.append(flat_full)
-#                 combos_abs.append(flat_abs)
-
-
-#             if not combos_full:
-#                 continue
-
-#             cross[token] = {
-#                 "count": len(combos_full),
-#                 "triads_full": combos_full,
-#                 "triads_absolute": combos_abs,
-#                 "triads_absolute_d1": combos_abs
-#             }
-
-#     return cross
 
 def build_graph_from_cross_combos(cross_combos) -> set[tuple[tuple[str, ...], tuple[str, ...]]]:
     """
@@ -1552,7 +1100,6 @@ def process_chunk(step_idx, chunk_idx, chunk_triads, graphs_data, global_state, 
 
     return rebuilt_combos, final_graphs
 
-
 def association_product(graphs_data: list,
                         config: dict,
                         debug: bool = True) -> dict[str, list] | None:
@@ -1589,11 +1136,9 @@ def association_product(graphs_data: list,
     }
 
     save("association_product", "graph_collection", graph_collection)
-    ranges_graph = indices_graphs(graph_collection["graphs"])
     total_length = sum(len(g.nodes()) for g in graph_collection["graphs"])
     metadata = {
         "total_length": total_length,
-        "ranges_graph": ranges_graph
     }
 
     matrices_dict = {
@@ -1955,11 +1500,6 @@ def generate_frames(component_graph, matrices, maps, len_component, chunk_id, st
         log.debug(f"[{str_node}] Creating groups...")
         groups = expand_groups(accepted, inter, frontier)
         log.debug(f"[{str_node}] Groups created: {len(groups)}")
-        # print(groups)
-        # log.debug(f"[{str_node}] Adding to tracer...")
-        # if tracer and tracer.enabled:
-        #     tracer.tick(current=int(node), chosen=accepted, frontier=frontier)
-
         log.debug(f"[{str_node}] Adding to stack...")
 
         for i, (sig, chosen_g, inter_g, frontier_g) in enumerate(groups):
@@ -1988,10 +1528,7 @@ def generate_frames(component_graph, matrices, maps, len_component, chunk_id, st
             str_stack = f"{str_node}|{current_stack}"
             log.debug(f"[{str_node}] Current stack: {current_stack}")
             chosen_t, inter_m, frontier_t, added_t = stack.pop()
-            # if tracer and tracer.enabled:
-            #     tracer.tick(current=added_t if added_t else (),
-            #                 chosen=chosen_t,
-            #                 frontier=frontier_t)
+
             pops += 1
             chosen = list(chosen_t)
             frontier = set(frontier_t)
@@ -2032,11 +1569,6 @@ def generate_frames(component_graph, matrices, maps, len_component, chunk_id, st
                             edge_key = frozenset(tuple(sorted(e)) for e in es)
                             if edge_key not in seen_edge_sets:
                                 seen_edge_sets.add(edge_key)
-                                # if tracer and tracer.enabled:
-                                #     tracer.tick(current=None,
-                                #                 chosen=chosen,
-                                #                 frontier=(),
-                                #                 accepted_edges_latest=es)
                                 log.debug(f"[{str_stack}] Converting edges...")
                                 _, edges_idx, edges_res = convert_edges_to_residues(es, maps)
                                 log.debug(f"[{str_stack}] Conversion finished.")
@@ -2063,15 +1595,9 @@ def generate_frames(component_graph, matrices, maps, len_component, chunk_id, st
                 if pushes > 600_000:
                     print(f"The stack is above than 600.000 pushes | {pushes}. The component have {len_component} nodes, and it came from the chunk {chunk_id}, step {step}.")
                     to_break = False
-                    # return _, _, True
             if to_break:
                 break
         log.debug(f"[{str_node}] Finished while stack.")
-        # if tracer and tracer.enabled:
-        #     out_file = tracer.end_anchor(name_prefix=f"chunk{chunk_id}_step{step}_anchor{int(node)}")
-        #     if debug and out_file:
-        #         log.debug(f"[{str_node}][viz] salvo: {out_file}")
-
 
     log.debug("Sorting frames...")
 
@@ -2151,14 +1677,7 @@ def generate_frames(component_graph, matrices, maps, len_component, chunk_id, st
 
         return final_frames
 
-    if steps_end:
-        final_frames = filter_subframes(frames, debug=debug)
-    else:
-        final_frames = frames
-
-    # log.debug(f"[done] frames_out={len(final_frames)} "
-                # f"(accepted_raw={len(others)}, kept_maximal={len(final_frames)-1})")
-
+    final_frames = filter_subframes(frames, debug=debug) if steps_end else frames
     edge_to_res = {}          # dict[tuple(edge)] -> tuple(residues) | None
     union_order = []          # ordem determinística: primeira ocorrência ao percorrer os frames
 
@@ -2185,12 +1704,6 @@ def generate_frames(component_graph, matrices, maps, len_component, chunk_id, st
         f"[union] frames_used={len(final_frames)-1} edges={len(union_edges_indices)} "
         f"(excluded_fid=0)"
     )
-
-    # log.debug(
-        # f"[done] frames_out={len(final_frames)} "
-        # f"(accepted_raw={len(others)}, kept_maximal={len(final_frames)-1})"
-    # )
-
     return final_frames, union_graph, False
 
 def create_graph(edges_dict: dict, typeEdge: str = "edges_indices", comp_id = 0):
@@ -2234,56 +1747,6 @@ def create_graph(edges_dict: dict, typeEdge: str = "edges_indices", comp_id = 0)
             Graphs.append(G_sub)
     return Graphs
 
-def create_sphere_residue(residue_name, residue_number, coord):
-    atom = Atom("CA", coord, 1.0, 1.0, " ", "DUM", 1, element='CA')
-    residue = Residue((' ', int(residue_number), ' '), residue_name, " ")
-    residue.add(atom)
-    return residue
-
-def align_structures_by_chain(reference_pdb, target_pdb, chain_id):
-    """
-    Aligns a target structure to a reference structure based on a specified chain ID.
-
-    Args:
-        reference_pdb (str): Path to the reference PDB file.
-        target_pdb (str): Path to the target PDB file.
-        chain_id (str): The chain ID to use for alignment.
-
-    Returns:
-        Superimposer: The Superimposer object after alignment.
-    """
-    # Create a PDB parser
-    parser = PDBParser(QUIET=True)
-
-    # Load the structures
-    reference_structure = parser.get_structure('reference', reference_pdb)
-    target_structure = parser.get_structure('target', target_pdb)
-
-    # Extract the chains
-    reference_chain = reference_structure[0][chain_id]
-    target_chain = target_structure[0][chain_id]
-
-    # Extract the CA atoms from both chains for alignment
-    reference_atoms = [atom for atom in reference_chain.get_atoms() if is_aa(atom.get_parent()) and atom.get_id() == 'CA']
-    target_atoms = [atom for atom in target_chain.get_atoms() if is_aa(atom.get_parent()) and atom.get_id() == 'CA']
-
-    if len(reference_atoms) != len(target_atoms):
-        raise ValueError("The number of CA atoms in the chains do not match. Ensure both chains have the same number of residues.")
-
-    # Create a Superimposer object
-    super_imposer = Superimposer()
-
-    # Set the reference and target atoms for alignment
-    super_imposer.set_atoms(reference_atoms, target_atoms)
-
-    # Apply the transformation to the target structure
-    super_imposer.apply(target_structure.get_atoms())
-
-    # Print the RMSD
-    print(f"RMSD: {super_imposer.rms:.4f} Å")
-
-    return super_imposer
-
 def add_sphere_residues(graphs, list_node_names_mol, output_path, node_name):
 
     for graph, node_names_mol in zip(graphs, list_node_names_mol):
@@ -2314,7 +1777,10 @@ def add_sphere_residues(graphs, list_node_names_mol, output_path, node_name):
                 #ca_atom = residue['CA']
                 atom_coords = [atom.coord for atom in residue]
                 centroid_coords = np.mean(atom_coords, axis=0)
-                sphere_residue = create_sphere_residue(residue_name, residue_number, centroid_coords)
+                atom = Atom("CA", centroid_coords, 1.0, 1.0, " ", "DUM", 1, element='CA')
+                sphere_residue = Residue((' ', int(residue_number), ' '), residue_name, " ")
+                sphere_residue.add(atom)
+                
                 new_chain.add(sphere_residue)
                 added_residues.add(residue_key)
 

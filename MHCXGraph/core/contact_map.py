@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-
 import numpy as np
-
 
 def _valid_coord(x) -> bool:
     try:
@@ -11,7 +9,6 @@ def _valid_coord(x) -> bool:
     except Exception:
         return False
     return a.shape == (3,) and np.isfinite(a).all()
-
 
 def contact_map_from_graph(
     G,
