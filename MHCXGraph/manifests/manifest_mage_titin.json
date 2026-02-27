@@ -2,7 +2,7 @@
   "settings": {
     "run_name": "magextitin",
     "output_path": "data/magextitin",
-    "debug": true,
+    "debug": false,
     "track_steps": false,
     "edge_threshold": 10.0,
     "node_granularity": "ca_only",

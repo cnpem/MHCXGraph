@@ -25,7 +25,7 @@ from MHCXGraph.core.pipeline import build_graph_with_config
 from MHCXGraph.core.subgraphs import extract_subgraph
 from MHCXGraph.utils.tools import add_sphere_residues, association_product
 
-log = logging.getLogger("CRSProtein")
+log = logging.getLogger("MHCXGraph")
 
 def _rgba_to_hex(rgba):
     r, g, b, _ = rgba
@@ -70,7 +70,7 @@ class Graph:
 
     def get_subgraph(self, name:str):
         if name not in self.subgraphs.keys():
-            print(f"Can't find {name} in subgraph")
+            log.warning(f"Can't find {name} in subgraph")
             return None
         else:
             return self.subgraphs[name]
@@ -80,10 +80,10 @@ class Graph:
             node_list = []
 
         if name in self.subgraphs.keys():
-            print(f"You already have this subgraph created. Use graph.delete_subraph({name}) before creating it again.")
+            log.warning(f"You already have this subgraph created. Use graph.delete_subraph({name}) before creating it again.")
         elif not node_list:
             self.subgraphs[name] =  extract_subgraph(g = self.graph, **args)
-            print(f"Subgraph {name} created with success!")
+            log.info(f"Subgraph {name} created with success!")
         elif node_list:
             self.subgraphs[name] = self.graph.subgraph(node_list)
 
@@ -98,7 +98,7 @@ class Graph:
         if name in self.subgraphs.keys():
             del self.subgraphs[name]
         else:
-            print(f"{name} isn't in.subgraphs")
+            log.warning(f"{name} isn't in.subgraphs")
 
     def filter_subgraph(self,
             subgraph_name: str,
@@ -109,7 +109,7 @@ class Graph:
         subgraphs_sub_name = self.subgraphs[subgraph_name]
 
         if isinstance(subgraphs_sub_name, list):
-            print(f"{subgraph_name} is a list and not a nx.Graph")
+            log.warning(f"{subgraph_name} is a list and not a nx.Graph")
             return
 
         nodes = [i for i in subgraphs_sub_name.nodes if filter_func(i)]
@@ -127,7 +127,7 @@ class Graph:
 
     def join_subgraph(self, name: str, graphs_name: list, mode: str = "add", return_node_list: bool = False):
         if name in self.subgraphs.keys():
-            print(f"You already have this subgraph created. Use graph.delete_subraph({name}) before creating it again.")
+            log.warning(f"You already have this subgraph created. Use graph.delete_subraph({name}) before creating it again.")
         elif set(graphs_name).issubset(self.subgraphs.keys()):
             if mode == "add":
                 nodes_list = []
@@ -150,7 +150,7 @@ class Graph:
                 if isinstance(subgraph_name, nx.Graph):
                     return list(subgraph_name.nodes)
         else:
-            print("Some of your subgraph isn't in the subgraph list")
+            log.warning("Some of your subgraph isn't in the subgraph list")
 
     def to_raw_dict(self) -> dict[str, Any]:
         """
@@ -248,7 +248,7 @@ class Graph:
 
         io.set_structure(new_struct)
         io.save(str(out_file))
-        print(f"Filtered structure saved to {out_file}")
+        log.info(f"Filtered structure saved to {out_file}")
 
     def save_subgraph_view(
         self,
@@ -610,7 +610,7 @@ class AssociatedGraph:
                         try:
                             orig_res = self._find_residue_by_label(orig_struct[0], node_label)
                         except KeyError:
-                            print(f"Resíduo {node_label} não encontrado em {pdb_file}, pulando.")
+                            log.warning(f"Residue {node_label} not found in {pdb_file}, skipping.")
                             continue
 
                         chain_name, resname, resnum_str = node_label.split(':')
@@ -649,7 +649,7 @@ class AssociatedGraph:
             io.set_structure(new_struct)
             io.save(str(out_file))
 
-            print(f"Estrutura salva em {out_file}")
+            log.info(f"Estrutura salva em {out_file}")
 
 
     def _parse_label(self, label: str):
@@ -692,7 +692,7 @@ class AssociatedGraph:
         io = MMCIFIO()
         io.set_structure(combo)
         io.save(str(out_path))
-        print(f"[comp{comp_idx}_frame{frame_idx}] wrote {len(models)} proteins as "
+        log.info(f"[comp{comp_idx}_frame{frame_idx}] wrote {len(models)} proteins as "
             f"{len(combo_model)} chains to {out_path}")
 
     def align_all_frames(self):
@@ -713,7 +713,7 @@ class AssociatedGraph:
                 for frame_idx, assoc_graph in enumerate(frame_graphs):
                     nodes = list(assoc_graph.nodes())
                     if not nodes:
-                        print(f"[comp{comp_idx}_frame{frame_idx}] graph vazio, pulando.")
+                        log.info(f"[comp{comp_idx}_frame{frame_idx}] graph vazio, pulando.")
                         continue
 
                     models = []
@@ -750,7 +750,7 @@ class AssociatedGraph:
                             anchor_labels.append(label)
 
                     if len(anchor_labels) < 3:
-                        print(
+                        log.info(
                             f"[comp{comp_idx}_frame{frame_idx}] "
                             f"menos de 3 resíduos com CA comum ({len(anchor_labels)} encontrados), "
                             "não dá para alinhar este frame, pulando."
@@ -772,7 +772,7 @@ class AssociatedGraph:
                         sup.set_atoms(ref_cas, mob_cas)
                         sup.apply(models[prot_idx].get_atoms())
 
-                        print(
+                        log.info(
                             f"[comp{comp_idx}_frame{frame_idx}] "
                             f"prot{prot_idx} <- prot0  RMSD={sup.rms:.2f}"
                         )
@@ -993,12 +993,12 @@ class AssociatedGraph:
                             add_sphere_residues(self.graphs, list_node_names, self.output_path, nodes[0])
 
                         else:
-                            print(f"The subgraph centered at the {nodes[0]} node does not satisfies the requirements")
+                            log.info(f"The subgraph centered at the {nodes[0]} node does not satisfies the requirements")
                 if count_pep_nodes == 0:
-                    print('No peptide nodes were found in the association graph. No subgraph will be generated.')
+                    log.warning('No peptide nodes were found in the association graph. No subgraph will be generated.')
                 pass
 
-        print("You don't have any associated graphs created.")
+        log.warning("You don't have any associated graphs created.")
 
     def create_subgraph_with_neighbors(self, association_graph, node, max_nodes):
         """

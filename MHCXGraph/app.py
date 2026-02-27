@@ -38,10 +38,31 @@ def main():
         stream=sys.stdout,
         level=logging.DEBUG if S.get("debug", False) else logging.INFO,
     )
-    log = logging.getLogger("CRSProtein")
+
+    log = logging.getLogger("MHCXGraph")
     log.setLevel(logging.DEBUG if S.get("debug", False) else logging.INFO)
+
+    log.info(f"Current log level: {logging.getLevelName(log.level)}")
+
+    debug_log_path = base_output_path / base_run_name / "debug.log"
+    debug_log_path.parent.mkdir(parents=True, exist_ok=True)
+
+    file_handler = logging.FileHandler(debug_log_path, mode="a", encoding="utf-8")
+    file_handler.setLevel(logging.DEBUG)
+
+    formatter = logging.Formatter(
+        "%(asctime)s [%(levelname)s] %(name)s | %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S"
+    )
+    file_handler.setFormatter(formatter)
+
+    # Attach only to your logger
+    log.addHandler(file_handler)
     coloredlogs.install(level='DEBUG', logger=log)
+
+    log.debug("Debug file logging initialized")
     
+
     graphs = create_graphs(manifest)
     base_association_config = build_association_config(S, run_mode, tracker_residues)
 

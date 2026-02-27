@@ -25,7 +25,7 @@ from MHCXGraph.core.residue_tracking import ResidueTracker, TrackCtx
 from MHCXGraph.core.tracking import save
 from MHCXGraph.utils.vis_tracer import TraversalTracer
 
-log = logging.getLogger("CRSProtein")
+log = logging.getLogger("MHCXGraph")
 
 #Ts = TypeVarTuple("Ts")
 
