@@ -32,7 +32,7 @@ jobs:
       - name: Extract package version
         id: get_version
         run: |
-          VERSION=$(ls dist/*.tar.gz | sed -E 's/.*mhcxgraph-([0-9\.]+).*/\1/')
+          VERSION=$(ls dist/*.tar.gz | sed -E 's/.*mhcxgraph-([0-9]+(\.[0-9]+)*).*/\1/')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Detected version: $VERSION"
 
