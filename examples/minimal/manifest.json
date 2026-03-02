@@ -1,0 +1,178 @@
+{
+  "settings": {
+    "run_name": "minimal",
+    "run_mode": "pair",
+    "max_chunks": 5,
+    "output_path": "results/minimal",
+    "debug": true,
+    "track_steps": false,
+    "rsa_table": "Wilke",
+    "edge_threshold": 8.5,
+    "node_granularity": "all_atoms",
+    "include_ligands": true,
+    "include_noncanonical_residues": true,
+    "exclude_waters": false,
+    "triad_rsa": false,
+    "rsa_filter": 0.1,
+    "asa_filter": 5,
+    "close_tolerance_rsa": 0.01,
+    "distance_std_threshold": 1.0,
+    "distance_diff_threshold": 1.0,
+    "_filter_triads_by_chain": [
+      "C"
+    ],
+    "distance_bin_width": 2,
+    "close_tolerance": 0.1,
+    "rsa_bin_width": 0.2,
+    "_classes": {
+      "residues": {
+        "HID": [
+          "ALA",
+          "VAL",
+          "LEU",
+          "ILE",
+          "MET"
+        ],
+        "POL": [
+          "SER",
+          "THR",
+          "ASN",
+          "GLN",
+          "CYS"
+        ],
+        "POS": [
+          "LYS",
+          "ARG",
+          "HIS"
+        ],
+        "NEG": [
+          "ASP",
+          "GLU"
+        ],
+        "ARO": [
+          "PHE",
+          "TYR",
+          "TRP"
+        ],
+        "ESP": [
+          "GLY",
+          "PRO"
+        ]
+      }
+    }
+  },
+  "inputs": [
+    {
+      "path": "examples/minimal/data",
+      "enable_tui": false,
+      "extensions": [
+        ".pdb",
+        ".cif"
+      ],
+      "selectors": [
+        {
+          "name": "MHC1"
+        }
+      ]
+    }
+  ],
+  "selectors": {
+    "MHC1": {
+      "chains": [
+        "C"
+      ],
+      "structures": {},
+      "residues": {
+        "A": [
+          19,
+          44,
+          55,
+          56,
+          58,
+          59,
+          61,
+          62,
+          63,
+          64,
+          65,
+          66,
+          68,
+          69,
+          70,
+          71,
+          72,
+          73,
+          75,
+          76,
+          79,
+          80,
+          83,
+          84,
+          108,
+          131,
+          145,
+          146,
+          147,
+          148,
+          149,
+          150,
+          151,
+          152,
+          153,
+          154,
+          155,
+          156,
+          157,
+          158,
+          159,
+          161,
+          162,
+          163,
+          166,
+          167,
+          169,
+          170
+        ]
+      }
+    },
+    "MHC2": {
+      "chains": [
+        "C"
+      ],
+      "residues": {
+        "A": [
+          39,
+          53,
+          54,
+          55,
+          57,
+          58,
+          60,
+          61,
+          62,
+          64,
+          65,
+          67,
+          68,
+          69,
+          71
+        ]
+      }
+    },
+    "general": {
+      "chains": [
+        "E"
+      ],
+      "structures": [
+        "B",
+        "Helix"
+      ],
+      "residues": {
+        "I": [
+          61
+        ]
+      },
+      "_logic": "(exposed & (residues | structures: | chains:E))"
+    }
+  }
+}
