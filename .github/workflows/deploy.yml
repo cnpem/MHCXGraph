@@ -27,6 +27,13 @@ jobs:
         run: |
           python -m build --wheel --sdist .
 
+      - name: Extract package version
+        id: get_version
+        run: |
+          VERSION=$(ls dist/*.tar.gz | sed -E 's/.*mhcxgraph-([0-9\.]+).*/\1/')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Detected version: $VERSION"
+
       - name: Upload distribution archives
         uses: actions/upload-artifact@v7
         with:
@@ -50,7 +57,7 @@ jobs:
         with:
           python-version: 3.x
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: artifacts
           path: ./dist
