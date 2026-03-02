@@ -41,6 +41,7 @@ class GraphData(TypedDict):
     rsa: np.ndarray
     pdb_file: str
 
+
 class Graph:
     """Represents a protein structure graph (no external framework assumptions)."""
 
@@ -57,7 +58,7 @@ class Graph:
         self.config = config or make_default_config(
             edge_threshold=8.5,
             granularity="all_atoms",  # "all_atoms" | "backbone" | "side_chain" | "ca_only"
-            exclude_waters=False,
+            include_waters=False,
         )
 
         self.graph: nx.Graph = build_graph_with_config(pdb_path=graph_path, config=self.config)
@@ -285,6 +286,7 @@ class Graph:
             graph.nodes[n]["group"] = chain_id
 
         chain_ids = sorted({data.get("chain_id", "?") for _, data in graph.nodes(data=True)})
+        print(f"chain_ids: {chain_ids}")
         cmap = plt.cm.get_cmap("tab10", max(1, len(chain_ids)))
         palette = {cid: _rgba_to_hex(cmap(idx)) for idx, cid in enumerate(chain_ids)}
 

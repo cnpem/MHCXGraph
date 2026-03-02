@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-import logging
-
 import networkx as nx
 import numpy as np
 import pandas as pd
 
 from MHCXGraph.utils.logging_utils import get_log
 
-# log = logging.getLogger(__name__)
 log = get_log()
 
 """

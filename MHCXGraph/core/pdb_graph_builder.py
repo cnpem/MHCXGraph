@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
-import logging
+import math
+import re
 import tempfile
 from dataclasses import dataclass, field
+from typing import Literal, TypedDict, cast
 
 import networkx as nx
 import numpy as np
@@ -14,14 +16,15 @@ from Bio.PDB.DSSP import DSSP, residue_max_acc
 from Bio.PDB.Polypeptide import is_aa
 from Bio.PDB.Residue import Residue
 from Bio.PDB.Structure import Structure
+from Bio.PDB.vectors import Vector, rotaxis
 
 from MHCXGraph.core.config import DSSPConfig, GraphConfig
 from MHCXGraph.core.contact_map import contact_map_from_graph
 from MHCXGraph.core.metadata import secondary_structure
 from MHCXGraph.utils.logging_utils import get_log
 
-# log = logging.getLogger(__name__)
 log = get_log()
+
 """
 Structural graph builder for pMHC using Bio.PDB and NetworkX.
 
@@ -52,6 +55,41 @@ CANONICAL_AA3 = {
 }
 NONCANONICAL_TO_CANONICAL: dict[str, str] = {}
 BACKBONE_NAMES = {"N", "CA", "C", "O", "OXT"}
+WATER_NAMES = {
+    "HOH", "H2O", "WAT", "SOL",
+    "TIP3", "TIP3P", "TIP4P", "TIP5P",
+    "SPC", "SPCE",
+    "DOD", "D2O",
+    "OH2",
+}
+HYDROGEN_RE = re.compile("[123 ]*H.*")
+
+ResidueKind = Literal["canonical_aminoacid", "noncanonical_aminoacid", "ligand", "water"]
+ResidueList = list[tuple[str, Residue, ResidueKind, np.ndarray]]
+
+
+class AtomBundle(TypedDict):
+    raw_df: pd.DataFrame
+    node_centroids: pd.DataFrame
+    ca_cb_map: dict[str, NodeCoords]
+
+
+class ResidueInfo(TypedDict):
+    canonical_aminoacid_residues: ResidueList
+    noncanonical_aminoacid_residues: ResidueList
+    ligands: ResidueList
+    waters: ResidueList
+
+
+class StructureDict(TypedDict):
+    chains: list[Chain]
+    residues: ResidueInfo
+
+
+class NodeCoords(TypedDict):
+    ca_coord: tuple[float, float, float]
+    cb_coord: tuple[float, float, float]
+    cb_is_virtual: bool
 
 
 def _canonical_of(resname: str) -> str | None:
@@ -62,37 +100,33 @@ def _canonical_of(resname: str) -> str | None:
     return NONCANONICAL_TO_CANONICAL.get(rn)
 
 
-def _is_protein_residue(res: Residue) -> bool:
-    """Return True if residue is a standard (ATOM) amino-acid-like entry."""
-    hetflag, _, _ = res.id
-    return hetflag == " " and is_aa(res, standard=False)
-
-
 def _is_water(res: Residue) -> bool:
-    """Return True for water residues (HOH)."""
-    return res.get_resname() == "HOH"
+    """Return True for water residues."""
+    name = res.get_resname().strip().upper()
+    return name in WATER_NAMES
 
 
 def _heavy_atom_coords(res: Residue) -> np.ndarray:
     """Return heavy-atom coordinates of a residue as (N, 3) array."""
     coords: list[np.ndarray] = []
+
     for atom in res.get_atoms():
-        element = getattr(atom, "element", None)
-        if element is None:
-            if atom.get_name().upper().startswith("H"):
-                continue
+        element = getattr(atom, "element", "").strip().upper()
+
+        if element:
+            is_hydrogen = element in {"H", "D", "T"}
         else:
-            if element.upper() == "H":
-                continue
-        coords.append(atom.coord)  # type: ignore[attr-defined]
+            fullname = atom.fullname.ljust(4)
+            is_hydrogen = (not fullname[0].isalpha()) and (fullname[1] in {"H", "D", "T"})
+
+        if not is_hydrogen:
+            coords.append(atom.coord)  # type: ignore[attr-defined]
+
     if not coords:
         coords = [atom.coord for atom in res.get_atoms()]  # type: ignore[attr-defined]
+
     return np.asarray(coords, dtype=float)
 
-
-def _centroid(coords: np.ndarray) -> np.ndarray:
-    """Return centroid of an (N, 3) coordinate array."""
-    return coords.mean(axis=0)
 
 def _node_id(chain_id: str, res: Residue, kind: str = "residue") -> str:
     """Build a stable node identifier: 'A:GLY:42' or 'A:HOH:2001'."""
@@ -102,42 +136,13 @@ def _node_id(chain_id: str, res: Residue, kind: str = "residue") -> str:
         return f"{chain_id}:HOH:{resseq}{(icode.strip() or '')}"
     return f"{chain_id}:{resname}:{resseq}{(icode.strip() or '')}"
 
-def res_tuples_to_df(res_tuples):
-    """
-    Convert (node_id, Residue, centroid) tuples to a DataFrame.
 
-    Parameters
-    ----------
-    res_tuples : list of tuple
-        Each tuple is (node_id: str, residue: Bio.PDB.Residue, centroid: (3,) array).
-
-    Returns
-    -------
-    df : pandas.DataFrame
-        Columns: chain_id, residue_number, residue_name, insertion, x_coord, y_coord, z_coord.
-    inconsistencies : list of str
-        Messages describing id vs. object mismatches (if any).
-    """
-    rows, inconsistencies = [], []
-    for id_str, residue, centroid in res_tuples:
-        try:
-            chain_id = id_str.split(":")[0]
-        except Exception:
-            chain_id = None
-        _, resseq, icode = residue.get_id()
+def check_res_inconsistencies(res_tuples):
+    inconsistencies = []
+    for id_str, residue, _, _ in res_tuples:
+        _, resseq, _ = residue.get_id()
         residue_number = int(resseq)
-        insertion = "" if icode == " " else str(icode)
         residue_name_obj = residue.get_resname().strip()
-        x, y, z = map(float, centroid)
-        rows.append({
-            "chain_id": chain_id,
-            "residue_number": residue_number,
-            "residue_name": residue_name_obj,
-            "insertion": insertion,
-            "x_coord": x,
-            "y_coord": y,
-            "z_coord": z,
-        })
         parts = id_str.split(":")
         if len(parts) == 3:
             _, residue_name_id, resseq_id = parts
@@ -149,13 +154,8 @@ def res_tuples_to_df(res_tuples):
                 inconsistencies.append(
                     f"{id_str}: residue_number id='{resseq_id}' vs obj='{residue_number}'"
                 )
-    df = pd.DataFrame(rows, columns=[
-        "chain_id","residue_number","residue_name","insertion",
-        "x_coord","y_coord","z_coord"
-    ])
-    return df, inconsistencies
 
-
+    return inconsistencies
 
 
 @dataclass
@@ -167,20 +167,24 @@ class BuiltGraph:
     ----------
     graph : networkx.Graph
         Constructed graph with node/edge attributes.
-    residue_index : list of (str, Bio.PDB.Residue)
-        Node id to residue pairing for protein residues.
-    residue_centroids : ndarray, shape (N, 3)
-        Residue centroids used for distance calculations.
-    water_index : list of (str, Bio.PDB.Residue)
-        Node id to residue pairing for waters (if included).
-    water_centroids : ndarray or None
-        Water centroids, if any.
-    distance_matrix : ndarray or None
-        Residue–residue centroid distance matrix when requested.
-    raw_pdb_df, pdb_df, rgroup_df : pandas.DataFrame or None
-        Atom-level tables.
+    residue_index : list of tuple[str, Bio.PDB.Residue]
+        Node id to residue pairing for amino acid residues used as the main
+        distance base.
+    residue_centroids : numpy.ndarray
+        Centroids for ``residue_index`` in the same order, shape (N, 3).
+    water_index : list of tuple[str, Bio.PDB.Residue]
+        Node id to residue pairing for water residues (if included).
+    water_centroids : numpy.ndarray or None
+        Water centroids in the same order as ``water_index``, shape (W, 3).
+    distance_matrix : numpy.ndarray or None
+        Pairwise centroid distance matrix for residues in ``residue_index``.
+    raw_pdb_df : pandas.DataFrame or None
+        Atom-level table used to derive centroids and CA/CB coordinates.
+    node_centroids : pandas.DataFrame or None
+        DataFrame indexed by ``node_id`` with centroid coordinates
+        ``x_coord``, ``y_coord``, ``z_coord``.
     dssp_df : pandas.DataFrame or None
-        DSSP summary with an added "rsa" column; includes waters as rows (rsa=1.0).
+        DSSP summary with an added "rsa" column, aligned to graph nodes.
     """
     graph: nx.Graph
     residue_index: list[tuple[str, Residue]]
@@ -189,8 +193,7 @@ class BuiltGraph:
     water_centroids: np.ndarray | None = None
     distance_matrix: np.ndarray | None = None
     raw_pdb_df: pd.DataFrame | None = None
-    pdb_df: pd.DataFrame | None = None
-    rgroup_df: pd.DataFrame | None = None
+    node_centroids: pd.DataFrame | None = None
     dssp_df: pd.DataFrame | None = None
 
 
@@ -235,10 +238,9 @@ class PDBGraphBuilder:
     def _ensure_pdb_for_dssp(self) -> str:
         """
         Return a path to a PDB file suitable for mkdssp.
-        If input is already PDB, return original path.
+    If input is already PDB, return original path.
         If input is mmCIF, write a temporary PDB from self.structure and return it.
         """
-        assert self.structure is not None
 
         p = self.pdb_path.lower()
         if p.endswith(".pdb"):
@@ -253,10 +255,9 @@ class PDBGraphBuilder:
         io.save(tmp_path)
         return tmp_path
 
-
     def _compute_asa_rsa(
-        self, res_tuples: list[tuple[str, Residue, np.ndarray]]
-    ) -> tuple[dict[str, tuple[float, float | None]], pd.DataFrame | None]:
+            self, res_tuples: ResidueList
+            ) -> tuple[dict[str, tuple[float, float | None]], pd.DataFrame | None]:
         """
         Compute per-residue ASA and RSA.
 
@@ -281,7 +282,6 @@ class PDBGraphBuilder:
           non-canonicals are normalized by a structure-wise ASA reference.
         """
         max_acc_table = residue_max_acc[self.config.dssp_acc_array]
-        assert self.structure is not None
 
         sr = ShrakeRupley(probe_radius=self.config.probe_radius, n_points=self.config.n_points)
         sr.compute(self.structure, level="R")
@@ -293,12 +293,12 @@ class PDBGraphBuilder:
             dssp_input_path = self._ensure_pdb_for_dssp()
 
             dssp = DSSP(
-                model,
-                dssp_input_path,
-                dssp=self.config.dssp_exec,
-                acc_array=self.config.dssp_acc_array,
-            )
-            idx2nid = {(res.get_parent().id, res.id): nid for nid, res, _ in res_tuples}
+                    model,
+                    dssp_input_path,
+                    dssp=self.config.dssp_exec,
+                    acc_array=self.config.dssp_acc_array,
+                    )
+            idx2nid = {(res.get_parent().id, res.id): nid for nid, res, _, _ in res_tuples}
             rows: list[dict[str, object]] = []
 
             for key in dssp.keys():
@@ -334,7 +334,7 @@ class PDBGraphBuilder:
                     "NH_O_2_relidx": nh_o_2_relidx, "NH_O_2_energy": nh_o_2_energy,
                     "O_NH_2_relidx": o_nh_2_relidx, "O_NH_2_energy": o_nh_2_energy,
                     "node_id": nid,
-                })
+                    })
 
             dssp_df = pd.DataFrame(rows).set_index("node_id") if rows else None
             if dssp_df is not None and not dssp_df.empty:
@@ -343,8 +343,7 @@ class PDBGraphBuilder:
                     dssp_df["rsa"] = dssp_df["asa"] / dssp_df["max_acc"]
                     dssp_df.loc[dssp_df["max_acc"] <= 0, "rsa"] = np.nan
 
-            # Fill missing/undefined RSA using SR fallback
-            for nid, res, _ in res_tuples:
+            for nid, res, _, _ in res_tuples:
                 if nid in out and out[nid][1] is not None:
                     continue
                 asa_abs = float(getattr(res, "sasa", 0.0))
@@ -353,10 +352,8 @@ class PDBGraphBuilder:
 
                 if aa_can is not None:
                     max_acc = float(max_acc_table.get(aa_can, 0.0))
-                    if max_acc > 0:
-                        rsa_rel = asa_abs / max_acc
-                    else:
-                        rsa_rel = None
+                    rsa_rel = asa_abs / max_acc if max_acc > 0 else None
+
                 else:
                     rsa_rel = None
 
@@ -364,17 +361,15 @@ class PDBGraphBuilder:
 
             return out, dssp_df
 
-        for nid, res, _ in res_tuples:
+        for nid, res, _, _ in res_tuples:
             asa = float(getattr(res, "sasa", 0.0))
             aa3 = res.get_resname().strip().upper()
             aa_can = _canonical_of(aa3)
 
             if aa_can is not None:
                 max_acc = float(max_acc_table.get(aa_can, 0.0))
-                if max_acc > 0:
-                    rsa = asa / max_acc
-                else:
-                    rsa = None
+                rsa = asa / max_acc if max_acc > 0 else None
+
             else:
                 rsa = None
 
@@ -384,23 +379,40 @@ class PDBGraphBuilder:
 
     def _centroid_mask_for_group(self, g: pd.DataFrame) -> pd.Series:
         """
-        Return a boolean mask selecting which atoms of a residue group `g` are
-        used to compute the centroid, according to `config.node_granularity`.
+        Compute a boolean mask selecting the atoms that contribute to the centroid
+        of a residue or node group.
 
-        Notes
-        -----
-        - Heavy atoms => element != 'H'
-        - Water residues: prefer O/OW/OH2; fallback to any heavy atom.
-        - side_chain: if empty (e.g., GLY), fallback to CA (or CB).
-        - ca_only: use CA; if missing, CB; if still missing, first heavy atom.
+        The mask is built according to the granularity configuration used in
+        the graph construction pipeline. The returned mask is aligned with the input
+        DataFrame index and can be used to extract the coordinate subset before
+        computing the centroid.
+
+        Parameters
+        ----------
+        df : pandas.DataFrame
+            DataFrame containing atom-level information for a single residue or
+            graph node. Must contain at least the column ``"element"`` and the
+            coordinate fields ``"x_coord"``, ``"y_coord"``, ``"z_coord"``.
+
+        Returns
+        -------
+        numpy.ndarray of bool
+            Boolean array of shape (N,) where N is the number of atoms in `df`.
+            A value of ``True`` indicates that the corresponding atom should be
+            included when computing the centroid.
+
         """
         names = g["atom_name"].str.upper()
         elems = g["element_symbol"].str.upper().fillna("")
-        resn  = str(g["residue_name"].iloc[0]).upper()
-        heavy = elems != "H"
+        resn = str(g["residue_name"].iloc[0]).upper()
 
-        # handle waters up front
-        if resn == "HOH":
+        elem_is_h = elems.isin({"H", "D", "T"})
+        name_is_h = names.str.match(HYDROGEN_RE)
+        is_hydrogen = elem_is_h | name_is_h
+
+        heavy = ~is_hydrogen
+
+        if resn in WATER_NAMES:
             mask = names.isin({"O", "OW", "OH2"})
             if not mask.any():
                 mask = heavy
@@ -428,251 +440,296 @@ class PDBGraphBuilder:
         if not mask.any():
             mask = names.eq("CB")
         if not mask.any():
-            mask = heavy  # ultimate fallback
+            mask = heavy
         return mask
 
     def _centroids_from_raw_df(self, raw_df: pd.DataFrame) -> pd.DataFrame:
         """
-        Compute one centroid per node_id using the same granularity rules as edges.
+        Compute one centroid per residue node from an atom-level table.
 
-        Returns a DataFrame indexed by node_id with columns x_coord,y_coord,z_coord.
+        The centroid for each ``node_id`` is calculated using the same atom
+        selection rules used for edge construction, as defined by
+        ``_centroid_mask_for_group``.
+
+        If the mask for a given residue selects no atoms (e.g., a glycine
+        with ``granularity='side_chain'``), all atoms of that residue are
+        used as a fallback.
+
+        Parameters
+        ----------
+        raw_df : pandas.DataFrame
+            Atom-level table with at least the following columns:
+            ``node_id``, ``x_coord``, ``y_coord``, ``z_coord``,
+            ``atom_name``, ``element_symbol``, and ``residue_name``.
+            Typically generated by ``_make_raw_df``.
+
+        Returns
+        -------
+        pandas.DataFrame
+            A DataFrame indexed by ``node_id`` with columns:
+            ``x_coord``, ``y_coord``, ``z_coord``, containing the centroid
+            coordinates for each residue.
+
+            The index name is set to ``"node_id"``. If ``raw_df`` is empty,
+            an empty DataFrame with the correct structure is returned.
         """
-        if raw_df.empty:
-            return pd.DataFrame(columns=["x_coord", "y_coord", "z_coord"]).set_index(pd.Index([], name="node_id"))
 
-        def _centroid_for_group(g: pd.DataFrame) -> pd.Series:
+        if raw_df.empty:
+            return pd.DataFrame(
+                columns=["x_coord", "y_coord", "z_coord"],
+                index=pd.Index([], name="node_id"),
+            )
+
+        df = raw_df.set_index("node_id", drop=True)
+
+        def reducer(g: pd.DataFrame) -> pd.Series:
             mask = self._centroid_mask_for_group(g)
             sub = g.loc[mask, ["x_coord", "y_coord", "z_coord"]]
             if sub.empty:
                 sub = g[["x_coord", "y_coord", "z_coord"]]
-            cx, cy, cz = sub.mean(axis=0).values.astype(float)
-            return pd.Series({"x_coord": cx, "y_coord": cy, "z_coord": cz})
 
-        out = raw_df.groupby("node_id", sort=False, group_keys=False).apply(_centroid_for_group)
+            cx, cy, cz = sub.mean(axis=0).astype(float)
+            return pd.Series(
+                {"x_coord": cx, "y_coord": cy, "z_coord": cz}
+            )
+
+        out = df.groupby(level=0, sort=False).apply(reducer)
+
         out.index.name = "node_id"
         return out
 
-    def _extract_ca_cb(self, raw_df: pd.DataFrame) -> dict[str, dict[str, tuple[float, float, float]]]:
+    def _extract_ca_cb(self, raw_df: pd.DataFrame) -> dict[str, NodeCoords]:
         """
-        Para cada node_id, retorna tuplas (x,y,z) para CA e CB.
-        Se não existir, retorna (nan, nan, nan).
-        Critério: prioriza altloc vazio sobre não vazio; maior occupancy; menor b_factor; menor atom_number.
+        Extracts CA, CB, N, and C atom coordinates for each residue node.
+
+        Parameters
+        ----------
+        raw_df : pandas.DataFrame
+            Input table with atomic information. Must contain the columns
+            'node_id', 'atom_name', 'alt_loc', 'occupancy', 'b_factor',
+            'atom_number', 'x_coord', 'y_coord', and 'z_coord'.
+
+        Returns
+        -------
+        dict of str to NodeCoords
+            Mapping from node_id to a dictionary with:
+                'ca_coord' : tuple of float
+                    The CA atom coordinates or (nan, nan, nan) if missing.
+                'cb_coord' : tuple of float
+                    The CB atom coordinates or (nan, nan, nan) if missing.
+                'cb_is_virtual' : bool
+                    Whether the CB was computed as a virtual glycine CB.
+        Notes
+        -----
+        Atom selection follows a deterministic priority:
+        empty altloc is preferred over non-empty,
+        higher occupancy is preferred,
+        lower B-factor is preferred,
+        and lower atom_number is preferred.
         """
+
         if raw_df.empty:
             return {}
 
-        df = raw_df.copy()
-        df["AN"] = df["atom_name"].str.upper()
-        df = df[df["AN"].isin(["CA", "CB", "N", "C"])]
+        atom_names = cast(pd.Series, raw_df["atom_name"])
+        df = raw_df[atom_names.str.upper().isin(["CA", "CB", "N", "C"])].copy()
 
         if df.empty:
             return {}
 
-        # rank de escolha estável de conformero/altloc
-        df["_alt_rank"] = (df["alt_loc"].astype(str).str.strip() != "").astype(int)
-        df["_occ"] = df["occupancy"].fillna(0.0)
-        df["_bfac"] = df["b_factor"].fillna(np.inf)
-        df["_anum"] = df["atom_number"].fillna(np.inf)
+        df["AN"] = cast(pd.Series, df["atom_name"]).str.upper()
 
-        df = df.sort_values(
-            ["node_id", "AN", "_alt_rank", "_occ", "_bfac", "_anum"],
-            ascending=[True, True, True, False, True, True],
-            kind="mergesort",
-        )
+        df["_alt_rank"] = [1 if str(x).strip() else 0 for x in df["alt_loc"]]
+        df = df.fillna({
+            "occupancy": 0.0,
+            "b_factor": float("inf"),
+            "atom_number": float("inf")
+        })
 
+        sort_cols: list[str] = ["node_id", "AN", "_alt_rank", "occupancy", "b_factor", "atom_number"]
+        sort_asc: list[bool] = [True, True, True, False, True, True]
+
+        df = df.sort_values(by=sort_cols, ascending=sort_asc, kind="mergesort")
         best = df.groupby(["node_id", "AN"], as_index=False).first()
 
-        pick = lambda an: best[best["AN"] == an].set_index("node_id")[["x_coord", "y_coord", "z_coord"]]
-        ca_tbl = pick("CA")
-        cb_tbl = pick("CB")
-        n_tbl  = pick("N")
-        c_tbl  = pick("C")
+        coords_dict: dict[str, dict[str, tuple[float, float, float]]] = {
+            str(nid): {} for nid in raw_df["node_id"].unique()
+        }
 
-        all_nodes = pd.Index(raw_df["node_id"].unique())
-        ca_tbl = ca_tbl.reindex(all_nodes)
-        cb_tbl = cb_tbl.reindex(all_nodes)
-        n_tbl  = n_tbl.reindex(all_nodes)
-        c_tbl  = c_tbl.reindex(all_nodes)
+        for row in best.to_dict("records"):
+            coords_dict[str(row["node_id"])][str(row["AN"])] = (
+                float(row["x_coord"]),
+                float(row["y_coord"]),
+                float(row["z_coord"])
+            )
 
-        # também precisamos do nome do resíduo por node_id
-        resname_by_node = (
-            raw_df.drop_duplicates("node_id")
-                  .set_index("node_id")["residue_name"].str.upper()
-                  .reindex(all_nodes)
-        )
+        out: dict[str, NodeCoords] = {}
+        make_virt_gly = getattr(self.config, "make_virtual_cb_for_gly", True)
 
-        nan3 = (float("nan"), float("nan"), float("nan"))
-        out: dict[str, dict[str, tuple[float, float, float]]] = {}
+        resnames = cast(pd.Series, raw_df.drop_duplicates("node_id").set_index("node_id")["residue_name"])
+        resname_map = cast(dict[str, str], resnames.str.upper().to_dict())
 
-        def _to_tuple(row) -> tuple[float, float, float]:
-            if row is None or not hasattr(row, "values"):
-                return nan3
-            vals = row.values.astype(float)
-            if np.isnan(vals).any():
-                return nan3
-            return (float(vals[0]), float(vals[1]), float(vals[2]))
-
-        def _normalize(v: np.ndarray) -> np.ndarray:
-            n = np.linalg.norm(v)
-            if n == 0 or not np.isfinite(n):
-                return v
-            return v / n
-
-
-        for nid in all_nodes:
-            ca_t = _to_tuple(ca_tbl.loc[nid] if nid in ca_tbl.index else None)
-            cb_t = _to_tuple(cb_tbl.loc[nid] if nid in cb_tbl.index else None)
-
-            # Se CB está ausente e resíduo é GLY e config permite, tenta CB virtual
-            if (np.isnan(cb_t[0]) or np.isnan(cb_t[1]) or np.isnan(cb_t[2])):
-                if getattr(self.config, "make_virtual_cb_for_gly", True) and resname_by_node.get(nid, "") == "GLY":
-                    ca_row = ca_tbl.loc[nid] if nid in ca_tbl.index else None
-                    n_row  = n_tbl.loc[nid]  if nid in n_tbl.index  else None
-                    c_row  = c_tbl.loc[nid]  if nid in c_tbl.index  else None
-
-                    if all(r is not None and not np.isnan(r.values.astype(float)).any() for r in [ca_row, n_row, c_row]):
-                        rCA = ca_row.values.astype(float)
-                        rN  = n_row.values.astype(float)
-                        rC  = c_row.values.astype(float)
-                        nvec = _normalize(rN - rCA)
-                        cvec = _normalize(rC - rCA)
-                        b = _normalize(nvec + cvec)
-                        cb_virtual = rCA - 1.522 * b
-                        cb_t = (float(cb_virtual[0]), float(cb_virtual[1]), float(cb_virtual[2]))
-                        out[nid] = {"ca_coord": ca_t, "cb_coord": cb_t, "cb_is_virtual": True}
-                    else:
-                        out[nid] = {"ca_coord": ca_t, "cb_coord": nan3, "cb_is_virtual": False}
-                else:
-                    out[nid] = {"ca_coord": ca_t, "cb_coord": cb_t, "cb_is_virtual": False}
-            else:
-                out[nid] = {"ca_coord": ca_t, "cb_coord": cb_t, "cb_is_virtual": False}
+        for nid, atoms in coords_dict.items():
+            out[nid] = self._process_node_coords(nid, atoms, resname_map, make_virt_gly)
 
         return out
 
-    def _centroid_pdb_df_from_raw(self, raw_df: pd.DataFrame) -> pd.DataFrame:
+    def _process_node_coords(self, nid: str,
+                             atoms: dict[str, tuple[float, float, float]],
+                             resname_map: dict[str, str],
+                             make_virt_gly: bool) -> NodeCoords:
         """
-        Build a centroid-style pdb_df: one representative atom per residue `node_id`,
-        with (x, y, z) overwritten by the residue centroid computed from a
-        configurable subset of atoms.
+        Selects CA and CB coordinates for a given residue and computes a virtual CB
+        for glycine when enabled.
 
-        Granularity
-        -----------
-        Controlled by `self.config.node_granularity`:
-          - "all_atoms": all heavy atoms (element != 'H').
-          - "backbone": heavy backbone atoms only (N, CA, C, O, OXT).
-          - "side_chain": heavy side-chain atoms only; fallback to CA/CB if empty.
-          - "ca_only": use CA (or CB if CA missing); centroid is that atom.
+        Parameters
+        ----------
+        nid : str
+            Node identifier corresponding to the residue.
+        atoms : dict of str to tuple of float
+            Dictionary mapping atom names (e.g. 'CA', 'CB', 'N', 'C') to 3D coordinates.
+        resname_map : dict of str to str
+            Mapping from node_id to residue name.
+        make_virt_gly : bool
+            Whether to compute a virtual CB for glycine if CB is missing.
 
-        Representative row
-        -------------------
-        We keep exactly one row per `node_id` by preferring CA, then CB, then
-        water O/OW, then first heavy atom (stable). The (x,y,z) of that row are
-        overwritten with the centroid computed above.
+        Returns
+        -------
+        NodeCoords
+            Dictionary with keys:
+                'ca_coord' : tuple of float
+                'cb_coord' : tuple of float
+                'cb_is_virtual' : bool
+        Notes
+        -----
+        Virtual CB computation follows standard geometric construction for glycine
+        using CA, N, and C coordinates.
         """
-        if raw_df.empty:
-            return raw_df.copy()
 
-        df = raw_df.copy()
+        nan3 = (float("nan"), float("nan"), float("nan"))
+        ca = atoms.get("CA", nan3)
+        cb = atoms.get("CB", nan3)
+        is_virt = False
 
-        # Compute centroid per node_id with a custom mask per residue group
-        def _centroid_for_group(g: pd.DataFrame) -> pd.Series:
-            mask = self._centroid_mask_for_group(g)
-            sub = g.loc[mask, ["x_coord", "y_coord", "z_coord"]]
-            if sub.empty:  # paranoid fallback
-                sub = g[["x_coord", "y_coord", "z_coord"]]
-            cx, cy, cz = sub.mean(axis=0).values.astype(float)
-            return pd.Series({"cx": cx, "cy": cy, "cz": cz})
+        if math.isnan(cb[0]) and make_virt_gly and resname_map.get(nid) == "GLY":
+            n = atoms.get("N", nan3)
+            c = atoms.get("C", nan3)
+            cb_virt = self._calc_virtual_cb(ca, n, c)
 
-        centroids = df.groupby("node_id", sort=False, group_keys=False).apply(_centroid_for_group)
+            if not math.isnan(cb_virt[0]):
+                cb = cb_virt
+                is_virt = True
 
-        # Representative atom selection (stable) — prefer CA, then CB, water O/OW, else first heavy
-        def _score(row) -> int:
-            an = str(row["atom_name"]).upper()
-            resn = str(row["residue_name"]).upper()
-            if an == "CA":
-                return 0
-            if an == "CB":
-                return 1
-            if resn == "HOH" and an in {"O", "OW", "OH2"}:
-                return 2
-            return 3
+        return {
+            "ca_coord": ca,
+            "cb_coord": cb,
+            "cb_is_virtual": is_virt
+        }
 
-        df["_repr_score"] = df.apply(_score, axis=1)
+    def _calc_virtual_cb(self,
+                         ca: tuple[float, float, float],
+                         n: tuple[float, float, float],
+                         c: tuple[float, float, float]) -> tuple[float, float, float]:
+        """
+        Calculates a virtual CB using the Biopython method:
+        rotate the N–CA vector -120 degrees around the CA–C axis.
 
-        df_sorted = df.sort_values(
-            by=["_repr_score", "model_idx", "chain_id", "residue_number", "atom_number"],
-            kind="mergesort",
-        )
+        Parameters
+        ----------
+        ca : tuple of float
+            Coordinates of CA.
+        n : tuple of float
+            Coordinates of N.
+        c : tuple of float
+            Coordinates of C.
 
-        reps = (
-            df_sorted.groupby("node_id", as_index=False)
-            .first()
-            .drop(columns=["_repr_score"])
-        )
+        Returns
+        -------
+        tuple of float
+            Virtual CB coordinate. NaN triplet if invalid.
+        """
+        # Check for NaNs
+        if any(math.isnan(x) for v in (ca, n, c) for x in v):
+            return (float("nan"), float("nan"), float("nan"))
 
-        reps = reps.merge(centroids, left_on="node_id", right_index=True, how="left")
-        for c_src, c_dst in (("cx", "x_coord"), ("cy", "y_coord"), ("cz", "z_coord")):
-            reps[c_dst] = reps[c_src].where(reps[c_src].notna(), reps[c_dst])
-            reps.drop(columns=[c_src], inplace=True)
+        # Convert to Biopython Vector
+        v_ca = Vector(*ca)
+        v_n = Vector(*n)
+        v_c = Vector(*c)
 
-        # Keep protein and waters; drop other ligands unless you want them later
-        reps = reps.copy()
+        # Center at CA
+        v_n0 = v_n - v_ca
+        v_c0 = v_c - v_ca
 
-        cols = [
-            "record_name","atom_number","atom_name","alt_loc","residue_name","chain_id",
-            "residue_number","insertion","x_coord","y_coord","z_coord","occupancy",
-            "b_factor","element_symbol","charge","model_idx","node_id","residue_id"
-        ]
-        reps = reps.reindex(columns=cols).reset_index(drop=True)
+        # Rotation of -120 degrees (in radians)
+        angle = -math.pi * 120.0 / 180.0
 
-        return reps.reset_index(drop=True)
+        # Compute rotation matrix around CA–C axis
+        rot = rotaxis(angle, v_c0)
 
-    def _make_atom_tables(self, chains: list[Chain]) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+        # Rotate N–CA vector
+        v_cb0 = v_n0.left_multiply(rot)
+
+        # Translate back to CA position
+        v_cb = v_cb0 + v_ca
+
+        return (float(v_cb[0]), float(v_cb[1]), float(v_cb[2]))
+
+
+    def _make_raw_df(self, s_dict: StructureDict) -> pd.DataFrame:
         """
         Build atom-level DataFrames.
 
         Parameters
         ----------
-        chains : list of Chain
-            Chains to traverse.
+        s_dict : StructureDict
 
         Returns
         -------
         raw_df : pandas.DataFrame
             All atoms (including waters/ligands).
-        pdb_df : pandas.DataFrame
-            Protein heavy atoms (no H, no waters).
-        rgroup_df : pandas.DataFrame
-            Side-chain heavy atoms (backbone removed).
         """
         rows = []
         model_idx = self.config.model_index
-        for ch in chains:
-            for res in ch.get_residues():
-                hetflag, resseq, icode = res.id
+
+        categories: list[tuple[str, str]] = [
+                    ("canonical_aminoacid_residues", "ATOM"),
+                    ("noncanonical_aminoacid_residues", "ATOM"),
+                    ("ligands", "HETATM"),
+                    ("waters", "HETATM")
+        ]
+
+        for kind, record_name in categories:
+
+            res_list = s_dict["residues"][kind]
+
+            for node_id, res, _, _ in res_list:
+                _, resseq, icode = res.id
                 resname = res.get_resname()
-                chain_id = ch.id
-                is_water = (resname == "HOH")
-                is_std = _is_protein_residue(res)
-                record_name = "ATOM" if is_std else "HETATM"
-                node_id = _node_id(chain_id, res, kind="water" if is_water else "residue")
+                chain_id = res.parent.id
                 residue_id = f"{chain_id}:{int(resseq)}{(icode.strip() or '')}"
+
                 for atom in res.get_atoms():
                     try:
                         serial = atom.get_serial_number()
                     except Exception:
                         serial = None
+
                     name = atom.get_name().strip()
+
                     try:
                         alt = atom.get_altloc()
                     except Exception:
                         alt = ""
+
                     element = getattr(atom, "element", None)
                     if not element:
                         element = name[0] if name else ""
+
                     x, y, z = map(float, atom.coord)  # type: ignore[attr-defined]
                     occ = atom.get_occupancy()
                     bfac = atom.get_bfactor()
+
                     rows.append({
                         "record_name": record_name,
                         "atom_number": serial,
@@ -689,126 +746,100 @@ class PDBGraphBuilder:
                         "model_idx": model_idx,
                         "node_id": node_id,
                         "residue_id": residue_id,
+                        "kind": kind
                     })
+
         raw_df = pd.DataFrame(rows)
-        pdb_df = raw_df[
-            (raw_df["record_name"] == "ATOM") &
-            (raw_df["element_symbol"] != "H") &
-            (raw_df["residue_name"] != "HOH")
-        ].copy()
-        rgroup_df = pdb_df[~pdb_df["atom_name"].str.upper().isin(BACKBONE_NAMES)].copy()
         cols = [
-            "record_name","atom_number","atom_name","alt_loc","residue_name","chain_id",
-            "residue_number","insertion","x_coord","y_coord","z_coord","occupancy",
-            "b_factor","element_symbol","charge","model_idx","node_id","residue_id"
+            "record_name", "atom_number", "atom_name", "alt_loc", "residue_name", "chain_id",
+            "residue_number", "insertion", "x_coord", "y_coord", "z_coord", "occupancy",
+            "b_factor", "element_symbol", "charge", "model_idx", "node_id", "residue_id", "kind"
         ]
+
         raw_df = raw_df.reindex(columns=cols)
-        pdb_df = pdb_df.reindex(columns=cols)
-        rgroup_df = rgroup_df.reindex(columns=cols)
-        return raw_df, pdb_df, rgroup_df
 
-    def _select_chains(self) -> list[Chain]:
-        """
-        Select chains according to configuration.
+        return raw_df
 
-        Returns
-        -------
-        list of Chain
-            Chains to be used.
+    def _build_structure_dict(self) -> StructureDict:
+        if self.structure is None:
+            raise Exception("Structure not loaded")
 
-        Raises
-        ------
-        ValueError
-            If requested chains are not found and ``allow_empty_chains=False``.
-        """
-        assert self.structure is not None, "Structure not loaded"
+        s_dict: StructureDict = {
+            "chains": [],
+            "residues": {
+                "canonical_aminoacid_residues": [],
+                "noncanonical_aminoacid_residues": [],
+                "ligands": [],
+                "waters": []
+            }
+        }
+
         model = self.structure[self.config.model_index]
+
+        s_dict["chains"] = self._get_requested_chains(model)
+
+        for ch in s_dict["chains"]:
+            for res in ch.get_residues():
+                self._process_residue(ch, res, s_dict["residues"])
+
+        return s_dict
+
+    def _get_requested_chains(self, model) -> list:
+        """Helper to filter and validate requested chains."""
         if self.config.chains is None:
-            return [ch for ch in model]
-        chains_found: list[Chain] = []
+            return list(model)
+
         wanted = set(self.config.chains)
-        for ch in model:
-            if ch.id in wanted:
-                chains_found.append(ch)
-        if not chains_found and not self.config.allow_empty_chains:
-            raise ValueError(f"None of the requested chains were found: {self.config.chains}")
-        return chains_found
+        chains = [ch for ch in model if ch.id in wanted]
 
-    def _collect_residues(self, chains: list[Chain]) -> list[tuple[str, Residue, np.ndarray]]:
-        """
-        Collect protein residues and centroids.
+        if not chains and not self.config.allow_empty_chains:
+            msg = f"None of the requested chains were found: {self.config.chains}"
+            raise ValueError(msg)
 
-        Returns
-        -------
-        list of tuple
-            (node_id, Residue, centroid) for standard residues only.
-        """
-        out: list[tuple[str, Residue, np.ndarray]] = []
-        for ch in chains:
-            for res in ch.get_residues():
-                if not _is_protein_residue(res):
-                    continue
-                coords = _heavy_atom_coords(res)
-                cent = _centroid(coords)
-                out.append((_node_id(ch.id, res), res, cent))
-        return out
+        return chains
 
-    def _collect_waters(self, chains: list[Chain]) -> list[tuple[str, Residue, np.ndarray]]:
-        """
-        Collect water residues and centroids when enabled.
+    def _process_residue(self, ch, res, residues_dict: ResidueInfo) -> None:
+        """Helper to categorize and store a single residue."""
+        coords_heavy = _heavy_atom_coords(res)
 
-        Returns
-        -------
-        list of tuple
-            (node_id, Residue, centroid) for waters (HOH). Empty if disabled.
-        """
-        if not self.config.include_waters:
-            return []
-        out: list[tuple[str, Residue, np.ndarray]] = []
-        for ch in chains:
-            for res in ch.get_residues():
-                if _is_water(res):
-                    coords = _heavy_atom_coords(res)
-                    cent = _centroid(coords)
-                    out.append((_node_id(ch.id, res, kind="water"), res, cent))
-        return out
+        if is_aa(res, standard=False):
+            key = "noncanonical_aminoacid_residues"
+            kind = "noncanonical_aminoacid"
 
-    def _collect_nonprotein_residues(
-        self,
-        chains: list[Chain],
-    ) -> list[tuple[str, Residue, np.ndarray, str]]:
-        """
-        Collects non-protein residues (excluding water) and classifies them as:
+            if is_aa(res, standard=True):
+                key = "canonical_aminoacid_residues"
+                kind = "canonical_aminoacid"
 
-        - 'noncanonical_residue': HETATM entries that are still amino acids (is_aa with standard=False)
-        and when config.include_noncanonical_residues = True
-        - 'ligand': HETATM entries that are not amino acids and when config.include_ligands = True
+            id_str = _node_id(ch.id, res)
+            self._validate_aminoacid_id(id_str, res)
 
-        Returns a list of (node_id, Residue, centroid, kind).
-        """
-        out: list[tuple[str, Residue, np.ndarray, str]] = []
+            residues_dict[key].append((id_str, res, kind, coords_heavy))
 
-        for ch in chains:
-            for res in ch.get_residues():
-                if _is_protein_residue(res) or _is_water(res):
-                    continue
+        elif _is_water(res):
+            id_str = _node_id(ch.id, res, kind="water")
+            residues_dict["waters"].append((id_str, res, "water", coords_heavy))
 
-                aa_like = is_aa(res, standard=False)
-                kind: str | None = None
-                if aa_like and self.config.include_noncanonical_residues:
-                    kind = "noncanonical_residue"
-                elif (not aa_like) and self.config.include_ligands:
-                    kind = "ligand"
+        else:
+            id_str = _node_id(ch.id, res)
+            residues_dict["ligands"].append((id_str, res, "ligand", coords_heavy))
 
-                if kind is None:
-                    continue
+    def _validate_aminoacid_id(self, id_str: str, res) -> None:
+        """Helper to check for residue ID mismatches."""
+        _, resseq, _ = res.get_id()
+        residue_number = int(resseq)
+        residue_name_obj = res.get_resname().strip()
+        parts = id_str.split(":")
 
-                coords = _heavy_atom_coords(res)
-                cent = _centroid(coords)
-                nid = _node_id(ch.id, res, kind="residue")
-                out.append((nid, res, cent, kind))
-
-        return out
+        if len(parts) == 3:
+            _, residue_name_id, resseq_id = parts
+            if residue_name_id != residue_name_obj:
+                log.warning(
+                    f"{id_str}: residue_name id='{residue_name_id}' vs obj='{residue_name_obj}'"
+                )
+            if str(resseq_id) != str(residue_number):
+                log.warning(
+                    f"{id_str}: residue_number id='{resseq_id}' vs obj='{residue_number}'"
+                )
 
     def build_graph(self) -> BuiltGraph:
         """
@@ -827,41 +858,37 @@ class PDBGraphBuilder:
         """
         if self.structure is None:
             self.load()
-        chains = self._select_chains()
 
-        res_tuples = self._collect_residues(chains)
-        _, inconsist = res_tuples_to_df(res_tuples)
-        for msg in inconsist:
-            log.warning(msg)
+        structure_dict = self._build_structure_dict()
+        self.structure_dict = structure_dict
 
-        extra_tuples = self._collect_nonprotein_residues(chains)
-        node_kind = {}
+        canonical_nodes = structure_dict["residues"]["canonical_aminoacid_residues"]
+        noncanonical_nodes = structure_dict["residues"]["noncanonical_aminoacid_residues"]
+        ligand_nodes_all = structure_dict["residues"]["ligands"]
+        water_nodes_all = structure_dict["residues"]["waters"]
 
-        for nid, res, cent in res_tuples:
-            node_kind[nid] = "residue"
-        for nid, res, cent, kind in extra_tuples:
-            res_tuples.append((nid, res, cent))
-            node_kind[nid] = kind
+        aa_nodes = canonical_nodes.copy()
+        if self.config.include_noncanonical_residues:
+            aa_nodes += noncanonical_nodes.copy()
 
-        water_tuples = self._collect_waters(chains)
-        raw_pdb_df, pdb_df, rgroup_df = self._make_atom_tables(chains)
-        pdb_df = self._centroid_pdb_df_from_raw(raw_pdb_df)
+        ligand_nodes = ligand_nodes_all if self.config.include_ligands else []
+        water_nodes = water_nodes_all if self.config.include_waters else []
+
+        all_nodes = aa_nodes + ligand_nodes + water_nodes
+
+        raw_pdb_df = self._make_raw_df(structure_dict)
         ca_cb_map = self._extract_ca_cb(raw_pdb_df)
-        centroid_tbl = self._centroids_from_raw_df(raw_pdb_df)
-        nan3 = (float("nan"), float("nan"), float("nan"))
-        if not res_tuples:
-            raise ValueError("No protein residues found for the selected chains.")
+        node_centroids = self._centroids_from_raw_df(raw_pdb_df)
 
         asa_rsa: dict[str, tuple[float, float | None]] = {}
         dssp_df: pd.DataFrame | None = None
-        if self.config.compute_rsa:
-            if res_tuples:
-                asa_rsa, dssp_df = self._compute_asa_rsa(res_tuples)
+        if self.config.compute_rsa and aa_nodes:
+            asa_rsa, dssp_df = self._compute_asa_rsa(aa_nodes)
 
-        res_ids = [t[0] for t in res_tuples]
-        res_objects = [t[1] for t in res_tuples]
+        res_ids = [nid for nid, _, _, _ in aa_nodes]
+        res_objects = [res for _, res, _, _ in aa_nodes]
 
-        cent_rows = centroid_tbl.reindex(res_ids)
+        cent_rows = node_centroids.reindex(res_ids)
         if cent_rows[["x_coord", "y_coord", "z_coord"]].isna().any(axis=None):
             missing = cent_rows[cent_rows.isna().any(axis=1)].index.tolist()
             raise ValueError(f"Missing centroid coords for node_ids: {missing[:10]}")
@@ -872,103 +899,107 @@ class PDBGraphBuilder:
         dist_mat = np.sqrt(np.sum(diff * diff, axis=2))
 
         G = nx.Graph()
-        for nid, res, cent in res_tuples:
+        nan3 = (float("nan"), float("nan"), float("nan"))
+
+        for nid, res, kind, _ in all_nodes:
             asa, rsa = asa_rsa.get(nid, (None, None))
 
-            if node_kind[nid] != "residue":
-                print(f"[NONCAN] {nid}  RSA = {rsa}  ASA = {asa}")
+            parent = res.get_parent()
+            chain = parent.id if parent is not None else None
 
-            kind = node_kind.get(nid, "residue")
             extra = ca_cb_map.get(nid, {})
             ca_coord = extra.get("ca_coord", nan3)
             cb_coord = extra.get("cb_coord", nan3)
             cb_is_virtual = bool(extra.get("cb_is_virtual", False))
-            c = centroid_tbl.loc[nid]
+
+            c = node_centroids.loc[nid]
             cent = np.array([c["x_coord"], c["y_coord"], c["z_coord"]], dtype=float)
+
+            if kind == "water":
+                resname = "HOH"
+                asa_val = None
+                rsa_val = 1.0
+                ca_coord = nan3
+                cb_coord = nan3
+                cb_is_virtual = False
+            else:
+                resname = res.get_resname()
+                asa_val = None if asa is None else float(asa)
+                rsa_val = None if rsa is None else float(rsa)
+
+            if kind != "canonical_aminoacid":
+                log.info("[EXTRA] %s kind=%s rsa=%s asa=%s", nid, kind, rsa_val, asa_val)
 
             G.add_node(
                 nid,
                 kind=kind,
-                chain=res.get_parent().id,
-                resname=res.get_resname(),
+                chain=chain,
+                resname=resname,
                 resseq=int(res.id[1]),
                 icode=(res.id[2].strip() or ""),
                 centroid=tuple(float(x) for x in cent),
-                coords=np.array(cent, dtype=float),
+                coords=cent,
                 ca_coord=ca_coord,
                 cb_coord=cb_coord,
                 cb_is_virtual=cb_is_virtual,
-                asa=None if asa is None else float(asa),
-                rsa=None if rsa is None else float(rsa),
+                asa=asa_val,
+                rsa=rsa_val,
             )
 
-        residue_map = {nid: res for nid, res, _ in res_tuples}
-
+        residue_map = {nid: res for nid, res, _, _ in aa_nodes}
         secondary_structure(
             G,
             dssp_config=DSSPConfig(executable="mkdssp"),
             structure=self.structure,
             residue_map=residue_map,
-            pdb_path=str(self.pdb_path)
+            pdb_path=str(self.pdb_path),
         )
 
-        interacting_nodes = np.where(dist_mat <= self.config.residue_distance_cutoff)
-        interacting_nodes = list(zip(interacting_nodes[0], interacting_nodes[1]))
-
-        for a1, a2 in interacting_nodes:
-            n1 = res_ids[a1]
-            n2 = res_ids[a2]
-
-            # row1 = pdb_df.set_index("node_id").loc[n1]
-            # row2 = pdb_df.set_index("node_id").loc[n2]
-
-            # n1_chain = row1["chain_id"]
-            # n2_chain = row2["chain_id"]
-            # n1_position = row1["residue_number"]
-            # n2_position = row2["residue_number"]
-
-            # condition_1 = n1_chain == n2_chain
-            # condition_2 = (
-            #     abs(n1_position - n2_position) <= 1
-            # )
-
-            d = float(dist_mat[a1, a2])
-
-            # if not (condition_1 and condition_2):
-            G.add_edge(n1, n2, distance=d, kind="res-res")
+        cut = float(self.config.residue_distance_cutoff)
+        iu, ju = np.triu_indices_from(dist_mat, k=1)
+        keep = dist_mat[iu, ju] <= cut
+        for i, j in zip(iu[keep], ju[keep], strict=True):
+            G.add_edge(res_ids[i], res_ids[j], distance=float(dist_mat[i, j]), kind="res-res")
 
         water_ids: list[str] = []
+        water_objs: list[Residue] = []
         water_centroids: np.ndarray | None = None
-        if water_tuples:
-            water_ids = [t[0] for t in water_tuples]
-            water_centroids = np.vstack([t[2] for t in water_tuples])
-            for nid, res, cent in water_tuples:
-                _, resseq, icode = res.id
-                chain_id = res.get_parent().id  # type: ignore[attr-defined]
-                G.add_node(
-                    nid,
-                    kind="water",
-                    chain=chain_id,
-                    resname="HOH",
-                    resseq=int(resseq),
-                    icode=(icode.strip() or ""),
-                    centroid=tuple(float(x) for x in cent),
-                    ca_coord=nan3,
-                    cb_coord=nan3,
-                    cb_is_virtual=False,
-                    rsa=1.0,
-                    asa=None
-                )
-            if water_centroids is not None:
-                wd = water_centroids[:, None, :] - res_centroids[None, :, :]
-                wdist = np.sqrt(np.sum(wd * wd, axis=2))
-                wcut = self.config.water_distance_cutoff
-                W, R = wdist.shape
-                for wi in range(W):
-                    for rj in range(R):
-                        d = float(wdist[wi, rj])
-                        if 0.0 < d <= wcut:
-                            G.add_edge(water_ids[wi], res_ids[rj], distance=d, kind="wat-res")
+
+        if water_nodes:
+            water_ids = [nid for nid, _, _, _ in water_nodes]
+            water_objs = [res for _, res, _, _ in water_nodes]
+
+            w_rows = node_centroids.reindex(water_ids)
+            if w_rows[["x_coord", "y_coord", "z_coord"]].isna().any(axis=None):
+                missing = w_rows[w_rows.isna().any(axis=1)].index.tolist()
+                raise ValueError(f"Missing water centroid coords for node_ids: {missing[:10]}")
+
+            water_centroids = w_rows[["x_coord", "y_coord", "z_coord"]].to_numpy(float)
+
+            wd = water_centroids[:, None, :] - res_centroids[None, :, :]
+            wdist = np.sqrt(np.sum(wd * wd, axis=2))
+
+            wcut = float(self.config.water_distance_cutoff)
+            hits = np.where((wdist > 0.0) & (wdist <= wcut))
+            for wi, rj in zip(hits[0], hits[1], strict=True):
+                G.add_edge(water_ids[wi], res_ids[rj], distance=float(wdist[wi, rj]), kind="wat-res")
+
+        if ligand_nodes:
+            ligand_ids = [nid for nid, _, _, _ in ligand_nodes]
+
+            l_rows = node_centroids.reindex(ligand_ids)
+            if l_rows[["x_coord", "y_coord", "z_coord"]].isna().any(axis=None):
+                missing = l_rows[l_rows.isna().any(axis=1)].index.tolist()
+                raise ValueError(f"Missing ligand centroid coords for node_ids: {missing[:10]}")
+
+            ligand_centroids = l_rows[["x_coord", "y_coord", "z_coord"]].to_numpy(float)
+
+            ld = ligand_centroids[:, None, :] - res_centroids[None, :, :]
+            ldist = np.sqrt(np.sum(ld * ld, axis=2))
+
+            hits = np.where((ldist > 0.0) & (ldist <= cut))
+            for li, rj in zip(hits[0], hits[1], strict=True):
+                G.add_edge(ligand_ids[li], res_ids[rj], distance=float(ldist[li, rj]), kind="lig-res")
 
         (
             contact_map,
@@ -978,7 +1009,7 @@ class PDBGraphBuilder:
         ) = contact_map_from_graph(
             G,
             granularity=getattr(self.config, "granularity", "all_atoms"),
-            exclude_kinds=(),              # include waters if included in graph
+            exclude_kinds=(),
             fallback_to_centroid=True,
         )
 
@@ -988,36 +1019,35 @@ class PDBGraphBuilder:
         G.graph["residue_map_dict_all"] = residue_map_dict_all
 
         rsa_series = pd.Series(
-            {nid: (float(d.get("rsa")) if d.get("rsa") is not None else np.nan)
-             for nid, d in G.nodes(data=True)},
+            {nid: (float(d.get("rsa")) if d.get("rsa") is not None else np.nan) for nid, d in G.nodes(data=True)},
             name="rsa",
         )
+
         if dssp_df is None:
             dssp_df_all = rsa_series.to_frame()
         else:
             dssp_df_all = dssp_df.copy()
-            missing = [nid for nid in G.nodes if nid not in dssp_df_all.index]
-            if missing:
-                dssp_df_all = pd.concat([dssp_df_all, pd.DataFrame(index=missing)], axis=0)
+            missing_nodes = [nid for nid in G.nodes if nid not in dssp_df_all.index]
+            if missing_nodes:
+                dssp_df_all = pd.concat([dssp_df_all, pd.DataFrame(index=missing_nodes)], axis=0)
             if "rsa" not in dssp_df_all.columns:
                 dssp_df_all["rsa"] = np.nan
             rsa_aligned = rsa_series.reindex(dssp_df_all.index)
             dssp_df_all["rsa"] = dssp_df_all["rsa"].where(dssp_df_all["rsa"].notna(), rsa_aligned)
+
         dssp_df = dssp_df_all
 
         built = BuiltGraph(
             graph=G,
-            residue_index=list(zip(res_ids, res_objects)),
+            residue_index=list(zip(res_ids, res_objects, strict=True)),
             residue_centroids=res_centroids,
-            water_index=[(t[0], t[1]) for t in water_tuples],
+            water_index=list(zip(water_ids, water_objs, strict=True)),
             water_centroids=water_centroids,
             distance_matrix=dist_mat if self.config.store_distance_matrix else None,
             raw_pdb_df=raw_pdb_df,
-            pdb_df=pdb_df,
-            rgroup_df=rgroup_df,
-            dssp_df=dssp_df
+            node_centroids=node_centroids,
+            dssp_df=dssp_df,
         )
-
         return built
 
     @staticmethod
@@ -1068,39 +1098,3 @@ class PDBGraphBuilder:
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         log.info("JSON saved to %s", path)
-
-
-if __name__ == "__main__":
-    import argparse
-    logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
-
-    ap = argparse.ArgumentParser(description="Build a pMHC structural graph from PDB/mmCIF.")
-    ap.add_argument("pdb_path", help="Path to a PDB or mmCIF file.")
-    ap.add_argument("--chains", type=str, default=None, help="Comma-separated chain IDs, e.g., A,C.")
-    ap.add_argument("--include_waters", action="store_true", help="Include water molecules as nodes.")
-    ap.add_argument("--res_cut", type=float, default=10.0, help="Residue–residue cutoff distance in Å.")
-    ap.add_argument("--wat_cut", type=float, default=6.0, help="Water–residue cutoff distance in Å.")
-    ap.add_argument("--no_rsa", action="store_true", help="Disable ASA/RSA computation.")
-    ap.add_argument("--graphml", type=str, default=None, help="Output GraphML path.")
-    ap.add_argument("--json", type=str, default=None, help="Output JSON path.")
-
-    args = ap.parse_args()
-
-    cfg = GraphConfig(
-        chains=None if args.chains is None else [c.strip() for c in args.chains.split(",") if c.strip()],
-        include_waters=args.include_waters,
-        residue_distance_cutoff=args.res_cut,
-        water_distance_cutoff=args.wat_cut,
-        compute_rsa=not args.no_rsa,
-    )
-    builder = PDBGraphBuilder(args.pdb_path, cfg)
-    built = builder.build_graph()
-
-    if args.graphml:
-        PDBGraphBuilder.to_graphml(built.graph, args.graphml)
-    if args.json:
-        PDBGraphBuilder.to_json(built.graph, args.json)
-
-    print(f"Graph built with {built.graph.number_of_nodes()} nodes and {built.graph.number_of_edges()} edges.")
-    print("Distance matrix path:", built.graph.graph.get("distmat_path"))
-    print("Residue labels path:", built.graph.graph.get("residue_labels_path"))
