@@ -23,13 +23,23 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Set up Conda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          python-version: ${{ matrix.python-version }}
+          activate-environment: dssp
+      
+      - name: Install packages
+        shell: bash -l {0}
+        run: |
+          conda install -y conda-forge::dssp
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install .[dev]
           python -c 'import MHCXGraph; print(MHCXGraph.__version__)'
-          MHCXGraph examples/minimal/manifest.json
 
-      # - name: Test with pytest
-      #   run: |
-      #     pytest --verbose
+      - name: Test MHCXGraph
+        run: |
+          MHCXGraph examples/minimal/manifest.json
