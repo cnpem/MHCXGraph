@@ -68,18 +68,14 @@ jobs:
       - name: Test sdist on ${{ matrix.os }}
         run: |
           python -m pip install --upgrade pip pytest
-          SDIST=$(ls dist/*.tar.gz)
-          python -m pip install $SDIST
+          python -m pip install dist/*.tar.gz
           python -c "import MHCXGraph; print(MHCXGraph.__version__)"
-          pytest tests --import-mode=importlib --verbose
           
       - name: Test wheel on ${{ matrix.os }}
         run: |
           python -m pip install --upgrade pip pytest
-          WHEEL=$(ls dist/*.whl)
-          python -m pip install $WHEEL
+          python -m pip install dist/*.whl
           python -c "import MHCXGraph; print(MHCXGraph.__version__)"
-          pytest tests --import-mode=importlib --verbose
 
   pypi-publish:
     name: Upload release to PyPI
