@@ -3,6 +3,7 @@ name: Build and deploy AtomPacker
 on:
   release:
     types: [published]
+  push:
   workflow_dispatch:
 
 jobs:
@@ -47,7 +48,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: 3.13
+          python-version: 3.x
 
       - uses: actions/download-artifact@v4
         with:
@@ -83,9 +84,9 @@ jobs:
     steps:
       - uses: actions/setup-python@v5
         with:
-          python-version: 3.13
+          python-version: 3.x
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: artifacts
           path: ./dist
