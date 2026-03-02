@@ -17,7 +17,7 @@ maintainers = [
 license = "GPL-3.0-or-later"
 license-files = ["LICENSE"]
 readme = { file = "README.md", content-type = "text/markdown" }
-requires-python = ">=3.10,<4.0"
+requires-python = ">=3.11,<4.0"
 keywords = [
     "bioinformatics",
     "structural biology",
