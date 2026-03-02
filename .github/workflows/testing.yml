@@ -42,4 +42,5 @@ jobs:
 
       - name: Test MHCXGraph
         run: |
+          conda activate dssp
           MHCXGraph examples/minimal/manifest.json
