@@ -28,6 +28,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install .[dev]
           python -c 'import MHCXGraph; print(MHCXGraph.__version__)'
+          MHCXGraph examples/minimal/manifest.json
 
       # - name: Test with pytest
       #   run: |
