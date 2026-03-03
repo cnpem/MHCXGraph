@@ -27,7 +27,6 @@ def load_manifest(manifest_path: str) -> dict[str, Any]:
     settings.setdefault("debug_logs", False)
     settings.setdefault("verbose", False)
     settings.setdefault("debug_tracking", False)
-    settings.setdefault("rsa_table", "Wilke")
 
     settings.setdefault("edge_threshold", 8.5)
     settings.setdefault("close_tolerance", 1.0)
@@ -84,7 +83,6 @@ def build_association_config(settings: dict[str, Any], run_mode: str, tracker_re
         "include_noncanonical_residues": settings.get("include_noncanonical_residues"),
         "classes":                  settings.get("classes"),
         "max_chunks":               settings.get("max_chunks"),
-        "rsa_table":                settings.get("rsa_table", "Wilke"),
         "filter_triads_by_chain":   settings.get("filter_triads_by_chain"),
         "watch_residues":           tracker_residues,
         "debug_logs":               settings.get("debug_logs"),

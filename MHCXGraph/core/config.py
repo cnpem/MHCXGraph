@@ -69,7 +69,7 @@ class GraphConfig:
     dssp_exec
         Executable name or absolute path for DSSP (e.g., ``"mkdssp"`` or ``"dssp"``).
     dssp_acc_array
-        Reference maximum-ASA table used by DSSP and SR normalization. One of ``"Sander"``, ``"Wilke"``, ``"Miller"``.
+        Reference maximum-ASA table used by DSSP and SR normalization. The table used is ``"Wilke"``.
     probe_radius
         Probe radius (Å) for Shrake–Rupley ASA.
     n_points
@@ -95,10 +95,9 @@ class GraphConfig:
     # ASA / RSA
     compute_rsa: bool = True
     # rsa_method = "dssp"
-    rsa_method: Literal["sr", "dssp"] = "dssp"
+    rsa_method: Literal["dssp"] = "dssp"
     dssp_exec: str = "mkdssp"
-    # dssp_acc_array = "Wilke"
-    dssp_acc_array: Literal["Sander", "Wilke", "Miller"] = "Wilke",
+    dssp_acc_array: Literal["Wilke"] = "Wilke"
     probe_radius: float = 1.4
     n_points: int = 960
 
@@ -124,11 +123,9 @@ def make_default_config(
     granularity: Granularity = "all_atoms",
     chains: Iterable[str] | None = None,
     compute_rsa: bool = True,
-    # rsa_method = "dssp",
     rsa_method: Literal["sr", "dssp"] = "dssp",
     dssp_exec: str = "mkdssp",
-    # dssp_acc_array = "Wilke",
-    dssp_acc_array: Literal["Sander", "Wilke", "Miller"] = "Wilke",
+    dssp_acc_array: Literal["Wilke"] = "Wilke",
     make_virtual_cb_for_gly: bool = True,
     include_noncanonical_residues: bool = True,
     include_ligands: bool = False,

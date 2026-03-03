@@ -20,10 +20,9 @@ def main():
     base_run_name = settings["run_name"]
     base_output_path = Path(settings["output_path"])
     run_mode = settings.get("run_mode", "all")
-
     tracker_residues = (
-        ResidueTracker(settings.get("watch_residues")) if settings["watch_residues"] else None
-    )
+        ResidueTracker(settings.get("watch_residues"))
+    ) if settings.get("watch_residues") else None
 
     init_tracker(
         root="CrossSteps",

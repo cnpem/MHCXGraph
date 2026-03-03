@@ -48,7 +48,7 @@ class GraphData(TypedDict):
 class Graph:
     """Represents a protein structure graph (no external framework assumptions)."""
 
-    def __init__(self, graph_path: str, config: GraphConfig | None = None):
+    def __init__(self, graph_path: str, config: GraphConfig):
         """
         Parameters
         ----------
@@ -58,18 +58,13 @@ class Graph:
             Unified graph configuration. If not provided, a sensible default is used.
         """
         self.graph_path = graph_path
-        self.config = config or make_default_config(
-            edge_threshold=8.5,
-            granularity="all_atoms",  # "all_atoms" | "backbone" | "side_chain" | "ca_only"
-            include_waters=False,
-        )
+        self.config = config
 
         self.graph: nx.Graph = build_graph_with_config(pdb_path=graph_path, config=self.config)
 
         self.subgraphs: dict[str, nx.Graph | list[str]] = {}
         self.pdb_df: pd.DataFrame | None = self.graph.graph.get("pdb_df")
         self.raw_pdb_df: pd.DataFrame | None = self.graph.graph.get("raw_pdb_df")
-        self.rgroup_df: pd.DataFrame | None = self.graph.graph.get("rgroup_df")
         self.dssp_df: pd.DataFrame | None = self.graph.graph.get("dssp_df")
 
     def get_subgraph(self, name: str):
@@ -97,64 +92,6 @@ class Graph:
                 return subgraphs_name
             elif isinstance(subgraphs_name, nx.Graph):
                 return subgraphs_name.nodes
-
-    def delete_subraph(self, name: str):
-        if name in self.subgraphs:
-            del self.subgraphs[name]
-        else:
-            log.warning(f"{name} isn't in.subgraphs")
-
-    def filter_subgraph(self,
-            subgraph_name: str,
-            filter_func: Callable[..., Any],
-            name: str | None = None,
-            return_node_list: bool = False) -> None | list:
-
-        subgraphs_sub_name = self.subgraphs[subgraph_name]
-
-        if isinstance(subgraphs_sub_name, list):
-            log.warning(f"{subgraph_name} is a list and not a nx.Graph")
-            return
-
-        nodes = [i for i in subgraphs_sub_name.nodes if filter_func(i)]
-
-        if name:
-            self.subgraphs[name] = subgraphs_sub_name.subgraph(nodes)
-        else:
-            self.subgraphs[subgraph_name] = subgraphs_sub_name.subgraph(nodes)
-
-        target = self.subgraphs[name] if name else self.subgraphs[subgraph_name]
-        if return_node_list and isinstance(target, nx.Graph):
-            return list(target.nodes)
-
-        return None
-
-    def join_subgraph(self, name: str, graphs_name: list, mode: str = "add", return_node_list: bool = False):
-        if name in self.subgraphs:
-            log.warning(f"You already have this subgraph created. Use graph.delete_subraph({name}) before creating it again.")
-        elif set(graphs_name).issubset(self.subgraphs.keys()):
-            if mode == "add":
-                nodes_list = []
-                for i in graphs_name:
-                    subgraph_i = self.subgraphs[i]
-                    if isinstance(subgraph_i, nx.Graph):
-                        nodes_list.extend(list(subgraph_i.nodes))
-                self.subgraphs[name] = self.graph.subgraph(nodes_list)
-            elif mode == "intersection":
-                intersection = set()
-                for i, graph_name in enumerate(graphs_name):
-                    subgraph_graph_name = self.subgraphs[graph_name]
-                    if isinstance(subgraph_graph_name, nx.Graph):
-                        intersection = set(subgraph_graph_name.nodes) if i == 0 else intersection.intersection(subgraph_graph_name.nodes)
-
-                self.subgraphs[name] = self.graph.subgraph(list(intersection))
-
-            if return_node_list:
-                subgraph_name = self.subgraphs[name]
-                if isinstance(subgraph_name, nx.Graph):
-                    return list(subgraph_name.nodes)
-        else:
-            log.warning("Some of your subgraph isn't in the subgraph list")
 
     def _nx_to_serializable(self, g: nx.Graph) -> dict[str, Any]:
         """
