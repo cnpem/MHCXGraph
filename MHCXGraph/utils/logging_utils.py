@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+
 import coloredlogs
 
-_LOG: "VerboseLoggerAdapter | None" = None
+_LOG: VerboseLoggerAdapter | None = None
 
 
 class ConsoleFilter(logging.Filter):
@@ -38,6 +39,7 @@ class VerboseLoggerAdapter(logging.LoggerAdapter):
         else:
             if brief_msg is not None:
                 logger.info(brief_msg, *args, **kwargs)
+
 
 def setup_logging(
     *,

@@ -1,5 +1,4 @@
 import logging
-import coloredlogs
 import sys
 from itertools import combinations
 from pathlib import Path
@@ -7,10 +6,11 @@ from pathlib import Path
 from MHCXGraph.cli.cli_parser import parse_args
 from MHCXGraph.core.residue_tracking import ResidueTracker
 from MHCXGraph.core.tracking import init_tracker
+from MHCXGraph.utils.logging_utils import get_log, setup_logging
 from MHCXGraph.utils.preprocessing import create_graphs
 from MHCXGraph.workflow.association import run_association_task
 from MHCXGraph.workflow.manifest import build_association_config, load_manifest
-from MHCXGraph.utils.logging_utils import setup_logging, get_log
+
 
 def main():
     args = parse_args()
@@ -28,7 +28,7 @@ def main():
     init_tracker(
         root="CrossSteps",
         outdir=base_output_path / base_run_name,
-        enabled=settings.get("debug_tracking", False),
+        enabled=settings.get("debug_tracking"),
         prefer_npy_for_ndarray=True,
         add_timestamp_prefix=False,
     )
@@ -36,13 +36,13 @@ def main():
     logging.getLogger("matplotlib").setLevel(logging.ERROR)
     logging.basicConfig(
         stream=sys.stdout,
-        level=logging.DEBUG if settings.get("debug_logs", False) else logging.INFO,
+        level=logging.DEBUG if settings.get("debug_logs") else logging.INFO,
     )
 
     setup_logging(
         outdir=Path(base_output_path) / base_run_name,
-        debug=bool(settings.get("debug_logs", False)),
-        verbose=bool(settings.get("verbose", False)),
+        debug=bool(settings.get("debug_logs")),
+        verbose=bool(settings.get("verbose")),
     )
 
     log = get_log()

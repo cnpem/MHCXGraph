@@ -1,4 +1,3 @@
-import logging
 import os
 import re
 import time
@@ -96,7 +95,7 @@ def remove_water_from_pdb(source_file, dest_file):
     """Remove water molecules from a PDB or mmCIF file and save the cleaned version safely."""
 
     if os.path.exists(dest_file) or "_nOH" in source_file:
-        logger.debug(f"The file {dest_file} already exists.")
+        log.debug(f"The file {dest_file} already exists.")
         return
 
     suffix = source_file.lower()
@@ -114,9 +113,9 @@ def remove_water_from_pdb(source_file, dest_file):
     else:
         st.write_pdb(dest_file)
 
-    logger.debug(f"Saved cleaned structure without waters: {dest_file}")
+    log.debug(f"Saved cleaned structure without waters: {dest_file}")
 
-def get_exposed_residues(graph: Graph, rsa_filter = 0.1, asa_filter = 100.0, selection_params=None) -> nx.Graph:
+def get_exposed_residues(graph: Graph, rsa_filter: float, asa_filter: float, selection_params=None) -> nx.Graph:
     selection_params = selection_params or {}
     logic_expr = selection_params.get("logic")
 
@@ -480,13 +479,14 @@ def resolve_selection_params_for_file(file_path: Path, manifest: dict[str, Any])
 
     return merged
 
+
 def create_graphs(manifest: dict) -> list[tuple]:
     settings = manifest["settings"]
 
     output_path = Path(settings["output_path"]).expanduser().resolve()
     log.vinfo(f"Trying to create output directory in {output_path}", "Creating output diretory")
     output_path.mkdir(parents=True, exist_ok=True)
-    
+
     # Retrieve the list of files passed via manifest.
     selected_files = collect_selected_files_from_manifest(manifest)
     if not selected_files:
@@ -552,7 +552,7 @@ def create_graphs(manifest: dict) -> list[tuple]:
 
 
         save("create_graphs", f"{graph_path.stem}_subgraph", subgraph)
-        graphs.append((subgraph, str(orig_path)))
+        graphs.append((subgraph, str(orig_path), base_name))
 
     end = time.perf_counter()
 
