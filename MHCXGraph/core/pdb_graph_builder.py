@@ -58,6 +58,7 @@ CANONICAL_AA3 = {
 }
 NONCANONICAL_TO_CANONICAL: dict[str, str] = {}
 BACKBONE_NAMES = {"N", "CA", "C", "O", "OXT"}
+BACKBONE_ATOMS = {"N", "CA", "C", "O"}
 WATER_NAMES = {
     "HOH", "H2O", "WAT", "SOL",
     "TIP3", "TIP3P", "TIP4P", "TIP5P",
@@ -85,7 +86,8 @@ class ResidueInfo(TypedDict):
 
 
 class StructureDict(TypedDict):
-    chains: list[Chain]
+    chains_obj: list[Chain]
+    chains: dict
     residues: ResidueInfo
 
 
@@ -768,7 +770,8 @@ class PDBGraphBuilder:
             raise Exception("Structure not loaded")
 
         s_dict: StructureDict = {
-            "chains": [],
+            "chains_obj": [],
+            "chains": {},
             "residues": {
                 "canonical_aminoacid_residues": [],
                 "noncanonical_aminoacid_residues": [],
@@ -779,11 +782,15 @@ class PDBGraphBuilder:
 
         model = self.structure[self.config.model_index]
 
-        s_dict["chains"] = self._get_requested_chains(model)
+        s_dict["chains_obj"] = self._get_requested_chains(model)
 
-        for ch in s_dict["chains"]:
+        for ch in s_dict["chains_obj"]:
+            s_dict["chains"][ch.id] = {"canonical_aminoacid_residues": [],
+                                                       "noncanonical_aminoacid_residues": [],
+                                                       "ligands": [],
+                                                       "waters": []}
             for res in ch.get_residues():
-                self._process_residue(ch, res, s_dict["residues"])
+                self._process_residue(ch, res, s_dict)
 
         return s_dict
 
@@ -801,10 +808,10 @@ class PDBGraphBuilder:
 
         return chains
 
-    def _process_residue(self, ch, res, residues_dict: ResidueInfo) -> None:
+    def _process_residue(self, ch, res, structure_dict: StructureDict) -> None:
         """Helper to categorize and store a single residue."""
         coords_heavy = _heavy_atom_coords(res)
-
+         
         if is_aa(res, standard=False):
             key = "noncanonical_aminoacid_residues"
             kind = "noncanonical_aminoacid"
@@ -816,15 +823,19 @@ class PDBGraphBuilder:
             id_str = _node_id(ch.id, res)
             self._validate_aminoacid_id(id_str, res)
 
-            residues_dict[key].append((id_str, res, kind, coords_heavy))
+            structure_dict["residues"][key].append((id_str, res, kind, coords_heavy))
+            structure_dict["chains"][ch.id][key].append((id_str, res, kind, coords_heavy))
 
         elif _is_water(res):
             id_str = _node_id(ch.id, res, kind="water")
-            residues_dict["waters"].append((id_str, res, "water", coords_heavy))
+            structure_dict["residues"]["waters"].append((id_str, res, "water", coords_heavy))
+            structure_dict["chains"][ch.id]["waters"].append((id_str, res, "waters", coords_heavy))
 
         else:
             id_str = _node_id(ch.id, res)
-            residues_dict["ligands"].append((id_str, res, "ligand", coords_heavy))
+            structure_dict["residues"]["ligands"].append((id_str, res, "ligand", coords_heavy))
+            structure_dict["chains"][ch.id]["ligands"].append((id_str, res, "ligand", coords_heavy))
+
 
     def _validate_aminoacid_id(self, id_str: str, res) -> None:
         """Helper to check for residue ID mismatches."""
@@ -864,7 +875,8 @@ class PDBGraphBuilder:
 
         structure_dict = self._build_structure_dict()
         self.structure_dict = structure_dict
-
+        
+        chains = structure_dict["chains"]
         canonical_nodes = structure_dict["residues"]["canonical_aminoacid_residues"]
         noncanonical_nodes = structure_dict["residues"]["noncanonical_aminoacid_residues"]
         ligand_nodes_all = structure_dict["residues"]["ligands"]
@@ -949,12 +961,15 @@ class PDBGraphBuilder:
                 rsa=rsa_val,
             )
 
-        residue_map = {nid: res for nid, res, _, _ in aa_nodes}
+        aminoacid_residues_map = {nid: res for nid, res, _, _ in aa_nodes}
+
         secondary_structure(
             G,
             dssp_config=DSSPConfig(executable="mkdssp"),
+            chains=chains,
             structure=self.structure,
-            residue_map=residue_map,
+            residue_map=aminoacid_residues_map,
+            include_noncanonical_residues=self.config.include_noncanonical_residues,
             pdb_path=str(self.pdb_path),
         )
 
