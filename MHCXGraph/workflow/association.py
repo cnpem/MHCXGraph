@@ -36,20 +36,13 @@ def run_association_task(graphs, output_path, run_name, association_config, log)
         log.warning(f"No associated graphs found for {run_name}.")
         return
 
-    log.debug(f"Drawing Graph for {run_name}")
-    G.draw_graph_interactive(show=False, save=True)
-    # G.draw_graph(show=False, save=True)
+    log.info("Making graph views.")
 
+    G.draw_graph_interactive(show=False, save=True)
     G.create_pdb_per_protein()
     G.align_all_frames()
 
-    # log.debug("Growing Subgraph")
-    # try:
-    #     G.grow_subgraph_bfs()
-    # except Exception as e:
-    #     log.error(f"Unable to grow subgraphs with BFS. Error: {e}")
-
-    graph_data = dict()
+    graph_data = {}
     for j, comps in enumerate(G.associated_graphs):
         graph_data[j] = {"comp": j, "frames": {}}
         for i in range(len(comps[0])):

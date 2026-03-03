@@ -23,11 +23,10 @@ def load_manifest(manifest_path: str) -> dict[str, Any]:
 
     os.makedirs(settings["output_path"], exist_ok=True)
 
-    shutil.copy2(manifest_path, settings["output_path"]+"/manifest.json")
+    shutil.copy2(manifest_path, settings["output_path"] + "/manifest.json")
     settings.setdefault("debug_logs", False)
     settings.setdefault("verbose", False)
     settings.setdefault("debug_tracking", False)
-    settings.setdefault("rsa_table", "Wilke")
 
     settings.setdefault("edge_threshold", 8.5)
     settings.setdefault("close_tolerance", 1.0)
@@ -39,7 +38,7 @@ def load_manifest(manifest_path: str) -> dict[str, Any]:
 
     settings.setdefault("triad_rsa", False)
     settings.setdefault("rsa_filter", 0.1)
-    settings.setdefault("asa_filter", 100)
+    settings.setdefault("asa_filter", 5)
     settings.setdefault("close_tolerance_rsa", 0.1)
     settings.setdefault("distance_std_threshold", 3.0)
     settings.setdefault("distance_diff_threshold", 1.0)
@@ -55,6 +54,7 @@ def load_manifest(manifest_path: str) -> dict[str, Any]:
     settings.setdefault("watch_residues", None)
 
     return data
+
 
 def build_association_config(settings: dict[str, Any], run_mode: str, tracker_residues) -> dict[str, Any]:
     """
@@ -81,12 +81,11 @@ def build_association_config(settings: dict[str, Any], run_mode: str, tracker_re
         "include_waters":           settings.get("include_waters"),
         "include_ligands":          settings.get("include_ligands"),
         "include_noncanonical_residues": settings.get("include_noncanonical_residues"),
-        "classes":                  settings.get("classes", {}),
+        "classes":                  settings.get("classes"),
         "max_chunks":               settings.get("max_chunks"),
-        "rsa_table":                settings.get("rsa_table", "Wilke"),
         "filter_triads_by_chain":   settings.get("filter_triads_by_chain"),
         "watch_residues":           tracker_residues,
-        "debug_logs":               settings.get("debug_logs", False),
-        "verbose":                  settings.get("verbose", False)
+        "debug_logs":               settings.get("debug_logs"),
+        "verbose":                  settings.get("verbose")
     }
 

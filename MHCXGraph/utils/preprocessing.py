@@ -1,4 +1,3 @@
-import logging
 import os
 import re
 import time
@@ -92,31 +91,8 @@ def _eval_logic_expression(expr: str,
 
     return st[0]
 
-def remove_water_from_pdb(source_file, dest_file):
-    """Remove water molecules from a PDB or mmCIF file and save the cleaned version safely."""
 
-    if os.path.exists(dest_file) or "_nOH" in source_file:
-        logger.debug(f"The file {dest_file} already exists.")
-        return
-
-    suffix = source_file.lower()
-    is_cif = suffix.endswith((".cif", ".mmcif", ".mcif"))
-
-    st = gemmi.read_structure(source_file)
-
-    for model in st:
-        model.remove_waters()
-
-    if is_cif:
-        doc = st.make_mmcif_document()
-        with open(dest_file, "w") as f:
-            f.write(doc.as_string())
-    else:
-        st.write_pdb(dest_file)
-
-    logger.debug(f"Saved cleaned structure without waters: {dest_file}")
-
-def get_exposed_residues(graph: Graph, rsa_filter = 0.1, asa_filter = 100.0, selection_params=None) -> nx.Graph:
+def get_exposed_residues(graph: Graph, rsa_filter: float, asa_filter: float, selection_params=None) -> nx.Graph:
     selection_params = selection_params or {}
     logic_expr = selection_params.get("logic")
 
@@ -480,13 +456,14 @@ def resolve_selection_params_for_file(file_path: Path, manifest: dict[str, Any])
 
     return merged
 
+
 def create_graphs(manifest: dict) -> list[tuple]:
     settings = manifest["settings"]
 
     output_path = Path(settings["output_path"]).expanduser().resolve()
     log.vinfo(f"Trying to create output directory in {output_path}", "Creating output diretory")
     output_path.mkdir(parents=True, exist_ok=True)
-    
+
     # Retrieve the list of files passed via manifest.
     selected_files = collect_selected_files_from_manifest(manifest)
     if not selected_files:
@@ -498,7 +475,6 @@ def create_graphs(manifest: dict) -> list[tuple]:
         edge_threshold=settings["edge_threshold"],
         granularity=settings["node_granularity"],
         include_waters=settings["include_waters"],
-        dssp_acc_array=settings["rsa_table"],
         include_ligands=settings["include_ligands"],
         include_noncanonical_residues=settings["include_noncanonical_residues"]
     )
@@ -507,24 +483,8 @@ def create_graphs(manifest: dict) -> list[tuple]:
     start = time.perf_counter()
     for file_info in selected_files:
         orig_path = Path(file_info["input_path"]).resolve()
-        dest_path = Path(settings["output_path"]).resolve()
-        if not settings["include_waters"]:
-            cleaned_name = file_info["name"]
-            if cleaned_name.endswith(".pdb.gz"):
-                cleaned_name = cleaned_name[:-7] + "_nOH.pdb" if "_nOH.pdb" not in cleaned_name else cleaned_name
-            elif cleaned_name.endswith(".pdb"):
-                cleaned_name = cleaned_name[:-4] + "_nOH.pdb" if "_nOH.pdb" not in cleaned_name else cleaned_name
-            elif cleaned_name.endswith(".cif"):
-                cleaned_name = cleaned_name[:-4] + "_nOH.cif" if "_nOH.cif" not in cleaned_name else cleaned_name
-            else:
-                cleaned_name = cleaned_name + "_nOH.pdb" if "_nOH.pdb" not in cleaned_name else cleaned_name
-            cleaned_path = (dest_path.parent / cleaned_name).resolve()
-            remove_water_from_pdb(str(orig_path), str(cleaned_path))
-            graph_path = cleaned_path
-        else:
-            graph_path = orig_path
-
-        graph_instance = Graph(config=graph_config, graph_path=str(graph_path))
+ 
+        graph_instance = Graph(config=graph_config, graph_path=str(orig_path))
         selection_params = resolve_selection_params_for_file(orig_path, manifest)
 
         subgraph = get_exposed_residues(
@@ -551,8 +511,8 @@ def create_graphs(manifest: dict) -> list[tuple]:
         )
 
 
-        save("create_graphs", f"{graph_path.stem}_subgraph", subgraph)
-        graphs.append((subgraph, str(orig_path)))
+        save("create_graphs", f"{output_path.stem}_subgraph", subgraph)
+        graphs.append((subgraph, str(orig_path), base_name))
 
     end = time.perf_counter()
 

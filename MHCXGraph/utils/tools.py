@@ -330,17 +330,18 @@ def triad_chirality_with_cb(
 
 
 def find_triads(graph_data, classes, config, checks, protein_index, tracker: ResidueTracker | None = None):
-    # print(f"protein_index: {protein_index}")
     ctx = TrackCtx(run_id=config.get("run_id", "default"), stage="triads", protein_i=protein_index)
 
     G = graph_data["graph"]
+    name = graph_data["name"]
     rsa = graph_data["rsa"]
     contact_map = graph_data["contact_map"]
     residue_map = graph_data["residue_map_all"]
 
+    protMsg = f"[protein {protein_index} ({name})]"
     triads = {}
 
-    if "residues" in classes.keys():
+    if "residues" in classes:
         residue_classes = {
             res: class_name
             for class_name, residues in classes["residues"].items()
@@ -349,8 +350,8 @@ def find_triads(graph_data, classes, config, checks, protein_index, tracker: Res
     else:
         residue_classes = None
 
-    rsa_classes = classes["rsa"] if "rsa" in classes.keys() else None
-    distance_classes = classes["distance"] if "distance" in classes.keys() else None
+    rsa_classes = classes.get("rsa", None)
+    distance_classes = classes.get("distance", None)
 
     n_nodes = len(G.nodes())
     n_edges = len(G.edges())
@@ -364,7 +365,7 @@ def find_triads(graph_data, classes, config, checks, protein_index, tracker: Res
 
             if isinstance(chains, list) and len(chains) > 0:
                 if u_chain not in chains and center_chain not in chains and w_chain not in chains:
-                    log.debug(f"({u}, {center}, {w}) was filtered.")
+                    log.debug(f"[]({u}, {center}, {w}) was filtered.")
                     continue
             elif isinstance(chains, str) and chains.strip() != "":
                 if u_chain != chains and center_chain != chains and w_chain != chains:
@@ -372,14 +373,12 @@ def find_triads(graph_data, classes, config, checks, protein_index, tracker: Res
                     continue
 
             if u[:5] == w[:5]:
-                _u_index, _center_index, _w_index = residue_map[residue_to_tuple(u)], residue_map[residue_to_tuple(center)], residue_map[residue_to_tuple(w)]
-                _du = contact_map[_u_index, _center_index]
-                _dw = contact_map[_center_index, _w_index]
+                u_index, center_index, w_index = residue_map[residue_to_tuple(u)], residue_map[residue_to_tuple(center)], residue_map[residue_to_tuple(w)]
+                du = contact_map[u_index, center_index]
+                dw = contact_map[center_index, w_index]
 
-                if _du <= _dw:
-                    outer_sorted = tuple([u, w])
-                else:
-                    outer_sorted = tuple([w, u])
+                outer_sorted = tuple([u, w]) if du <= dw else tuple([w, u])
+
             else:
                 outer_sorted = tuple(sorted([u, w]))
 
@@ -405,17 +404,14 @@ def find_triads(graph_data, classes, config, checks, protein_index, tracker: Res
             w_cb = np.array(G.nodes[outer_sorted[1]].get("cb_coord", (np.nan, np.nan, np.nan)))
             center_cb = np.array(G.nodes[center].get("cb_coord", (np.nan, np.nan, np.nan)))
 
-
             if not any(np.all(np.isnan(x)) for x in [u_ca, center_ca, w_ca, u_cb, center_cb, w_cb]):
                 chi = triad_chirality_with_cb(u_ca, center_ca, w_ca, u_cb, center_cb, w_cb, majority_only=True)["chi"]
             else:
                 chi = 0
-                print(f"Nan: {u_cb, center_cb, w_cb}")
-                print(u, center, w)
 
-            rsa1 = rsa[outer_sorted[0]]*100
-            rsa2 = rsa[center]*100
-            rsa3 = rsa[outer_sorted[1]]*100
+            rsa1 = rsa[outer_sorted[0]] * 100
+            rsa2 = rsa[center] * 100
+            rsa3 = rsa[outer_sorted[1]] * 100
 
             def _rsa_opts(val):
                 if val is None:
@@ -512,11 +508,11 @@ def find_triads(graph_data, classes, config, checks, protein_index, tracker: Res
         if tracker is not None:
             tracker.triads_built(ctx=ctx, token=triad, triads_absolute=data["triads_absolute"])
 
-
-    log.info(f"N Nodes: {n_nodes} | N Edges: {n_edges} | N Triad: {n_triad} | Unique Triad: {len(triads.keys())}")
+    log.info(f"{protMsg} No Nodes: {n_nodes} | No Edges: {n_edges} | No Triad: {n_triad} | Unique Triad: {len(triads.keys())}")
     log.debug(f"Counters: {counters}")
 
     return triads
+
 
 def cross_protein_triads(step_idx, chunk_idx, triads_per_protein, diff, check_distances=True):
     common_tokens = set.intersection(*(set(d.keys()) for d in triads_per_protein))
@@ -528,10 +524,10 @@ def cross_protein_triads(step_idx, chunk_idx, triads_per_protein, diff, check_di
         else:
             triads_len = [len(prot[token].get("triads_full", [])) for prot in triads_per_protein]
         prod_triads = math.prod(triads_len) if triads_len else 0
-        log.debug(f"Token: {token} | Qtd in each protein: {triads_len} | Total teoric combinations: {prod_triads}")
+        if prod_triads > 10000:
+            log.debug(f"Token: {token} | Qtd in each protein: {triads_len} | Total teoric combinations: {prod_triads}")
 
 
-    # Função auxiliar para extrair/calcular limites da tríade original (passo 1)
     def _calc_initial_bounds(triad_abs):
         # triad_abs tem d1, d2, d3 nas posições -3, -2, -1
         d1, d2, d3 = triad_abs[-3], triad_abs[-2], triad_abs[-1]
@@ -662,6 +658,7 @@ def cross_protein_triads(step_idx, chunk_idx, triads_per_protein, diff, check_di
             }
 
     return cross
+
 
 def build_graph_from_cross_combos(cross_combos) -> set[tuple[tuple[str, ...], tuple[str, ...]]]:
     """
@@ -854,9 +851,6 @@ def execute_step(
     residue_tracker
 ):
 
-    profiling = global_state.get("profiling", None)
-    debug = bool(profiling and profiling.get("debug", False))
-
     if step_idx == 1:
         source = graph_collection["triads"]
     else:
@@ -870,34 +864,18 @@ def execute_step(
     new_filtered_cross_combos = []
     all_step_graphs = []
 
-    step_mem_before = get_memory_usage_mb()
     step_time_start = time.perf_counter()
-
-    step_profile = {
-        "step": step_idx,
-        "num_items": num_items,
-        "num_chunks": len(chunks),
-        "chunks": [],       # lista de dicts, um por chunk
-        "time_sec": None,   # preenchido no final
-        "mem_before_mb": None,
-        "mem_after_mb": None,
-    }
-
-    log.debug(f"[DEBUG] Step {step_idx} started. Memory: {step_mem_before:.2f} MB")
 
     for chunk_idx, chunk_triads in enumerate(chunks):
         chunk_time_start = time.perf_counter()
-        chunk_mem_before = get_memory_usage_mb()
 
-        log.debug(f"[DEBUG]   Chunk {chunk_idx}: started. "
-                  f"Memory before: {chunk_mem_before:.2f} MB. "
-                  f"Chunk size: {len(chunk_triads)}")
+        tmpMsg = f"Processing Chunk {chunk_idx}"
+        log.vinfo(tmpMsg + f" with size: {len(chunk_triads)}", tmpMsg + ".")
 
         rebuilt_combos, final_graphs = process_chunk(
             step_idx=step_idx,
             chunk_idx=chunk_idx,
             chunk_triads=chunk_triads,
-            graphs_data=graphs_data,
             global_state=global_state,
             residue_tracker=residue_tracker
         )
@@ -908,41 +886,19 @@ def execute_step(
             new_filtered_cross_combos.append(rebuilt_combos)
 
         all_step_graphs.extend(final_graphs)
-
         chunk_time_end = time.perf_counter()
-        chunk_mem_after = get_memory_usage_mb()
 
-        log.debug(f"[DEBUG]   Chunk {chunk_idx}: finished. "
-              f"Time: {chunk_time_end - chunk_time_start:.3f}s. "
-              f"Memory after: {chunk_mem_after:.2f} MB.")
-
-        chunk_profile = {
-            "chunk_idx": chunk_idx,
-            "num_triads_in_chunk": len(chunk_triads),
-            "time_sec": chunk_time_end - chunk_time_start,
-            "mem_before_mb": chunk_mem_before,
-            "mem_after_mb": chunk_mem_after,
-        }
-        step_profile["chunks"].append(chunk_profile)
-
+        tmpMsg = f"Finished processing the Chunk {chunk_idx}"
+        log.vinfo(tmpMsg + f" in {chunk_time_end - chunk_time_start:.3f}s.", tmpMsg + ".")
 
     step_time_end = time.perf_counter()
-    step_mem_after = get_memory_usage_mb()
 
-
-    log.debug(f"[DEBUG] Step {step_idx} finished. "
-          f"Total time: {step_time_end - step_time_start:.3f}s. "
-          f"Final memory: {step_mem_after:.2f} MB\n")
-
-    step_profile["time_sec"] = step_time_end - step_time_start
-    step_profile["mem_before_mb"] = step_mem_before
-    step_profile["mem_after_mb"] = step_mem_after
-
-    profiling["steps"].append(step_profile)
-
+    tmpMsg = f"Finished the step {step_idx}"
+    log.vinfo(f"{tmpMsg} in {step_time_end - step_time_start:.3f}s", f"{tmpMsg}.")
     return new_filtered_cross_combos, all_step_graphs
 
-def process_chunk(step_idx, chunk_idx, chunk_triads, graphs_data, global_state, residue_tracker):
+
+def process_chunk(step_idx, chunk_idx, chunk_triads, global_state, residue_tracker):
     config = global_state["config"]
     dm_adjacent = global_state["dm_adjacent"]
     inv_maps = global_state["inv_maps"]
@@ -951,19 +907,21 @@ def process_chunk(step_idx, chunk_idx, chunk_triads, graphs_data, global_state, 
     matrices_dict = global_state["matrices_dict"]
     steps = global_state["steps"]
 
+    schMsg = f"[step {step_idx} chunk {chunk_idx}]"
     max_chunks = config["max_chunks"]
+
     if len(chunk_triads) == 1:
         return chunk_triads, []
     if step_idx == 1:
-        log.debug(f"[step {step_idx}] Creating combos | Chunk: {chunk_idx}")
+        log.info(f"{schMsg} Making cross combos from protein triads...")
         cross_combos = cross_protein_triads(step_idx, chunk_idx, chunk_triads, config["distance_diff_threshold"])
-        log.info(f"[step {step_idx}] Created {len(cross_combos)}")
+        log.vinfo(f"{schMsg} Combos created", f"{schMsg} Combos created with size {len(cross_combos)}")
     else:
-        log.debug(f"[step {step_idx}] Creating combos | Chunk: {chunk_idx}")
+        log.info(f"{schMsg} Making cross combos from protein triads...")
         cross_combos = cross_protein_triads(step_idx, chunk_idx, chunk_triads, config["distance_diff_threshold"])
 
     if residue_tracker is not None:
-        ctx = TrackCtx(run_id=config.get("run_id","default"), stage="combos", step_id=step_idx, chunk_id=chunk_idx)
+        ctx = TrackCtx(run_id=config.get("run_id", "default"), stage="combos", step_id=step_idx, chunk_id=chunk_idx)
         for token, combos in cross_combos.items():
             residue_tracker.combos_built(ctx=ctx, token=token, combos=combos)
 
@@ -979,7 +937,8 @@ def process_chunk(step_idx, chunk_idx, chunk_triads, graphs_data, global_state, 
             triads_isolated_count += 1
             triads_isolated.append(comp)
             G.remove_nodes_from(comp)
-    log.debug(f"[step {step_idx} chunk_idx {chunk_idx}] I remove {triads_isolated} triads isolated from the graph")
+
+    log.debug(f"{schMsg} I removed {triads_isolated} triads isolated from the graph")
     components = list(nx.connected_components(G))
 
     index_offset_base = chunk_idx * (max_chunks ** step_idx)
@@ -994,34 +953,22 @@ def process_chunk(step_idx, chunk_idx, chunk_triads, graphs_data, global_state, 
 
     for component in components:
         len_component = len(component)
-        log.debug(
-            f"[{step_idx}] {comp_id}: Processing component "
-            f"{processed_status}/{num_components} with {len_component} nodes"
-        )
+        log.info(f"{schMsg} [{processed_status}/{num_components}] Processing the component {comp_id} with {len_component} nodes.")
         processed_status += 1
-
-        if len_component <= 4:
-            log.debug(
-                f"[{step_idx}] {comp_id} Skipping component "
-                f"{processed_status-1}, because it has just {len_component} nodes"
-            )
-            comp_id += 1
-            continue
-
 
         subG = G.subgraph(component).copy()
 
         dm_adjacent_graph = np.zeros((metadata["total_length"], metadata["total_length"]))
-        log.debug(f"[{step_idx}] Creating dm_adjacent_graph matrices...")
+        log.debug(f"{schMsg} Creating dm_adjacent_graph matrices...")
         for u, v in subG.edges():
             for p, (res_u, res_v) in enumerate(zip(u, v)):
                 if res_u != res_v:
                     split_res_u, split_res_v = res_u.split(":"), res_v.split(":")
                     res_u_tuple = (split_res_u[0], split_res_u[2], split_res_u[1])
                     res_v_tuple = (split_res_v[0], split_res_v[2], split_res_v[1])
-                    idx_u = inv_maps[p+index_offset_base][res_u_tuple]
+                    idx_u = inv_maps[p + index_offset_base][res_u_tuple]
                     try:
-                        idx_v = inv_maps[p+index_offset_base][res_v_tuple]
+                        idx_v = inv_maps[p + index_offset_base][res_v_tuple]
                     except Exception as e:
                         raise Exception(
                             f"Problem at the protein {p}, offset: {index_offset_base}, "
@@ -1047,7 +994,7 @@ def process_chunk(step_idx, chunk_idx, chunk_triads, graphs_data, global_state, 
             nodes_indices.append(node_converted)
 
         save(f"comp_id_{comp_id}", "nodes_indices", nodes_indices)
-        log.debug(f"[{step_idx}] {comp_id} Creating the std_matrix...")
+        log.info(f"{schMsg} Creating the std_matrix for component {comp_id}...")
         coherent_matrices, coherent_maps = create_coherent_matrices(
             nodes=nodes_indices,
             matrices=matrices_dict,
@@ -1055,14 +1002,13 @@ def process_chunk(step_idx, chunk_idx, chunk_triads, graphs_data, global_state, 
             threshold=config["distance_std_threshold"]
         )
 
-        log.debug(f"[{step_idx}] {comp_id} Finished creating the std_matrix.")
+        log.info(f"{schMsg} Finished creating the std_matrix.")
 
         save(f"comp_id_{comp_id}", "coherent_matrices", coherent_matrices)
         save(f"comp_id_{comp_id}", "coherent_maps", coherent_maps)
 
-
-        steps_end = True if step_idx == steps else False
-        frames, union_graph, error = generate_frames(
+        steps_end = step_idx == steps
+        frames, union_graph = generate_frames(
             component_graph=subG,
             matrices=coherent_matrices,
             maps=coherent_maps,
@@ -1100,9 +1046,9 @@ def process_chunk(step_idx, chunk_idx, chunk_triads, graphs_data, global_state, 
 
     return rebuilt_combos, final_graphs
 
+
 def association_product(graphs_data: list,
-                        config: dict,
-                        debug: bool = True) -> dict[str, list] | None:
+                        config: dict) -> dict[str, list] | None:
 
     residue_tracker = config.get("watch_residues")
 
@@ -1117,15 +1063,11 @@ def association_product(graphs_data: list,
 
         residue_tracker.resolve_from_pdb_dfs(pdb_dfs, stage="resolve_watch_residues")
 
-    profiling = {
-        "debug": debug,
-        "steps": []
-    }
     checks = config.get("checks", {"rsa": True})
     classes = config.get("classes", {})
     max_chunks = config.get("max_chunks", 5)
-
-
+    
+    log.info("Creating triads...")
     graph_collection = {
         "graphs": [gd["graph"] for gd in graphs_data],
         "triads": [find_triads(gd, classes, config, checks, i, residue_tracker) for i, gd in enumerate(graphs_data)],
@@ -1134,6 +1076,7 @@ def association_product(graphs_data: list,
         "rsa_maps": [gd["rsa"] for gd in graphs_data],
         "nodes_graphs": [sorted(list(gd["graph"].nodes())) for gd in graphs_data]
     }
+    log.info("Triads created.")
 
     save("association_product", "graph_collection", graph_collection)
     total_length = sum(len(g.nodes()) for g in graph_collection["graphs"])
@@ -1174,7 +1117,7 @@ def association_product(graphs_data: list,
         current_value += len(res_map)
 
     inv_maps = {
-        k: { res: idx for idx, res in br.items() }
+        k: {res: idx for idx, res in br.items()}
         for k, br in maps["residue_maps_unique_break"].items()
     }
 
@@ -1198,11 +1141,6 @@ def association_product(graphs_data: list,
     matrices_dict["dm_adjacent"] = dm_adjacent
     matrices_dict["dm_induced"] = dm_induced
 
-    log.debug("Criando cross combos")
-    start_cross = time.perf_counter()
-
-    Graphs = []
-
     qtd_graphs = len(graph_collection["graphs"])
     n = qtd_graphs
 
@@ -1214,8 +1152,10 @@ def association_product(graphs_data: list,
     filtered_cross_combos = []
     final_graphs = []
 
+    steps_execution_time_start = time.perf_counter()
+
     for step_idx in range(1, steps + 1):
-        log.debug(f"Executing step {step_idx}")
+        log.info(f"Executing step {step_idx}/{steps}")
         filtered_cross_combos, step_graphs = execute_step(
             step_idx,
             graph_collection,
@@ -1231,7 +1171,6 @@ def association_product(graphs_data: list,
                 "matrices_dict": matrices_dict,
                 "config": config,
                 "steps": steps,
-                "profiling": profiling
             },
             residue_tracker=residue_tracker
         )
@@ -1239,16 +1178,15 @@ def association_product(graphs_data: list,
         if step_idx == steps:
             final_graphs.extend(step_graphs)
 
-    log.debug("Finished creating ALL Frames")
-    save("association_product", "Graphs", final_graphs)
+    steps_execution_time_end = time.perf_counter()
 
-    if debug:
-        write_json_raw("profiling_report.json", profiling)
-        log.debug("[DEBUG] Profiling report saved to association_product/profiling_report.json")
+    log.info(f"Finished executing all steps in {steps_execution_time_end - steps_execution_time_start:.3f}s.")
+    save("association_product", "Graphs", final_graphs)
 
     return {
         "AssociatedGraph": final_graphs
     }
+
 
 def generate_frames(component_graph, matrices, maps, len_component, chunk_id, step, config, debug=False, debug_every=5000, nodes=None, steps_end=False, residue_tracker: ResidueTracker | None=None):
     """
@@ -1704,7 +1642,7 @@ def generate_frames(component_graph, matrices, maps, len_component, chunk_id, st
         f"[union] frames_used={len(final_frames)-1} edges={len(union_edges_indices)} "
         f"(excluded_fid=0)"
     )
-    return final_frames, union_graph, False
+    return final_frames, union_graph
 
 def create_graph(edges_dict: dict, typeEdge: str = "edges_indices", comp_id = 0):
     Graphs = []
@@ -1740,53 +1678,10 @@ def create_graph(edges_dict: dict, typeEdge: str = "edges_indices", comp_id = 0)
 
             G_sub.remove_nodes_from(list(nx.isolates(G_sub)))
             log.debug(f"{comp_id} Number of nodes graph {k}: {len(G_sub.nodes)}")
-            k+= 1
+            k += 1
 
             if k >= 100:
                 break
             Graphs.append(G_sub)
+
     return Graphs
-
-def add_sphere_residues(graphs, list_node_names_mol, output_path, node_name):
-
-    for graph, node_names_mol in zip(graphs, list_node_names_mol):
-        mol_path = graph[1]
-
-        # Read PDB file
-        parser = PDBParser()
-        structure = parser.get_structure('protein', mol_path)
-
-        # Create a new structure to hold the spheres
-        new_structure = Structure.Structure("spheres")
-
-        # Create a new model and chain for each mol
-        new_model = Model.Model(0)
-        new_chain = Chain.Chain('X')
-        new_model.add(new_chain)
-        new_structure.add(new_model)
-
-        # Keep track of added residues to avoid duplicates
-        added_residues = set()
-
-        # Add sphere residues to the new structure
-        for residue_info in node_names_mol:
-            chain_id, residue_name, residue_number = residue_info.split(':')
-            residue_key = (chain_id, int(residue_number))
-            if residue_key not in added_residues:
-                residue = structure[0][chain_id][int(residue_number)]
-                #ca_atom = residue['CA']
-                atom_coords = [atom.coord for atom in residue]
-                centroid_coords = np.mean(atom_coords, axis=0)
-                atom = Atom("CA", centroid_coords, 1.0, 1.0, " ", "DUM", 1, element='CA')
-                sphere_residue = Residue((' ', int(residue_number), ' '), residue_name, " ")
-                sphere_residue.add(atom)
-                
-                new_chain.add(sphere_residue)
-                added_residues.add(residue_key)
-
-        name = mol_path.replace("\\", "_").replace("/", "_")
-        # Write the new PDB file
-        io = PDBIO()
-        io.set_structure(new_structure)
-        io.save(path.join(output_path,f'spheres_{name}_{node_name}.pdb'))
-

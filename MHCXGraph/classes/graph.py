@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import copy
 import json
-import logging
 import re
 from collections.abc import Callable
 from pathlib import Path
@@ -23,16 +22,20 @@ from pyvis.network import Network
 from MHCXGraph.core.config import GraphConfig, make_default_config
 from MHCXGraph.core.pipeline import build_graph_with_config
 from MHCXGraph.core.subgraphs import extract_subgraph
-from MHCXGraph.utils.tools import add_sphere_residues, association_product
+from MHCXGraph.utils.logging_utils import get_log
+from MHCXGraph.utils.tools import association_product
 
-log = logging.getLogger("MHCXGraph")
+log = get_log()
+
 
 def _rgba_to_hex(rgba):
     r, g, b, _ = rgba
     return f"#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}"
 
+
 class GraphData(TypedDict):
     id: int
+    name: str
     graph: nx.Graph
     sorted_nodes: list[str]
     contact_map: np.ndarray
@@ -45,7 +48,7 @@ class GraphData(TypedDict):
 class Graph:
     """Represents a protein structure graph (no external framework assumptions)."""
 
-    def __init__(self, graph_path: str, config: GraphConfig | None = None):
+    def __init__(self, graph_path: str, config: GraphConfig):
         """
         Parameters
         ----------
@@ -55,22 +58,17 @@ class Graph:
             Unified graph configuration. If not provided, a sensible default is used.
         """
         self.graph_path = graph_path
-        self.config = config or make_default_config(
-            edge_threshold=8.5,
-            granularity="all_atoms",  # "all_atoms" | "backbone" | "side_chain" | "ca_only"
-            include_waters=False,
-        )
+        self.config = config
 
         self.graph: nx.Graph = build_graph_with_config(pdb_path=graph_path, config=self.config)
 
         self.subgraphs: dict[str, nx.Graph | list[str]] = {}
         self.pdb_df: pd.DataFrame | None = self.graph.graph.get("pdb_df")
         self.raw_pdb_df: pd.DataFrame | None = self.graph.graph.get("raw_pdb_df")
-        self.rgroup_df: pd.DataFrame | None = self.graph.graph.get("rgroup_df")
         self.dssp_df: pd.DataFrame | None = self.graph.graph.get("dssp_df")
 
-    def get_subgraph(self, name:str):
-        if name not in self.subgraphs.keys():
+    def get_subgraph(self, name: str):
+        if name not in self.subgraphs:
             log.warning(f"Can't find {name} in subgraph")
             return None
         else:
@@ -80,10 +78,10 @@ class Graph:
         if node_list is None:
             node_list = []
 
-        if name in self.subgraphs.keys():
+        if name in self.subgraphs:
             log.warning(f"You already have this subgraph created. Use graph.delete_subraph({name}) before creating it again.")
         elif not node_list:
-            self.subgraphs[name] =  extract_subgraph(g = self.graph, **args)
+            self.subgraphs[name] = extract_subgraph(g=self.graph, **args)
             log.info(f"Subgraph {name} created with success!")
         elif node_list:
             self.subgraphs[name] = self.graph.subgraph(node_list)
@@ -95,84 +93,6 @@ class Graph:
             elif isinstance(subgraphs_name, nx.Graph):
                 return subgraphs_name.nodes
 
-    def delete_subraph(self, name: str):
-        if name in self.subgraphs.keys():
-            del self.subgraphs[name]
-        else:
-            log.warning(f"{name} isn't in.subgraphs")
-
-    def filter_subgraph(self,
-            subgraph_name: str,
-            filter_func: Callable[..., Any],
-            name: str | None = None,
-            return_node_list: bool = False) -> None | list:
-
-        subgraphs_sub_name = self.subgraphs[subgraph_name]
-
-        if isinstance(subgraphs_sub_name, list):
-            log.warning(f"{subgraph_name} is a list and not a nx.Graph")
-            return
-
-        nodes = [i for i in subgraphs_sub_name.nodes if filter_func(i)]
-
-        if name:
-            self.subgraphs[name] = subgraphs_sub_name.subgraph(nodes)
-        else:
-            self.subgraphs[subgraph_name] = subgraphs_sub_name.subgraph(nodes)
-
-        target = self.subgraphs[name] if name else self.subgraphs[subgraph_name]
-        if return_node_list and isinstance(target, nx.Graph):
-            return list(target.nodes)
-
-        return None
-
-    def join_subgraph(self, name: str, graphs_name: list, mode: str = "add", return_node_list: bool = False):
-        if name in self.subgraphs.keys():
-            log.warning(f"You already have this subgraph created. Use graph.delete_subraph({name}) before creating it again.")
-        elif set(graphs_name).issubset(self.subgraphs.keys()):
-            if mode == "add":
-                nodes_list = []
-                for i in graphs_name:
-                    subgraph_i = self.subgraphs[i]
-                    if isinstance(subgraph_i, nx.Graph):
-                        nodes_list.extend(list(subgraph_i.nodes))
-                self.subgraphs[name] = self.graph.subgraph(nodes_list)
-            elif mode == "intersection":
-                intersection = set()
-                for i, graph_name in enumerate(graphs_name):
-                    subgraph_graph_name = self.subgraphs[graph_name]
-                    if isinstance(subgraph_graph_name, nx.Graph):
-                        intersection = set(subgraph_graph_name.nodes) if i == 0 else intersection.intersection(subgraph_graph_name.nodes)
-
-                self.subgraphs[name] = self.graph.subgraph(list(intersection))
-
-            if return_node_list:
-                subgraph_name = self.subgraphs[name]
-                if isinstance(subgraph_name, nx.Graph):
-                    return list(subgraph_name.nodes)
-        else:
-            log.warning("Some of your subgraph isn't in the subgraph list")
-
-    def to_raw_dict(self) -> dict[str, Any]:
-        """
-        Representação serializável do grafo bruto desta proteína.
-        Só usa strings, sem objetos Python estranhos.
-        """
-        g = self.graph
-
-        nodes = [str(n) for n in g.nodes()]
-        edges = [[str(u), str(v)] for u, v in g.edges()]
-        neighbors = {
-            str(n): [str(nb) for nb in g.neighbors(n)]
-            for n in g.nodes()
-        }
-
-        return {
-            "graph_path": self.graph_path,
-            "nodes": nodes,
-            "edges": edges,
-            "neighbors": neighbors,
-        }
     def _nx_to_serializable(self, g: nx.Graph) -> dict[str, Any]:
         """
         Converte um nx.Graph qualquer em um dicionário simples
@@ -267,7 +187,7 @@ class Graph:
         data = self._nx_to_serializable(g)
         json_path = out_dir / f"{base}.json"
         json_path.write_text(json.dumps(data, indent=4), encoding="utf-8")
-        log.info(f"Subgraph JSON salvo em {json_path}")
+        log.vinfo(f"{name} JSON subgraph saved in {json_path}.", f"{name} JSON subgraph saved.")
 
         if not with_html:
             return
@@ -286,7 +206,6 @@ class Graph:
             graph.nodes[n]["group"] = chain_id
 
         chain_ids = sorted({data.get("chain_id", "?") for _, data in graph.nodes(data=True)})
-        print(f"chain_ids: {chain_ids}")
         cmap = plt.cm.get_cmap("tab10", max(1, len(chain_ids)))
         palette = {cid: _rgba_to_hex(cmap(idx)) for idx, cid in enumerate(chain_ids)}
 
@@ -296,20 +215,18 @@ class Graph:
 
         # LIMPEZA: deixar só atributos serializáveis básicos
         allowed_node_keys = {"label", "title", "color", "size", "group", "chain_id"}
-        for n, data_node in graph.nodes(data=True):
+        for _, data_node in graph.nodes(data=True):
             for k in list(data_node.keys()):
                 if k not in allowed_node_keys:
                     del data_node[k]
 
-        # edges: só manter weight numérica (se existir) e limpar o resto
-        for u, v, data_edge in graph.edges(data=True):
+        for _, _, data_edge in graph.edges(data=True):
             w = data_edge.get("weight")
             for k in list(data_edge.keys()):
                 if k != "weight":
                     del data_edge[k]
-            if not isinstance(w, (int, float)):
-                if "weight" in data_edge:
-                    del data_edge["weight"]
+            if not isinstance(w, (int, float)) and "weight" in data_edge:
+                del data_edge["weight"]
 
         # renomear nós para ids simples
         safe_map = {n: f"v{idx}" for idx, n in enumerate(graph.nodes())}
@@ -325,7 +242,6 @@ class Graph:
         )
         net.from_nx(H)
 
-        # hover de weight continua ok, porque agora só existe weight numérica
         for (u, v, data) in H.edges(data=True):
             w = data.get("weight")
             if w is not None:
@@ -361,109 +277,7 @@ class Graph:
         html_path = out_dir / f"{base}.html"
         html = net.generate_html(notebook=False, local=True)
         html_path.write_text(html, encoding="utf-8")
-        log.info(f"Subgraph HTML salvo em {html_path}")
-
-    def save_raw_graph(
-        self,
-        output_dir: str | Path,
-        name: str | None = None,
-        with_html: bool = True,
-    ) -> None:
-        """
-        Salva o grafo bruto desta proteína como:
-          - JSON: <name>_raw_graph.json
-          - HTML PyVis: <name>_raw_graph.html (se with_html=True)
-        """
-        out_dir = Path(output_dir)
-        out_dir.mkdir(parents=True, exist_ok=True)
-
-        base = name or Path(self.graph_path).stem
-
-        # JSON
-        data = self.to_raw_dict()
-        json_path = out_dir / f"{base}_raw_graph.json"
-        json_path.write_text(json.dumps(data, indent=4), encoding="utf-8")
-        log.info(f"Raw graph JSON salvo em {json_path}")
-
-        if not with_html:
-            return
-
-        # HTML PyVis, reaproveitando a lógica do draw_graph_interactive
-        g = self.graph.copy()
-
-        # chain_id simples a partir do rótulo
-        for n in g.nodes():
-            label = str(n)
-            chain_id = label.split(':')[0] if ':' in label else "?"
-            g.nodes[n]["chain_id"] = chain_id
-
-        chain_ids = sorted({data.get("chain_id", "?") for _, data in g.nodes(data=True)})
-        cmap = plt.cm.get_cmap("tab10", max(1, len(chain_ids)))
-        palette = {cid: _rgba_to_hex(cmap(idx)) for idx, cid in enumerate(chain_ids)}
-
-        # atributos de nó para PyVis
-        for n in g.nodes():
-            cid = g.nodes[n].get("chain_id", "?")
-            label = str(n)
-            g.nodes[n]["label"] = label
-            g.nodes[n]["title"] = f"chain: {cid}\n{label}"
-            g.nodes[n]["color"] = palette.get(cid, "#999999")
-            g.nodes[n]["size"] = 12
-            g.nodes[n]["group"] = cid
-
-        # renomear nós para ids simples
-        safe_map = {n: f"v{idx}" for idx, n in enumerate(g.nodes())}
-        H = nx.relabel_nodes(g, safe_map, copy=True)
-
-        net = Network(
-            height="800px",
-            width="100%",
-            bgcolor="#ffffff",
-            notebook=False,
-            cdn_resources="in_line",
-            directed=g.is_directed(),
-        )
-        net.from_nx(H)
-
-        # hover com peso se tiver
-        for (u, v, data) in H.edges(data=True):
-            w = data.get("weight")
-            if w is not None:
-                title = f"weight: {w}"
-                for e in net.edges:
-                    if (e["from"] == u and e["to"] == v) or (
-                        not g.is_directed() and e["from"] == v and e["to"] == u
-                    ):
-                        e["title"] = title
-                        if isinstance(w, (int, float)):
-                            e.setdefault("value", float(w))
-                        else:
-                            e.setdefault("value", 1.0)
-
-        net.set_options("""
-        {
-          "nodes": { "shape": "dot" },
-          "interaction": { "hover": true, "tooltipDelay": 150, "zoomView": true, "dragView": true },
-          "physics": {
-            "enabled": true,
-            "solver": "barnesHut",
-            "barnesHut": {
-              "gravitationalConstant": -8000,
-              "centralGravity": 0.3,
-              "springLength": 95,
-              "springConstant": 0.04,
-              "damping": 0.09,
-              "avoidOverlap": 0.1
-            },
-            "minVelocity": 0.75
-          }
-        }
-        """)
-
-        html_path = out_dir / f"{base}_raw_graph.html"
-        html = net.generate_html(notebook=False, local=True)
-        html_path.write_text(html, encoding="utf-8")
-        log.info(f"Raw graph HTML salvo em {html_path}")
+        log.vinfo(f"{name} HTML subgraph saved in {html_path}.", f"{name} subgraph HTML saved.")
 
 
 class AssociatedGraph:
@@ -471,12 +285,12 @@ class AssociatedGraph:
 
     def __init__(self,
                 graphs: list[tuple],
-                output_path: str = ".",
-                run_name: str = "",
+                output_path: str,
+                run_name: str,
                 association_config: dict[str, Any] | None = None):
         """
         Initialize an AssociatedGraph instance with a reduced configuration.
-        
+ 
         :param graphs: List of tuples (Graph instance, raw_data) from preprocessing.
         :param output_path: Where to save results.
         :param run_name: Unique run identifier.
@@ -487,7 +301,7 @@ class AssociatedGraph:
         else:
             self.association_config = association_config
 
-        self.track_residues = self.association_config.get("track_residues", None)
+        self.track_residues = self.association_config.get("track_residues")
         self.graphs = graphs
         self.output_path = Path(output_path)
         self.run_name = run_name
@@ -530,7 +344,6 @@ class AssociatedGraph:
         chain = model[chain_id]
         resnum, icode = self._parse_resnum_and_icode(resnum_str)
 
-        # Primeiro tenta match estrito por (resnum, resname, icode)
         candidates = []
         for res in chain.get_residues():
             hetflag, seq, ic = res.id
@@ -564,7 +377,7 @@ class AssociatedGraph:
             - "depth": g.depth.
         """
         graphs_data = []
-        for i, (g, pdb_file) in enumerate(self.graphs):
+        for i, (g, pdb_file, name) in enumerate(self.graphs):
             contact_map = g.graph["contact_map"]
             residue_map = g.graph["residue_map_dict"]
             residue_map_all = g.graph["residue_map_dict_all"]
@@ -574,6 +387,7 @@ class AssociatedGraph:
             data: GraphData = {
                 "id": i,
                 "graph": g,
+                "name": name,
                 "sorted_nodes": sorted_nodes,
                 "contact_map": contact_map,
                 "residue_map": residue_map,
@@ -585,13 +399,12 @@ class AssociatedGraph:
 
         return graphs_data
 
-
     def create_pdb_per_protein(self):
         if not isinstance(self.associated_graphs, list):
             return
 
         for i in range(len(self.graphs)):
-            pdb_file = self.graphs[i][-1]
+            pdb_file = self.graphs[i][1]
             parser = PDBParser(QUIET=True)
             orig_struct = parser.get_structure('orig', pdb_file)
 
@@ -651,16 +464,7 @@ class AssociatedGraph:
             io.set_structure(new_struct)
             io.save(str(out_file))
 
-            log.info(f"Estrutura salva em {out_file}")
-
-
-    def _parse_label(self, label: str):
-        """
-        Dado 'A:GLU:154', retorna (chain_id, resnum, icode).
-        Seus nós não usam insertion code, então sempre icode = ' '.
-        """
-        chain, _, resnum = label.split(':')
-        return chain, str(resnum), ' '
+            log.info(f"Structure saved in {out_file}")
 
     def _write_frame_multichain(self, comp_idx: int, frame_idx: int,
                                 models: list, output_dir: Path):
@@ -694,7 +498,7 @@ class AssociatedGraph:
         io = MMCIFIO()
         io.set_structure(combo)
         io.save(str(out_path))
-        log.info(f"[comp{comp_idx}_frame{frame_idx}] wrote {len(models)} proteins as "
+        log.debug(f"[comp{comp_idx}_frame{frame_idx}] wrote {len(models)} proteins as "
             f"{len(combo_model)} chains to {out_path}")
 
     def align_all_frames(self):
@@ -719,7 +523,7 @@ class AssociatedGraph:
                         continue
 
                     models = []
-                    for prot_idx, (_, pdb_path) in enumerate(self.graphs):
+                    for prot_idx, (_, pdb_path, _) in enumerate(self.graphs):
                         struct = parser.get_structure(f"p{prot_idx}", pdb_path)
                         models.append(struct[0])
 
@@ -774,7 +578,7 @@ class AssociatedGraph:
                         sup.set_atoms(ref_cas, mob_cas)
                         sup.apply(models[prot_idx].get_atoms())
 
-                        log.info(
+                        log.debug(
                             f"[comp{comp_idx}_frame{frame_idx}] "
                             f"prot{prot_idx} <- prot0  RMSD={sup.rms:.2f}"
                         )
@@ -905,181 +709,3 @@ class AssociatedGraph:
 
                     with open(str(tmpfile), "w+", encoding="utf-8") as out:
                         out.write(html)
-
-    def draw_graph(self, show=False, save=True):
-        if not show and not save:
-            log.info("You are not saving or viewing the graph. Please leave at least one of the parameters as true.")
-            return
-
-        if not isinstance(self.associated_graphs, list):
-            log.warning(f"I can't draw the graph because it's {self.associated_graphs!r}")
-            return
-
-        for j, comps in enumerate(self.associated_graphs):
-            for i, graph in enumerate(comps[0]):
-                for node in graph.nodes():
-                    residues = [r for r in node]  # flatten
-                    chains = [r.split(':')[0] for r in residues]
-                    graph.nodes[node]['chain_id'] = ''.join(chains)
-
-                chain_ids = sorted({data['chain_id'] for _, data in graph.nodes(data=True)})
-                cmap = plt.cm.get_cmap('tab10', len(chain_ids))
-                palette = {cid: cmap(idx) for idx, cid in enumerate(chain_ids)}
-                node_colors = [palette[graph.nodes[n]['chain_id']] for n in graph.nodes()]
-
-                node_labels = {}
-                for n in graph.nodes():
-                    if isinstance(n, tuple) and n and isinstance(n[0], tuple):
-                        combo1, combo2 = n
-                        lab1 = repr(combo1).replace(" ", "")
-                        lab2 = repr(combo2).replace(" ", "")
-                        node_labels[n] = f"{lab1}{lab2}"
-                    else:
-                        node_labels[n] = str(n)
-
-                nx.draw(
-                    graph,
-                    with_labels=True,
-                    labels=node_labels,
-                    node_color=node_colors,
-                    node_size=50,
-                    font_size=6
-                )
-
-                if show:
-                    plt.show()
-                if save:
-                    if i == 0 and j == 0:
-                        filename = "Full Associated Graph Base.png"
-                    elif i == 0 and j !=0:
-                        filename = f"{j} - Associated Graph Base.png"
-                    else:
-                        filename = f"{j} - Associated Graph {i}.png"
-
-                    full = self.output_path / filename
-                    plt.savefig(full)
-                    plt.clf()
-                    log.info(f"{j}: {i}‑th associated graph saved to {full}")
-
-    def grow_subgraph_bfs(self):
-        count_pep_nodes = 0
-        G_subs = self.associated_graphs
-        if G_subs is not None:
-            for G_sub in G_subs:
-                for nodes in G_sub.nodes:
-                    if nodes[0].startswith('C') and nodes[1].startswith('C'): #i.e. peptide nodes
-                        count_pep_nodes += 1
-
-                        bfs_subgraph = self.create_subgraph_with_neighbors(G_sub, nodes, 20)
-                        for nodes2 in bfs_subgraph.nodes:
-                            if nodes2[0].startswith('A') and nodes2[1].startswith('A'):
-                                bfs_subgraph.nodes[nodes2]['chain_id'] = 'red'
-                            elif nodes2[0].startswith('C') and nodes2[1].startswith('C'):
-                                bfs_subgraph.nodes[nodes2]['chain_id'] = 'blue'
-                            else:
-                                bfs_subgraph.nodes[nodes2]['chain_id'] = None
-
-                        number_peptide_nodes = len([i for i in bfs_subgraph.nodes if i[0].startswith('C')])
-                        if bfs_subgraph.number_of_nodes() >= 14 and nx.diameter(bfs_subgraph) >= 3 and number_peptide_nodes >=3:
-                            node_colors = [bfs_subgraph.nodes[node]['chain_id'] for node in bfs_subgraph.nodes]
-                            nx.draw(bfs_subgraph, with_labels=True, node_color=node_colors)
-                            plt.savefig(self.output_path / f'plot_bfs_{nodes[0]}_{self.run_name}.png')
-                            plt.clf()
-
-                            get_node_names = list(bfs_subgraph.nodes())
-                            list_node_names = []
-                            for n in range(len(self.graphs)):
-                                node_names = [i[n] for i in get_node_names]
-                                list_node_names.append(node_names)
-
-                            add_sphere_residues(self.graphs, list_node_names, self.output_path, nodes[0])
-
-                        else:
-                            log.info(f"The subgraph centered at the {nodes[0]} node does not satisfies the requirements")
-                if count_pep_nodes == 0:
-                    log.warning('No peptide nodes were found in the association graph. No subgraph will be generated.')
-                pass
-
-        log.warning("You don't have any associated graphs created.")
-
-    def create_subgraph_with_neighbors(self, association_graph, node, max_nodes):
-        """
-        This is mostly an implementation of the BFS algorithm with some modification
-        
-        Parameters:
-            graph (nx.Graph): The original graph.
-            node: The node for which the subgraph is to be created.
-            max_nodes (int): The maximum number of nodes allowed in the subgraph.
-            
-        Returns:
-            nx.Graph: 
-        """
-        # Initialize a set to store visited nodes
-        graphs = self.graphs
-        associated_graph = self.associated_graphs
-        visited = set()
-
-        # Initialize the subgraph with the given node
-        subgraph = nx.Graph()
-        subgraph.add_node(node)
-        visited.add(node)
-
-        # Queue to store nodes to visit next
-        queue = [(node, None)]  # (node, parent)
-
-
-        while queue and subgraph.number_of_nodes() < max_nodes: #the max nodes only act here when start the new layer (getting the new current node)
-            # Once it goes inside the neighbor loop, it will finish it even that it means to generate more neigbors than expected
-            # Pop the node and its parent from the queue
-            current_node, parent = queue.pop(0)
-
-            # If not the starting node, add edge to its parent
-            if parent is not None:
-                subgraph.add_edge(current_node, parent)
-
-            # Iterate over neighbors of the current node
-            neighbors = list(association_graph.neighbors(current_node))
-
-            #get euclidian distance between current node and neighbors to sort the neighbors list
-            #Mol A
-            dists = []
-
-            for graph in graphs:
-                graph_matrix = graph[0].graph["pdb_df"]
-                current_node_index = graph_matrix[graph_matrix['node_id'] == current_node[0]].index[0]
-                neighbor_indices = [graph_matrix[graph_matrix['node_id'] == nodes[0]].index[0] for nodes in neighbors if nodes != current_node]
-                dist = compute_distmat(graph_matrix).iloc[neighbor_indices, current_node_index]
-                dists.append(dist)
-
-            # Get a average distance for sorting
-            average_list = sum(dists)/len(graphs)
-
-            # Pair each nodes with its corresponding numeric value
-            paired_list = list(zip(average_list, neighbors))
-
-            # Sort the pairs based on the numeric values
-            paired_list.sort()
-
-            # Extract the sorted list of nodes
-            neighbors_sorted = [string for _, string in paired_list]
-
-            for neighbor in neighbors_sorted:
-                # If neighbor is not visited and adding it won't exceed max_nodes
-                # if neighbor not in visited and subgraph.number_of_nodes() + 1 <= max_nodes:
-                if neighbor not in visited: #try to visit all in the neighbor layer
-                    # Add the neighbor to the subgraph
-                    subgraph.add_node(neighbor)
-
-                    # Mark neighbor as visited
-                    visited.add(neighbor)
-
-                    # Add neighbor to the queue -> so that the neighbor will become current nodes and generate new neighbors
-                    queue.append((neighbor, current_node))
-
-        # Add edges between selected nodes based on the original graph
-        for u in subgraph.nodes():
-            for v in subgraph.nodes():
-                if u != v and association_graph.has_edge(u, v):
-                    subgraph.add_edge(u, v)
-
-        return subgraph
