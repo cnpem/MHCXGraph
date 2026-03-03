@@ -511,7 +511,7 @@ def create_graphs(manifest: dict) -> list[tuple]:
         )
 
 
-        save("create_graphs", f"{graph_path.stem}_subgraph", subgraph)
+        save("create_graphs", f"{output_path.stem}_subgraph", subgraph)
         graphs.append((subgraph, str(orig_path), base_name))
 
     end = time.perf_counter()
