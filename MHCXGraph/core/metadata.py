@@ -7,7 +7,9 @@ from typing import Any
 
 import numpy as np
 
-# from MHCXGraph.core.pdb_graph_builder import ResidueList
+from MHCXGraph.utils.logging_utils import get_log
+
+log = get_log()
 
 BACKBONE_ATOMS = ("N", "CA", "C", "O")
 
@@ -51,10 +53,14 @@ def secondary_structure(G, **ctx):
     if chains is None:
         return G
 
-    def build_pydssp_input(chain: dict[str, str], include_noncanonical_residues):
-        residues = chain["canonical_aminoacid_residues"]
+    def build_pydssp_input(chain: dict[str, str], chain_id, include_noncanonical_residues):
+        residues = chain["canonical_aminoacid_residues"].copy()
         if include_noncanonical_residues:
             residues += chain["noncanonical_aminoacid_residues"]
+
+        if not residues:
+            log.info(f"The chain {chain_id} doesn't have any aminoacid residue.")
+            return None
 
         used_residues = []
         coords = []
@@ -72,14 +78,14 @@ def secondary_structure(G, **ctx):
                 sequence.append(res_label.split(":")[1])
 
         sequence = np.array(sequence)
-
+        
         if len(coords) == 0:
             raise ValueError("No residues with complete backbone atoms (N,CA,C,O) were found.")
 
         coord = torch.from_numpy(np.asarray(coords, dtype=np.float32))  # [L,4,3]
         return coord, used_residues, sequence
 
-    def assign_ss_to_chain(chain, include_noncanonical_residues):
+    def assign_ss_to_chain(chain, chain_id, include_noncanonical_residues):
         """
         Runs pydssp for a chain and maps SS back to residues.
         Returns:
@@ -88,10 +94,14 @@ def secondary_structure(G, **ctx):
           full_ss: string length len(all_residues) (omitted residues filled with '?')
           all_residues: list of all residues in chain
         """
-        coord, used_residues, sequence = build_pydssp_input(
-            chain, include_noncanonical_residues=include_noncanonical_residues
+        pydsspInput = build_pydssp_input(
+            chain, chain_id, include_noncanonical_residues=include_noncanonical_residues
         )
 
+        if pydsspInput is None:
+            return {}
+
+        coord, used_residues, sequence = pydsspInput
         donor_mask = sequence != 'PRO'
         ss = pydssp.assign(coord, donor_mask=donor_mask)
         ss_used = "".join(ss)
@@ -103,7 +113,7 @@ def secondary_structure(G, **ctx):
     ss_map = {}
 
     for chain in chains:
-        ss_map = ss_map | assign_ss_to_chain(chains[chain], include_noncanonical_residues=include_noncanonical_residues)
+        ss_map = ss_map | assign_ss_to_chain(chains[chain], chain, include_noncanonical_residues=include_noncanonical_residues)
 
     for nid, data in G.nodes(data=True):
         if data.get("kind") == "water":

@@ -632,7 +632,6 @@ def extract_subgraph_from_secondary_structure(
         If any node lacks the 'ss' attribute.
     """
 
-
     name_to_codes = {
         "HELIX": {"H"},
         "STRAND": {"E"},
@@ -659,15 +658,18 @@ def extract_subgraph_from_secondary_structure(
             )
 
         normalized |= name_to_codes[key]
-
+    
     node_list: list[str] = []
     for n, d in g.nodes(data=True):
-        if "ss" not in d:
-            raise ProteinGraphConfigurationError(
-                f"Secondary structure not set for node {n}. Annotate 'ss' first."
-            )
-        if d["ss"] in set(ss_elements):
+        if d["kind"] in ("water", "ligands"):
             node_list.append(n)
+        else:
+            if "ss" not in d:
+                raise ProteinGraphConfigurationError(
+                    f"Secondary structure not set for node {n}. Annotate 'ss' first."
+                )
+            if d["ss"] in set(normalized):
+                node_list.append(n)
 
     node_list = list(dict.fromkeys(node_list))
 

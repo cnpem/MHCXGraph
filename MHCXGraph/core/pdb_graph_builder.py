@@ -881,7 +881,7 @@ class PDBGraphBuilder:
         noncanonical_nodes = structure_dict["residues"]["noncanonical_aminoacid_residues"]
         ligand_nodes_all = structure_dict["residues"]["ligands"]
         water_nodes_all = structure_dict["residues"]["waters"]
-
+        
         aa_nodes = canonical_nodes.copy()
         if self.config.include_noncanonical_residues:
             aa_nodes += noncanonical_nodes.copy()
