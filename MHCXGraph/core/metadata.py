@@ -73,6 +73,7 @@ def secondary_structure(G, **ctx):
 
         coord, used_residues, sequence = pydsspInput
         donor_mask = sequence != 'PRO'
+
         ss = pydssp.assign(coord, donor_mask=donor_mask)
         ss_used = "".join(ss)
 

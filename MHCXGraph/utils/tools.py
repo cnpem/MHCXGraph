@@ -367,6 +367,7 @@ def find_triads(graph_data, classes, config, checks, protein_index, tracker: Res
                 if u_chain not in chains and center_chain not in chains and w_chain not in chains:
                     log.debug(f"[]({u}, {center}, {w}) was filtered.")
                     continue
+
             elif isinstance(chains, str) and chains.strip() != "":
                 if u_chain != chains and center_chain != chains and w_chain != chains:
                     log.debug(f"({u}, {center}, {w}) was filtered.")
@@ -427,7 +428,7 @@ def find_triads(graph_data, classes, config, checks, protein_index, tracker: Res
                 return _as_list(
                     value_to_class(
                         val,
-                        config["rsa_bin_width"],
+                        config["rsa_bin_width"] * 100,
                         config["rsa_filter"] * 100,
                         inverse=True,
                         close_tolerance=config["close_tolerance_rsa"],
@@ -912,13 +913,10 @@ def process_chunk(step_idx, chunk_idx, chunk_triads, global_state, residue_track
 
     if len(chunk_triads) == 1:
         return chunk_triads, []
-    if step_idx == 1:
-        log.info(f"{schMsg} Making cross combos from protein triads...")
-        cross_combos = cross_protein_triads(step_idx, chunk_idx, chunk_triads, config["distance_diff_threshold"])
-        log.vinfo(f"{schMsg} Combos created", f"{schMsg} Combos created with size {len(cross_combos)}")
-    else:
-        log.info(f"{schMsg} Making cross combos from protein triads...")
-        cross_combos = cross_protein_triads(step_idx, chunk_idx, chunk_triads, config["distance_diff_threshold"])
+
+    log.info(f"{schMsg} Making cross combos from protein triads...")
+    cross_combos = cross_protein_triads(step_idx, chunk_idx, chunk_triads, config["local_distance_diff_threshold"])
+    log.vinfo(f"{schMsg} Combos created", f"{schMsg} Combos created with size {len(cross_combos)}")
 
     if residue_tracker is not None:
         ctx = TrackCtx(run_id=config.get("run_id", "default"), stage="combos", step_id=step_idx, chunk_id=chunk_idx)
@@ -999,7 +997,7 @@ def process_chunk(step_idx, chunk_idx, chunk_triads, global_state, residue_track
             nodes=nodes_indices,
             matrices=matrices_dict,
             maps=maps,
-            threshold=config["distance_std_threshold"]
+            threshold=config["global_distance_diff_threshold"]
         )
 
         log.info(f"{schMsg} Finished creating the std_matrix.")

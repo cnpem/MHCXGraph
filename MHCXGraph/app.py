@@ -33,10 +33,13 @@ def main():
     )
 
     logging.getLogger("matplotlib").setLevel(logging.ERROR)
+    logging.getLogger("freesasa").setLevel(logging.ERROR)
+
     logging.basicConfig(
         stream=sys.stdout,
         level=logging.DEBUG if settings.get("debug_logs") else logging.INFO,
     )
+
 
     setup_logging(
         outdir=Path(base_output_path) / base_run_name,

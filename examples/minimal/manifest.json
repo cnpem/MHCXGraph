@@ -1,7 +1,7 @@
 {
   "settings": {
     "run_name": "minimal",
-    "run_mode": "all",
+    "run_mode": "pair",
     "max_chunks": 5,
     "output_path": "results/minimal",
     "debug_logs": false,
@@ -17,50 +17,11 @@
     "rsa_filter": 0.1,
     "asa_filter": 5,
     "close_tolerance_rsa": 0.01,
-    "distance_std_threshold": 1.0,
-    "distance_diff_threshold": 1.0,
-    "_filter_triads_by_chain": [
-      "C"
-    ],
+    "local_distance_diff_threshold": 2.0,
+    "global_distance_diff_threshold": 2.0,
     "distance_bin_width": 2,
     "close_tolerance": 0.1,
-    "rsa_bin_width": 0.2,
-    "_classes": {
-      "residues": {
-        "HID": [
-          "ALA",
-          "VAL",
-          "LEU",
-          "ILE",
-          "MET"
-        ],
-        "POL": [
-          "SER",
-          "THR",
-          "ASN",
-          "GLN",
-          "CYS"
-        ],
-        "POS": [
-          "LYS",
-          "ARG",
-          "HIS"
-        ],
-        "NEG": [
-          "ASP",
-          "GLU"
-        ],
-        "ARO": [
-          "PHE",
-          "TYR",
-          "TRP"
-        ],
-        "ESP": [
-          "GLY",
-          "PRO"
-        ]
-      }
-    }
+    "rsa_bin_width": 0.2
   },
   "inputs": [
     {
@@ -78,11 +39,6 @@
     }
   ],
   "selectors": {
-    "test": {
-      "chains": [],
-      "structures": ["Helix"],
-      "residues": {}
-    },
     "MHC1": {
       "chains": [
         "C"

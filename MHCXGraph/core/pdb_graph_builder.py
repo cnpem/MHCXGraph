@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import re
+import sys
 import tempfile
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Literal, TypedDict, cast
 
@@ -72,6 +75,46 @@ ResidueKind = Literal["canonical_aminoacid", "noncanonical_aminoacid", "ligand",
 ResidueList = list[tuple[str, Residue, ResidueKind, np.ndarray]]
 
 
+@contextmanager
+def capture_c_stderr(logger):
+    """
+    Intercepts C-level stderr (file descriptor 2) and pipes it to a Python logger.
+    This prevents C-libraries like FreeSASA from spamming the console.
+    """
+    old_stderr_fd = os.dup(sys.stderr.fileno())
+
+    with tempfile.TemporaryFile(mode='w+t') as temp_err:
+        os.dup2(temp_err.fileno(), sys.stderr.fileno())
+
+        try:
+            yield
+        finally:
+            os.dup2(old_stderr_fd, sys.stderr.fileno())
+            os.close(old_stderr_fd)
+            temp_err.seek(0)
+            c_output = temp_err.read().strip()
+            if c_output:
+                for line in c_output.split('\n'):
+                    if line.strip():
+                        logger.debug(f"FreeSASA Core: {line.strip()}")
+
+
+# TODO: Remove this monkey-patch after the release of biopython 1.87
+class FixedPDBIO(PDBIO):
+    """
+    Overrides PDBIO to fix the left-aligned element bug in Biopython 1.86.
+    Intercepts the generated string and right-aligns columns 77-78.
+    """
+    def _get_atom_line(self, *args, **kwargs):
+        line = super()._get_atom_line(*args, **kwargs)
+
+        if len(line) >= 78 and line.startswith(("ATOM  ", "HETATM")):
+            corrected_element = line[76:78].strip().rjust(2)
+            line = line[:76] + corrected_element + line[78:]
+
+        return line
+
+
 class AtomBundle(TypedDict):
     raw_df: pd.DataFrame
     node_centroids: pd.DataFrame
@@ -102,19 +145,10 @@ class _NoWaterSelect(Select):
         return not _is_water(residue)
 
 
-def _canonical_of(resname: str) -> str | None:
-    """Return canonical 3-letter code for a residue name when available."""
-    rn = (resname or "").strip().upper()
-    if rn in CANONICAL_AA3:
-        return rn
-    return NONCANONICAL_TO_CANONICAL.get(rn)
-
-
 def _is_water(res: Residue) -> bool:
     """Return True for water residues."""
     name = res.get_resname().strip().upper()
     return name in WATER_NAMES
-
 
 def _heavy_atom_coords(res: Residue) -> np.ndarray:
     """Return heavy-atom coordinates of a residue as (N, 3) array."""
@@ -260,30 +294,10 @@ class PDBGraphBuilder:
         tmp_path = tmp.name
         tmp.close()
 
-        io = PDBIO()
+        io = FixedPDBIO()
+
         io.set_structure(model)
-        io.save(tmp_path, select=_NoWaterSelect())  # type: ignore[arg-type]
-        return tmp_path
-
-
-    def _ensure_pdb_for_dssp(self) -> str:
-        """
-        Return a path to a PDB file suitable for mkdssp.
-    If input is already PDB, return original path.
-        If input is mmCIF, write a temporary PDB from self.structure and return it.
-        """
-
-        p = self.pdb_path.lower()
-        if p.endswith(".pdb"):
-            return self.pdb_path
-
-        tmp = tempfile.NamedTemporaryFile(suffix=".pdb", delete=False)
-        tmp_path = tmp.name
-        tmp.close()
-
-        io = PDBIO()
-        io.set_structure(self.structure)
-        io.save(tmp_path)
+        io.save(tmp_path, select=_NoWaterSelect(), write_end=False)
         return tmp_path
 
     def _compute_asa_rsa(
@@ -316,10 +330,15 @@ class PDBGraphBuilder:
 
         pdb_no_wat = self._write_temp_pdb_no_waters()
 
-        fs_struct = freesasa.Structure(pdb_no_wat, options={'hetatm': True})
+        with capture_c_stderr(log):
+            fs_struct = freesasa.Structure(pdb_no_wat, options={'hetatm': True})
         params = freesasa.Parameters({'algorithm': freesasa.LeeRichards, 'n-slices': 100})
-        fs_res = freesasa.calc(fs_struct, params)
+
+        with capture_c_stderr(log):
+            fs_res = freesasa.calc(fs_struct, params)
         areas = fs_res.residueAreas()
+
+        os.remove(pdb_no_wat)
 
         def _resnum_key(res: Residue) -> str:
             return str(int(res.id[1]))
@@ -334,10 +353,9 @@ class PDBGraphBuilder:
             asa = float(getattr(ra, "total", 0.0)) if ra is not None else 0.0
 
             resname = res.get_resname().strip().upper()
-            aa_can = _canonical_of(resname)
 
-            if aa_can is not None:
-                max_acc = float(max_acc_table.get(aa_can, 0.0))
+            if resname is not None:
+                max_acc = float(max_acc_table.get(resname, 0.0))
                 rsa = (asa / max_acc) if max_acc > 0 else None
             else:
                 max_acc = float("nan")
@@ -797,7 +815,7 @@ class PDBGraphBuilder:
         elif _is_water(res):
             id_str = _node_id(ch.id, res, kind="water")
             structure_dict["residues"]["waters"].append((id_str, res, "water", coords_heavy))
-            structure_dict["chains"][ch.id]["waters"].append((id_str, res, "waters", coords_heavy))
+            structure_dict["chains"][ch.id]["waters"].append((id_str, res, "water", coords_heavy))
 
         else:
             id_str = _node_id(ch.id, res)

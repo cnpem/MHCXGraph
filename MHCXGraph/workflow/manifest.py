@@ -25,8 +25,9 @@ def load_manifest(manifest_path: str) -> dict[str, Any]:
 
     shutil.copy2(manifest_path, settings["output_path"] + "/manifest.json")
     settings.setdefault("debug_logs", False)
-    settings.setdefault("verbose", False)
     settings.setdefault("debug_tracking", False)
+    settings.setdefault("verbose", False)
+
 
     settings.setdefault("edge_threshold", 8.5)
     settings.setdefault("close_tolerance", 1.0)
@@ -40,10 +41,10 @@ def load_manifest(manifest_path: str) -> dict[str, Any]:
     settings.setdefault("rsa_filter", 0.1)
     settings.setdefault("asa_filter", 5)
     settings.setdefault("close_tolerance_rsa", 0.1)
-    settings.setdefault("distance_std_threshold", 3.0)
-    settings.setdefault("distance_diff_threshold", 1.0)
+    settings.setdefault("local_distance_threshold", 1.0)
+    settings.setdefault("global_distance_threshold", 2.0)
 
-    settings.setdefault("rsa_bin_width", 20)
+    settings.setdefault("rsa_bin_width", 0.2)
     settings.setdefault("distance_bin_width", 2.0)
 
     settings.setdefault("max_chunks", 5)
@@ -70,8 +71,8 @@ def build_association_config(settings: dict[str, Any], run_mode: str, tracker_re
     return {
         "run_mode":                 run_mode,
         "edge_threshold":           settings.get("edge_threshold"),
-        "distance_std_threshold":   settings.get("distance_std_threshold"),
-        "distance_diff_threshold":  settings.get("distance_diff_threshold"),
+        "local_distance_diff_threshold":  settings.get("local_distance_diff_threshold"),
+        "global_distance_diff_threshold":  settings.get("global_distance_diff_threshold"),
         "rsa_filter":               settings.get("rsa_filter"),
         "rsa_bin_width":            settings.get("rsa_bin_width"),
         "distance_bin_width":       settings.get("distance_bin_width"),

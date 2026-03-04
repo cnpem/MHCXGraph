@@ -91,6 +91,32 @@ def _eval_logic_expression(expr: str,
     return st[0]
 
 
+def _remove_isolated_ligands(G: nx.Graph, nodes: set[str]) -> set[str]:
+    """
+    Remove ligands nodes that have no edges inside the selected node set.
+
+    Parameters
+    ----------
+    G : nx.Graph
+        Original graph.
+    nodes : set[str]
+        Nodes currently selected by filters.
+
+    Returns
+    -------
+    set[str]
+        Filtered node set with isolated waters removed.
+    """
+    sub = G.subgraph(nodes)
+
+    filtered = set(nodes)
+
+    for n, d in sub.nodes(data=True):
+        if (d.get("kind") == "water" or d.get("kind") == "ligand") and sub.degree(n) == 0:
+            filtered.discard(n)
+
+    return filtered
+
 def get_exposed_residues(graph: Graph, rsa_filter: float, asa_filter: float, selection_params=None) -> nx.Graph:
     selection_params = selection_params or {}
     logic_expr = selection_params.get("logic")
@@ -234,6 +260,11 @@ def get_exposed_residues(graph: Graph, rsa_filter: float, asa_filter: float, sel
 
     if not selected:
         raise Exception("I did not find any nodes that pass your filter/logic")
+
+    if not selected:
+        raise Exception("All nodes removed after isolated water filtering")
+
+    selected = _remove_isolated_ligands(G, selected)
 
     graph.create_subgraph(name="s_graph",
                           node_list=list(selected),
