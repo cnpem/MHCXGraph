@@ -261,10 +261,11 @@ def get_exposed_residues(graph: Graph, rsa_filter: float, asa_filter: float, sel
     if not selected:
         raise Exception("I did not find any nodes that pass your filter/logic")
 
+    selected = _remove_isolated_ligands(G, selected)
+
     if not selected:
         raise Exception("All nodes removed after isolated water filtering")
 
-    selected = _remove_isolated_ligands(G, selected)
 
     graph.create_subgraph(name="s_graph",
                           node_list=list(selected),
