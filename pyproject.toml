@@ -55,6 +55,7 @@ dependencies = [
     "pyvis>=0.3.2",
     "coloredlogs>=15.0.1",
     "pydssp>=0.9.1",
+    "freesasa>=2.2.1",
 ]
 dynamic = ["version"]
 
