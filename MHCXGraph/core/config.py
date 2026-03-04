@@ -57,23 +57,11 @@ class GraphConfig:
     include_waters
         If ``True``, includes water molecules (HOH) as nodes and residue–water edges.
     residue_distance_cutoff
-        Residue–residue centroid distance cutoff (Å) for adding edges.
-    water_distance_cutoff
-        Water–residue centroid distance cutoff (Å) for adding edges when waters are included.
+        Residue–residue and Water-residue centroid distance cutoff (Å) for adding edges.
     store_distance_matrix
         If ``True``, keeps the residue–residue distance matrix in the returned object.
     compute_rsa
         If ``True``, computes ASA and RSA per residue.
-    rsa_method
-        RSA method: ``"dssp"`` uses an external DSSP executable; ``"sr"`` uses Shrake–Rupley with table normalization.
-    dssp_exec
-        Executable name or absolute path for DSSP (e.g., ``"mkdssp"`` or ``"dssp"``).
-    dssp_acc_array
-        Reference maximum-ASA table used by DSSP and SR normalization. The table used is ``"Wilke"``.
-    probe_radius
-        Probe radius (Å) for Shrake–Rupley ASA.
-    n_points
-        Number of surface points per atom for Shrake–Rupley ASA.
     model_index
         Model index to load from the structure file.
     allow_empty_chains
@@ -86,20 +74,15 @@ class GraphConfig:
     # Selection and waters
     chains: Iterable[str] | None = None
     include_waters: bool = True
+    include_noncanonical_residues: bool = True
+    include_ligands: bool = True
 
     # Geometry / graph
     residue_distance_cutoff: float = 10.0
-    water_distance_cutoff: float = 6.0
     store_distance_matrix: bool = True
 
     # ASA / RSA
     compute_rsa: bool = True
-    # rsa_method = "dssp"
-    rsa_method: Literal["dssp"] = "dssp"
-    dssp_exec: str = "mkdssp"
-    dssp_acc_array: Literal["Wilke"] = "Wilke"
-    probe_radius: float = 1.4
-    n_points: int = 960
 
     # Structure selection
     model_index: int = 0
@@ -113,9 +96,6 @@ class GraphConfig:
 
     make_virtual_cb_for_gly: bool = True
 
-    include_noncanonical_residues: bool = True
-    include_ligands: bool = False
-
 
 def make_default_config(
     *,
@@ -123,13 +103,11 @@ def make_default_config(
     granularity: Granularity = "all_atoms",
     chains: Iterable[str] | None = None,
     compute_rsa: bool = True,
-    rsa_method: Literal["sr", "dssp"] = "dssp",
-    dssp_exec: str = "mkdssp",
-    dssp_acc_array: Literal["Wilke"] = "Wilke",
     make_virtual_cb_for_gly: bool = True,
     include_noncanonical_residues: bool = True,
-    include_ligands: bool = False,
+    include_ligands: bool = True,
     include_waters: bool = True,
+    verbose: bool = False
 ) -> GraphConfig:
     """
     Helper for creating a ``GraphConfig`` with common defaults.
@@ -146,12 +124,6 @@ def make_default_config(
         Iterable of chain IDs to include; ``None`` includes all chains.
     compute_rsa
         If ``True``, computes ASA/RSA per residue.
-    rsa_method
-        RSA method: ``"dssp"`` or ``"sr"``.
-    dssp_exec
-        DSSP executable name or path.
-    dssp_acc_array
-        DSSP/SR max-ASA reference table.
 
     Returns
     -------
@@ -162,18 +134,12 @@ def make_default_config(
         chains=chains,
         include_waters=include_waters,
         residue_distance_cutoff=float(edge_threshold),
-        water_distance_cutoff=6.0,
         store_distance_matrix=True,
         compute_rsa=compute_rsa,
-        rsa_method=rsa_method,
-        dssp_exec=dssp_exec,
-        dssp_acc_array=dssp_acc_array,
-        probe_radius=1.4,
-        n_points=960,
         model_index=0,
         allow_empty_chains=False,
         granularity=granularity,
-        verbose=False,
+        verbose=verbose,
         make_virtual_cb_for_gly=make_virtual_cb_for_gly,
         include_noncanonical_residues=include_noncanonical_residues,
         include_ligands=include_ligands

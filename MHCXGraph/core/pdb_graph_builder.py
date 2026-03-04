@@ -7,13 +7,14 @@ import tempfile
 from dataclasses import dataclass, field
 from typing import Literal, TypedDict, cast
 
+import freesasa
 import networkx as nx
 import numpy as np
 import pandas as pd
 from Bio.PDB.Chain import Chain
 from Bio.PDB.DSSP import DSSP, residue_max_acc
 from Bio.PDB.MMCIFParser import MMCIFParser
-from Bio.PDB.PDBIO import PDBIO
+from Bio.PDB.PDBIO import PDBIO, Select
 from Bio.PDB.PDBParser import PDBParser
 from Bio.PDB.Polypeptide import is_aa
 from Bio.PDB.Residue import Residue
@@ -21,7 +22,7 @@ from Bio.PDB.SASA import ShrakeRupley
 from Bio.PDB.Structure import Structure
 from Bio.PDB.vectors import Vector, rotaxis
 
-from MHCXGraph.core.config import DSSPConfig, GraphConfig
+from MHCXGraph.core.config import GraphConfig
 from MHCXGraph.core.contact_map import contact_map_from_graph
 from MHCXGraph.core.metadata import secondary_structure
 from MHCXGraph.utils.logging_utils import get_log
@@ -95,6 +96,11 @@ class NodeCoords(TypedDict):
     ca_coord: tuple[float, float, float]
     cb_coord: tuple[float, float, float]
     cb_is_virtual: bool
+
+
+class _NoWaterSelect(Select):
+    def accept_residue(self, residue: Residue) -> bool:
+        return not _is_water(residue)
 
 
 def _canonical_of(resname: str) -> str | None:
@@ -240,6 +246,27 @@ class PDBGraphBuilder:
         self.structure = parser.get_structure("struct", self.pdb_path)
         log.info("Structure loaded from %s", self.pdb_path)
 
+
+    def _write_temp_pdb_no_waters(self) -> str:
+        """
+        Write a temporary PDB for SASA computation with all water residues removed.
+        Uses the selected model only.
+        """
+        if self.structure is None:
+            raise RuntimeError("Structure not loaded")
+
+        model = self.structure[self.config.model_index]
+
+        tmp = tempfile.NamedTemporaryFile(suffix=".pdb", delete=False)
+        tmp_path = tmp.name
+        tmp.close()
+
+        io = PDBIO()
+        io.set_structure(model)
+        io.save(tmp_path, select=_NoWaterSelect())  # type: ignore[arg-type]
+        return tmp_path
+
+
     def _ensure_pdb_for_dssp(self) -> str:
         """
         Return a path to a PDB file suitable for mkdssp.
@@ -262,7 +289,7 @@ class PDBGraphBuilder:
 
     def _compute_asa_rsa(
             self, res_tuples: ResidueList
-            ) -> tuple[dict[str, tuple[float, float | None]], pd.DataFrame | None]:
+            ) -> dict[str, tuple[float, float | None]]:
         """
         Compute per-residue ASA and RSA.
 
@@ -286,101 +313,43 @@ class PDBGraphBuilder:
         - For ``rsa_method='sr'``, RSA = SR(ASA)/max-ASA for canonical residues;
           non-canonicals are normalized by a structure-wise ASA reference.
         """
-        max_acc_table = residue_max_acc[self.config.dssp_acc_array]
+        max_acc_table = residue_max_acc["Wilke"]
 
-        sr = ShrakeRupley(probe_radius=self.config.probe_radius, n_points=self.config.n_points)
-        sr.compute(self.structure, level="R")
+        pdb_no_wat = self._write_temp_pdb_no_waters()
+
+        fs_struct = freesasa.Structure(pdb_no_wat, options={'hetatm': True})
+        params = freesasa.Parameters({'algorithm': freesasa.LeeRichards, 'n-slices': 100})
+        fs_res = freesasa.calc(fs_struct, params)
+        areas = fs_res.residueAreas()
+
+        def _resnum_key(res: Residue) -> str:
+            return str(int(res.id[1]))
+
         out: dict[str, tuple[float, float | None]] = {}
-
-        if self.config.rsa_method == "dssp":
-            model = self.structure[self.config.model_index]
-
-            dssp_input_path = self._ensure_pdb_for_dssp()
-
-            dssp = DSSP(
-                    model,
-                    dssp_input_path,
-                    dssp=self.config.dssp_exec,
-                    acc_array=self.config.dssp_acc_array,
-                    )
-            idx2nid = {(res.get_parent().id, res.id): nid for nid, res, _, _ in res_tuples}
-            rows: list[dict[str, object]] = []
-
-            for key in dssp.keys():
-                nid = idx2nid.get(key)
-                if nid is None:
-                    continue
-                chain_id, (_, resnum, icode) = key
-                t = dssp[key]
-                dssp_index = t[0]
-                aa1 = t[1]
-                ss = t[2]
-                rsa_rel = float(t[3])
-                phi = float(t[4]); psi = float(t[5])
-                nh_o_1_relidx, nh_o_1_energy = t[6], t[7]
-                o_nh_1_relidx, o_nh_1_energy = t[8], t[9]
-                nh_o_2_relidx, nh_o_2_energy = t[10], t[11]
-                o_nh_2_relidx, o_nh_2_energy = t[12], t[13]
-                aa3 = AA1_TO_3.get(aa1, "UNK")
-                max_acc = float(max_acc_table.get(aa3, 0.0))
-                asa_abs = rsa_rel * max_acc if max_acc > 0 else 0.0
-                out[nid] = (asa_abs, rsa_rel)
-                rows.append({
-                    "chain": chain_id,
-                    "resnum": int(resnum),
-                    "icode": (icode or "").strip(),
-                    "aa": aa3,
-                    "ss": ss if ss != " " else "C",
-                    "asa": asa_abs,
-                    "phi": phi, "psi": psi,
-                    "dssp_index": dssp_index,
-                    "NH_O_1_relidx": nh_o_1_relidx, "NH_O_1_energy": nh_o_1_energy,
-                    "O_NH_1_relidx": o_nh_1_relidx, "O_NH_1_energy": o_nh_1_energy,
-                    "NH_O_2_relidx": nh_o_2_relidx, "NH_O_2_energy": nh_o_2_energy,
-                    "O_NH_2_relidx": o_nh_2_relidx, "O_NH_2_energy": o_nh_2_energy,
-                    "node_id": nid,
-                    })
-
-            dssp_df = pd.DataFrame(rows).set_index("node_id") if rows else None
-            if dssp_df is not None and not dssp_df.empty:
-                dssp_df["max_acc"] = dssp_df["aa"].map(max_acc_table.get).astype(float)
-                with np.errstate(divide="ignore", invalid="ignore"):
-                    dssp_df["rsa"] = dssp_df["asa"] / dssp_df["max_acc"]
-                    dssp_df.loc[dssp_df["max_acc"] <= 0, "rsa"] = np.nan
-
-            for nid, res, _, _ in res_tuples:
-                if nid in out and out[nid][1] is not None:
-                    continue
-                asa_abs = float(getattr(res, "sasa", 0.0))
-                resname = res.get_resname().strip().upper()
-                aa_can = _canonical_of(resname)
-
-                if aa_can is not None:
-                    max_acc = float(max_acc_table.get(aa_can, 0.0))
-                    rsa_rel = asa_abs / max_acc if max_acc > 0 else None
-
-                else:
-                    rsa_rel = None
-
-                out[nid] = (asa_abs, None if rsa_rel is None else float(rsa_rel))
-
-            return out, dssp_df
-
         for nid, res, _, _ in res_tuples:
-            asa = float(getattr(res, "sasa", 0.0))
-            aa3 = res.get_resname().strip().upper()
-            aa_can = _canonical_of(aa3)
+            parent = res.get_parent()
+            chain_id = parent.id if parent is not None else ""
+            resnum = _resnum_key(res)
+
+            ra = areas.get(str(chain_id), {}).get(resnum)
+            asa = float(getattr(ra, "total", 0.0)) if ra is not None else 0.0
+
+            resname = res.get_resname().strip().upper()
+            aa_can = _canonical_of(resname)
 
             if aa_can is not None:
                 max_acc = float(max_acc_table.get(aa_can, 0.0))
-                rsa = asa / max_acc if max_acc > 0 else None
-
+                rsa = (asa / max_acc) if max_acc > 0 else None
             else:
+                max_acc = float("nan")
                 rsa = None
+
+            if rsa is not None:
+                rsa = 1.0 if rsa > 1.0 else rsa
 
             out[nid] = (asa, None if rsa is None else float(rsa))
 
-        return out, None
+        return out
 
     def _centroid_mask_for_group(self, g: pd.DataFrame) -> pd.Series:
         """
@@ -811,7 +780,7 @@ class PDBGraphBuilder:
     def _process_residue(self, ch, res, structure_dict: StructureDict) -> None:
         """Helper to categorize and store a single residue."""
         coords_heavy = _heavy_atom_coords(res)
-         
+
         if is_aa(res, standard=False):
             key = "noncanonical_aminoacid_residues"
             kind = "noncanonical_aminoacid"
@@ -875,13 +844,13 @@ class PDBGraphBuilder:
 
         structure_dict = self._build_structure_dict()
         self.structure_dict = structure_dict
-        
+
         chains = structure_dict["chains"]
         canonical_nodes = structure_dict["residues"]["canonical_aminoacid_residues"]
         noncanonical_nodes = structure_dict["residues"]["noncanonical_aminoacid_residues"]
         ligand_nodes_all = structure_dict["residues"]["ligands"]
         water_nodes_all = structure_dict["residues"]["waters"]
-        
+
         aa_nodes = canonical_nodes.copy()
         if self.config.include_noncanonical_residues:
             aa_nodes += noncanonical_nodes.copy()
@@ -898,7 +867,7 @@ class PDBGraphBuilder:
         asa_rsa: dict[str, tuple[float, float | None]] = {}
         dssp_df: pd.DataFrame | None = None
         if self.config.compute_rsa and aa_nodes:
-            asa_rsa, dssp_df = self._compute_asa_rsa(aa_nodes)
+            asa_rsa = self._compute_asa_rsa(aa_nodes)
 
         res_ids = [nid for nid, _, _, _ in aa_nodes]
         res_objects = [res for _, res, _, _ in aa_nodes]
@@ -906,7 +875,7 @@ class PDBGraphBuilder:
         cent_rows = node_centroids.reindex(res_ids)
         if cent_rows[["x_coord", "y_coord", "z_coord"]].isna().any(axis=None):
             missing = cent_rows[cent_rows.isna().any(axis=1)].index.tolist()
-            raise ValueError(f"Missing centroid coords for node_ids: {missing[:10]}")
+            raise ValueError(f"Missing centroid coords for node_ids: {missing}")
 
         res_centroids = cent_rows[["x_coord", "y_coord", "z_coord"]].to_numpy(float)
 
@@ -932,18 +901,16 @@ class PDBGraphBuilder:
 
             if kind == "water":
                 resname = "HOH"
-                asa_val = None
-                rsa_val = 1.0
+                asa = None
+                rsa = None
                 ca_coord = nan3
                 cb_coord = nan3
                 cb_is_virtual = False
             else:
                 resname = res.get_resname()
-                asa_val = None if asa is None else float(asa)
-                rsa_val = None if rsa is None else float(rsa)
 
             if kind != "canonical_aminoacid":
-                log.info("[EXTRA] %s kind=%s rsa=%s asa=%s", nid, kind, rsa_val, asa_val)
+                log.info(f"[EXTRA] Non canonical aminoacid: {nid} kind={kind} rsa={rsa} asa={asa}")
 
             G.add_node(
                 nid,
@@ -957,11 +924,9 @@ class PDBGraphBuilder:
                 ca_coord=ca_coord,
                 cb_coord=cb_coord,
                 cb_is_virtual=cb_is_virtual,
-                asa=asa_val,
-                rsa=rsa_val,
+                asa=asa,
+                rsa=rsa,
             )
-
-        aminoacid_residues_map = {nid: res for nid, res, _, _ in aa_nodes}
 
         G = secondary_structure(
             G,
@@ -986,14 +951,14 @@ class PDBGraphBuilder:
             w_rows = node_centroids.reindex(water_ids)
             if w_rows[["x_coord", "y_coord", "z_coord"]].isna().any(axis=None):
                 missing = w_rows[w_rows.isna().any(axis=1)].index.tolist()
-                raise ValueError(f"Missing water centroid coords for node_ids: {missing[:10]}")
+                raise ValueError(f"Missing water centroid coords for node_ids: {missing}")
 
             water_centroids = w_rows[["x_coord", "y_coord", "z_coord"]].to_numpy(float)
 
             wd = water_centroids[:, None, :] - res_centroids[None, :, :]
             wdist = np.sqrt(np.sum(wd * wd, axis=2))
 
-            wcut = float(self.config.water_distance_cutoff)
+            wcut = float(self.config.residue_distance_cutoff)
             hits = np.where((wdist > 0.0) & (wdist <= wcut))
             for wi, rj in zip(hits[0], hits[1], strict=True):
                 G.add_edge(water_ids[wi], res_ids[rj], distance=float(wdist[wi, rj]), kind="wat-res")
@@ -1004,7 +969,7 @@ class PDBGraphBuilder:
             l_rows = node_centroids.reindex(ligand_ids)
             if l_rows[["x_coord", "y_coord", "z_coord"]].isna().any(axis=None):
                 missing = l_rows[l_rows.isna().any(axis=1)].index.tolist()
-                raise ValueError(f"Missing ligand centroid coords for node_ids: {missing[:10]}")
+                raise ValueError(f"Missing ligand centroid coords for node_ids: {missing}")
 
             ligand_centroids = l_rows[["x_coord", "y_coord", "z_coord"]].to_numpy(float)
 
@@ -1037,19 +1002,7 @@ class PDBGraphBuilder:
             name="rsa",
         )
 
-        if dssp_df is None:
-            dssp_df_all = rsa_series.to_frame()
-        else:
-            dssp_df_all = dssp_df.copy()
-            missing_nodes = [nid for nid in G.nodes if nid not in dssp_df_all.index]
-            if missing_nodes:
-                dssp_df_all = pd.concat([dssp_df_all, pd.DataFrame(index=missing_nodes)], axis=0)
-            if "rsa" not in dssp_df_all.columns:
-                dssp_df_all["rsa"] = np.nan
-            rsa_aligned = rsa_series.reindex(dssp_df_all.index)
-            dssp_df_all["rsa"] = dssp_df_all["rsa"].where(dssp_df_all["rsa"].notna(), rsa_aligned)
-
-        dssp_df = dssp_df_all
+        dssp_df = rsa_series.to_frame()
 
         built = BuiltGraph(
             graph=G,

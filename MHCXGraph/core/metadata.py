@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import pydssp
 import torch
-from statistics import mean
-from typing import Any
 
 import numpy as np
 
@@ -12,34 +10,6 @@ from MHCXGraph.utils.logging_utils import get_log
 log = get_log()
 
 BACKBONE_ATOMS = ("N", "CA", "C", "O")
-
-def _graph_mean(values):
-    vals = [v for v in values if v is not None]
-    return mean(vals) if vals else None
-
-def rsa(G, **ctx):
-    rsa_vals = [d.get("rsa") for _, d in G.nodes(data=True) if d.get("kind") != "water"]
-    G.graph["rsa_mean"] = _graph_mean(rsa_vals)
-    G.graph["rsa_count_nonnull"] = sum(1 for x in rsa_vals if x is not None)
-    G.graph["rsa_prop_exposed_025"] = (
-        sum(1 for x in rsa_vals if x is not None and x >= 0.25) / len(rsa_vals)
-    ) if rsa_vals else None
-    return G
-
-# ------------------ PATCH: robustez para DSSP ------------------
-
-def _dssp_exec_from(dssp_cfg: Any) -> str:
-    """
-    Extrai o executável do DSSP de configs em formatos diferentes:
-    - Graphein-like: dssp_config.executable
-    - Versão antiga que usávamos: dssp_config.dssp_path
-    Fallback: "mkdssp"
-    """
-    if dssp_cfg is None:
-        return "mkdssp"
-    exe = getattr(dssp_cfg, "executable", None) or getattr(dssp_cfg, "dssp_path", None)
-    return exe or "mkdssp"
-
 
 def secondary_structure(G, **ctx):
     """
@@ -53,7 +23,7 @@ def secondary_structure(G, **ctx):
     if chains is None:
         return G
 
-    def build_pydssp_input(chain: dict[str, str], chain_id, include_noncanonical_residues):
+    def build_pydssp_input(chain: dict[str, list], chain_id, include_noncanonical_residues):
         residues = chain["canonical_aminoacid_residues"].copy()
         if include_noncanonical_residues:
             residues += chain["noncanonical_aminoacid_residues"]
@@ -78,11 +48,11 @@ def secondary_structure(G, **ctx):
                 sequence.append(res_label.split(":")[1])
 
         sequence = np.array(sequence)
-        
-        if len(coords) == 0:
-            raise ValueError("No residues with complete backbone atoms (N,CA,C,O) were found.")
 
-        coord = torch.from_numpy(np.asarray(coords, dtype=np.float32))  # [L,4,3]
+        if len(coords) == 0:
+            raise ValueError(f"No residues with complete backbone atoms (N,CA,C,O) were found. Chain: {chain_id}")
+
+        coord = torch.from_numpy(np.asarray(coords, dtype=np.float32))
         return coord, used_residues, sequence
 
     def assign_ss_to_chain(chain, chain_id, include_noncanonical_residues):
@@ -132,4 +102,3 @@ def secondary_structure(G, **ctx):
     G.graph["ss_counts"] = counts
 
     return G
-
