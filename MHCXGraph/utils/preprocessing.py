@@ -4,7 +4,6 @@ import time
 from pathlib import Path
 from typing import Any
 
-import gemmi
 import networkx as nx
 
 from MHCXGraph.classes.graph import Graph
