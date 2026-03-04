@@ -78,11 +78,15 @@
     }
   ],
   "selectors": {
+    "test": {
+      "chains": [],
+      "structures": ["Helix"],
+      "residues": {}
+    },
     "MHC1": {
       "chains": [
         "C"
       ],
-      "structures": {},
       "residues": {
         "A": [
           19,

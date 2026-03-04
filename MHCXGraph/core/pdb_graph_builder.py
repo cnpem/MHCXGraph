@@ -963,14 +963,10 @@ class PDBGraphBuilder:
 
         aminoacid_residues_map = {nid: res for nid, res, _, _ in aa_nodes}
 
-        secondary_structure(
+        G = secondary_structure(
             G,
-            dssp_config=DSSPConfig(executable="mkdssp"),
             chains=chains,
-            structure=self.structure,
-            residue_map=aminoacid_residues_map,
             include_noncanonical_residues=self.config.include_noncanonical_residues,
-            pdb_path=str(self.pdb_path),
         )
 
         cut = float(self.config.residue_distance_cutoff)

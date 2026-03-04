@@ -634,28 +634,16 @@ def extract_subgraph_from_secondary_structure(
 
 
     name_to_codes = {
-        "HELIX": {"H", "G", "I"},
-        "STRAND": {"B", "E"},
-        "LOOP": {"T", "S", "-"},
-
-        "ALPHA HELIX": {"H"},
-        "3-10 HELIX": {"G"},
-        "PI HELIX": {"I"},
-        "ISOLATED BETA-BRIDGE RESIDUE": {"B"},
-        "BETA BRIDGE": {"B"},
-        "BEND": {"S"},
-        "TURN": {"T"},
+        "HELIX": {"H"},
+        "STRAND": {"E"},
+        "LOOP": {"-"},
+        "BETA": {"E"},
         "NONE": {"-"},
         "COIL": {"-"},
-        "LOOP STRUCTURE": {"T", "S", "-"},
+        "LOOP STRUCTURE": {"-"},
 
         "H": {"H"},
-        "G": {"G"},
-        "I": {"I"},
-        "B": {"B"},
         "E": {"E"},
-        "T": {"T"},
-        "S": {"S"},
         "-": {"-"},
     }
 

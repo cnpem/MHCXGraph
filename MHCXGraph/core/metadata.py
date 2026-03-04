@@ -46,20 +46,19 @@ def secondary_structure(G, **ctx):
     Aceita dssp_config com ou sem atributo `.enabled`.
     Usa dssp_config.executable (Graphein) ou dssp_config.dssp_path (legado).
     """
-    dssp_cfg = ctx.get("dssp_config")
     chains = ctx.get("chains")
-    structure = ctx.get("structure")
-    residue_map = ctx.get("residue_map")  # {node_id: Residue}
-    pdb_path = ctx.get("pdb_path")
-    
-    def build_pydssp_input(chain: dict[str, str], *, include_nonstandard_aa=True):        
+    include_noncanonical_residues = ctx.get("include_noncanonical_residues")
+    if chains is None:
+        return G
+
+    def build_pydssp_input(chain: dict[str, str], include_noncanonical_residues):
         residues = chain["canonical_aminoacid_residues"]
-        if include_nonstandard_aa:
+        if include_noncanonical_residues:
             residues += chain["noncanonical_aminoacid_residues"]
 
         used_residues = []
         coords = []
-
+        sequence = []
         for (res_label, res, _, _) in residues:
             for atom in BACKBONE_ATOMS:
                 if atom not in res:
@@ -70,14 +69,17 @@ def secondary_structure(G, **ctx):
                     bb.append(res[atom].get_coord().astype(np.float32))
                 coords.append(bb)
                 used_residues.append((res_label, res))
+                sequence.append(res_label.split(":")[1])
+
+        sequence = np.array(sequence)
 
         if len(coords) == 0:
             raise ValueError("No residues with complete backbone atoms (N,CA,C,O) were found.")
 
         coord = torch.from_numpy(np.asarray(coords, dtype=np.float32))  # [L,4,3]
-        return coord, used_residues, residues
+        return coord, used_residues, sequence
 
-    def assign_ss_to_chain(chain, *, include_nonstandard_aa=True, write_xtra=False):
+    def assign_ss_to_chain(chain, include_noncanonical_residues):
         """
         Runs pydssp for a chain and maps SS back to residues.
         Returns:
@@ -86,164 +88,38 @@ def secondary_structure(G, **ctx):
           full_ss: string length len(all_residues) (omitted residues filled with '?')
           all_residues: list of all residues in chain
         """
-        coord, used_residues, all_residues = build_pydssp_input(
-            chain, include_nonstandard_aa=include_nonstandard_aa
+        coord, used_residues, sequence = build_pydssp_input(
+            chain, include_noncanonical_residues=include_noncanonical_residues
         )
-        
-        ss = pydssp.assign(coord)  # per README: returns array like ['-','H',...]
-        ss_used = "".join(ss.tolist() if hasattr(ss, "tolist") else list(ss))
 
-        # Map back to residues
-        if write_xtra:
-            for res, s in zip(used_residues, ss_used):
-                res.xtra["SS_PYDSSP"] = s
+        donor_mask = sequence != 'PRO'
+        ss = pydssp.assign(coord, donor_mask=donor_mask)
+        ss_used = "".join(ss)
 
-        # Optional: expand to a "full chain" string aligned to *all* residues in the chain
-        # Fill residues not used by pydssp (ligands, missing backbone, etc.) with '?'
-        used_set = set(used_residues)
-        full_chars = []
-        used_iter = iter(ss_used)
-        # But we can’t just iterate ss_used linearly unless we check membership
-        ss_map = {res[0]: s for res, s in zip(used_residues, ss_used)}
-        for res in all_residues:
-            full_chars.append(ss_map.get(res[0], "?"))
-        full_ss = "".join(full_chars)
+        ss_map = {res[0]: s for res, s in zip(used_residues, ss_used, strict=True)}
 
-        return ss_used, used_residues, full_ss, all_residues, ss_map
-    
+        return ss_map
+
+    ss_map = {}
+
     for chain in chains:
-        ss_used, used_residues, full_ss, all_residues, ss_map = assign_ss_to_chain(chains[chain])
-        print(chain)
-        print(ss_map, ss_used, full_ss)
-    # coord, sequence = pydssp.read_pdbtext(open(pdb_path, 'r').read(), return_sequence=True)
-    # coord = torch.Tensor(coord).to("cpu")
-    # donor_mask = sequence != 'PRO'
-    # main calcuration
-    # dsspline = ''.join(pydssp.assign(coord, donor_mask=donor_mask))
+        ss_map = ss_map | assign_ss_to_chain(chains[chain], include_noncanonical_residues=include_noncanonical_residues)
 
-
-    # Se 'enabled' existir e for False, aborta. Se não existir, considera habilitado.
-    if structure is None or not residue_map:
-        return G
-    if dssp_cfg is not None and hasattr(dssp_cfg, "enabled") and not bool(dssp_cfg.enabled):
-        return G
-
-    try:
-        from Bio.PDB.DSSP import DSSP
-    except Exception:
-        return G
-
-    exec_path = _dssp_exec_from(dssp_cfg)
-
-    # DSSP por modelo 0
-    try:
-        model = structure[0]
-    except Exception:
-        return G
-
-    try:
-        dssp = DSSP(model, pdb_path, dssp=exec_path)
-    except Exception:
-        # Não quebra o pipeline se DSSP falhar
-        return G
-
-    # Mapear SS para cada nó (pula águas)
     for nid, data in G.nodes(data=True):
         if data.get("kind") == "water":
             continue
-        res = residue_map.get(nid)
-        if res is None:
-            continue
-        chain_id = res.get_parent().id
-        hetflag, resseq, icode = res.id
 
-        # dssp indexa por (chain_id, (' ', resseq, icode))
-        ss_val = None
-        for key in ((chain_id, res.id), (chain_id, (' ', resseq, icode))):
-            try:
-                ss_val = dssp[key][2]  # coluna de SS
-                break
-            except Exception:
-                continue
-
+        ss_val = ss_map[nid]
         if ss_val is not None and ss_val == ' ':
-            ss_val = 'C'  # coil como no costume
-
+            ss_val = '-'
         G.nodes[nid]["ss"] = ss_val
 
-    # Estatística simples
     ss_vals = [d.get("ss") for _, d in G.nodes(data=True) if d.get("kind") != "water"]
     counts = {}
+
     for s in ss_vals:
         counts[s] = counts.get(s, 0) + 1
     G.graph["ss_counts"] = counts
+
     return G
 
-def secondary_structure_backup(G, **ctx):
-    """
-    Anota estrutura secundária via DSSP.
-
-    Aceita dssp_config com ou sem atributo `.enabled`.
-    Usa dssp_config.executable (Graphein) ou dssp_config.dssp_path (legado).
-    """
-    dssp_cfg = ctx.get("dssp_config")
-    structure = ctx.get("structure")
-    residue_map = ctx.get("residue_map")  # {node_id: Residue}
-    pdb_path = ctx.get("pdb_path")
-
-    # Se 'enabled' existir e for False, aborta. Se não existir, considera habilitado.
-    if structure is None or not residue_map:
-        return G
-    if dssp_cfg is not None and hasattr(dssp_cfg, "enabled") and not bool(dssp_cfg.enabled):
-        return G
-
-    try:
-        from Bio.PDB.DSSP import DSSP
-    except Exception:
-        return G
-
-    exec_path = _dssp_exec_from(dssp_cfg)
-
-    # DSSP por modelo 0
-    try:
-        model = structure[0]
-    except Exception:
-        return G
-
-    try:
-        dssp = DSSP(model, pdb_path, dssp=exec_path)
-    except Exception:
-        # Não quebra o pipeline se DSSP falhar
-        return G
-
-    # Mapear SS para cada nó (pula águas)
-    for nid, data in G.nodes(data=True):
-        if data.get("kind") == "water":
-            continue
-        res = residue_map.get(nid)
-        if res is None:
-            continue
-        chain_id = res.get_parent().id
-        hetflag, resseq, icode = res.id
-
-        # dssp indexa por (chain_id, (' ', resseq, icode))
-        ss_val = None
-        for key in ((chain_id, res.id), (chain_id, (' ', resseq, icode))):
-            try:
-                ss_val = dssp[key][2]  # coluna de SS
-                break
-            except Exception:
-                continue
-
-        if ss_val is not None and ss_val == ' ':
-            ss_val = 'C'  # coil como no costume
-
-        G.nodes[nid]["ss"] = ss_val
-
-    # Estatística simples
-    ss_vals = [d.get("ss") for _, d in G.nodes(data=True) if d.get("kind") != "water"]
-    counts = {}
-    for s in ss_vals:
-        counts[s] = counts.get(s, 0) + 1
-    G.graph["ss_counts"] = counts
-    return G
