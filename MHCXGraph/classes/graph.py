@@ -355,11 +355,9 @@ class AssociatedGraph:
                 return res
             candidates.append(res)
 
-        # Fallback: bate só por número (se não achou com nome)
         for res in candidates:
             return res
 
-        # Último fallback: qualquer resíduo com mesmo número na cadeia
         for res in chain.get_residues():
             hetflag, seq, ic = res.id
             if seq == resnum:
@@ -408,12 +406,12 @@ class AssociatedGraph:
             parser = PDBParser(QUIET=True)
             orig_struct = parser.get_structure('orig', pdb_file)
 
-            chain_counter = 1
             new_struct = Structure.Structure('frames')
             model = Model.Model(0)
             new_struct.add(model)
 
             for comp_id, comps in enumerate(self.associated_graphs):
+                chain_counter = 1
                 for frame_id, frame_graph in enumerate(comps[0]):
                     nodes = set(node[i] for node in frame_graph.nodes)
 
