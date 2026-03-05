@@ -150,19 +150,22 @@ class Tracker:
     def __exit__(self, exc_type, exc, tb):
         _set_global(self._prev)
 
-# ---------- Singleton global ----------
 
 _global_tracker: Tracker | None = None
+
 
 def _rand_id(n: int) -> str:
     return "".join(random.choices(string.ascii_lowercase + string.digits, k=n))
 
+
 def _sanitize(s: str) -> str:
     return "".join(c if c.isalnum() or c in ("-", "_", ".") else "_" for c in str(s))
+
 
 def _set_global(t: Tracker | None) -> None:
     global _global_tracker
     _global_tracker = t
+
 
 def init_tracker(
     *,
@@ -193,8 +196,8 @@ def get_current(_default_none: bool = False) -> Tracker | None:
     return _global_tracker
 
 def set_enabled(flag: bool) -> None:
-    t = get_current()
     t.cfg.enabled = flag
+    t = get_current()
 
 # ---------- atalhos globais (back‑compat) ----------
 

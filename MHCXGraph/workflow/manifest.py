@@ -86,6 +86,7 @@ def build_association_config(settings: dict[str, Any], run_mode: str, tracker_re
         "filter_triads_by_chain":   settings.get("filter_triads_by_chain"),
         "watch_residues":           tracker_residues,
         "debug_logs":               settings.get("debug_logs"),
+        "debug_tracking":           settings.get("debug_tracking"),
         "verbose":                  settings.get("verbose")
     }
 
