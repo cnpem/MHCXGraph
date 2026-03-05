@@ -41,8 +41,8 @@ def load_manifest(manifest_path: str) -> dict[str, Any]:
     settings.setdefault("rsa_filter", 0.1)
     settings.setdefault("asa_filter", 5)
     settings.setdefault("close_tolerance_rsa", 0.1)
-    settings.setdefault("local_distance_threshold", 1.0)
-    settings.setdefault("global_distance_threshold", 2.0)
+    settings.setdefault("local_distance_diff_threshold", 1.0)
+    settings.setdefault("global_distance_diff_threshold", 2.0)
 
     settings.setdefault("rsa_bin_width", 0.2)
     settings.setdefault("distance_bin_width", 2.0)
