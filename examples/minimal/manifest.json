@@ -21,7 +21,8 @@
     "global_distance_diff_threshold": 2.0,
     "distance_bin_width": 2,
     "close_tolerance": 0.1,
-    "rsa_bin_width": 0.2
+    "rsa_bin_width": 0.2,
+    "show_std_edges": true
   },
   "inputs": [
     {

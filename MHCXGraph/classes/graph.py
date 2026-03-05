@@ -703,9 +703,10 @@ class AssociatedGraph:
                         local=True
                     )
 
-                    if std_matrix is not None and safe_node_index is not None:
-                        html = inject_std_hover(html, std_matrix=std_matrix, safe_node_index=safe_node_index)
-                        html = inject_fullscreen_css(html)
+                    if self.association_config["show_std_edges"] and std_matrix is not None and safe_node_index is not None:
+                            html = inject_std_hover(html, std_matrix=std_matrix, safe_node_index=safe_node_index)
+
+                    html = inject_fullscreen_css(html)
                     with open(str(full), "w+", encoding="utf-8") as out:
                         out.write(html)
 
@@ -718,9 +719,10 @@ class AssociatedGraph:
                         local=True
                     )
 
-                    if std_matrix is not None and safe_node_index is not None:
+                    if self.association_config["show_std_edges"] and std_matrix is not None and safe_node_index is not None:
                         html = inject_std_hover(html, std_matrix=std_matrix, safe_node_index=safe_node_index)
-                        html = inject_fullscreen_css(html)
+
+                    html = inject_fullscreen_css(html)
 
                     with open(str(tmpfile), "w+", encoding="utf-8") as out:
                         out.write(html)

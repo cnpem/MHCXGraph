@@ -28,7 +28,6 @@ def load_manifest(manifest_path: str) -> dict[str, Any]:
     settings.setdefault("debug_tracking", False)
     settings.setdefault("verbose", False)
 
-
     settings.setdefault("edge_threshold", 8.5)
     settings.setdefault("close_tolerance", 1.0)
     settings.setdefault("node_granularity", "all_atoms")
@@ -53,6 +52,8 @@ def load_manifest(manifest_path: str) -> dict[str, Any]:
     settings.setdefault("classes", {})
 
     settings.setdefault("watch_residues", None)
+
+    settings.setdefault("show_std_edges", False)
 
     return data
 
@@ -88,6 +89,7 @@ def build_association_config(settings: dict[str, Any], run_mode: str, tracker_re
         "watch_residues":           tracker_residues,
         "debug_logs":               settings.get("debug_logs"),
         "debug_tracking":           settings.get("debug_tracking"),
-        "verbose":                  settings.get("verbose")
+        "verbose":                  settings.get("verbose"),
+        "show_std_edges":           settings.get("show_std_edges")
     }
 
