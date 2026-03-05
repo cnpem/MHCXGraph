@@ -5,17 +5,12 @@ import math
 import os
 import time
 from collections.abc import Sequence
-from typing import TypeVarTuple, Unpack
 from itertools import chain, combinations, product
-from os import path
-from typing import Any
+from typing import Any, TypeVarTuple, Unpack
 
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-from Bio.PDB.Atom import Atom
-from Bio.PDB.PDBParser import PDBParser
-from Bio.PDB.Residue import Residue
 
 from MHCXGraph.core.residue_tracking import ResidueTracker, TrackCtx
 from MHCXGraph.core.tracking import save
@@ -777,7 +772,6 @@ def _build_threshold_matrix(nodes, maps, threshold_cfg):
     return T
 
 def create_coherent_matrices(nodes, matrices: dict, maps: dict, threshold: float | dict = 3.0):
-    # Verify the impact of std in distances. Suppose that 9 proteins have a simillar distance but one has a higher distance, how much does it impact?
     dim = len(nodes[0])
     K = len(nodes)
 
@@ -804,6 +798,14 @@ def create_coherent_matrices(nodes, matrices: dict, maps: dict, threshold: float
     range_induced = np.max(stacked_induced, axis=0) - np.min(stacked_induced, axis=0)
     range_adjacent = np.max(stacked_adjacent, axis=0) - np.min(stacked_adjacent, axis=0)
 
+    std_induced = np.std(stacked_induced, axis=0)
+    std_adjacent = np.std(stacked_adjacent, axis=0)
+    
+    thr_norm = float(threshold.get("default", 1.0)) if isinstance(threshold, dict) else float(threshold)
+
+    norm_std_induced = std_induced / (thr_norm + 1e-12)
+    norm_std_adjacent = std_adjacent / (thr_norm + 1e-12)
+
     T = _build_threshold_matrix(nodes, maps, threshold)
 
     mask_valid_ind = (range_induced <= T) & (~mask_invalid_induced)
@@ -816,7 +818,9 @@ def create_coherent_matrices(nodes, matrices: dict, maps: dict, threshold: float
 
     new_matrices = {
         "coherent_global_nodes": final_induced,
-        "coherent_adjacent_nodes": final_adjacent
+        "coherent_adjacent_nodes": final_adjacent,
+        "std_adjacent": std_induced,
+        "std_induced": std_induced
     }
 
 
@@ -1024,8 +1028,11 @@ def process_chunk(step_idx, chunk_idx, chunk_triads, global_state, residue_track
             if step_idx < steps:
                 Frames_comp = Frames_comp.union(union_graph["edges_residues"])
             else:
+
+                node_index_map = {node: idx for idx, node in enumerate(nodes)}
+                edge_std_matrix = coherent_matrices.get("std_adjacent")
                 final_graphs.append(
-                    (create_graph(frames, typeEdge="edges_residues", comp_id=comp_id), comp_id)
+                    (create_graph(frames, typeEdge="edges_residues", comp_id=comp_id, node_index_map=node_index_map, edge_std_matrix=edge_std_matrix), comp_id)
                 )
         else:
             log.debug("Component Refused")
@@ -1197,9 +1204,9 @@ def generate_frames(component_graph, matrices, maps, len_component, chunk_id, st
     nodes has >= 4 edges and all nodes have degree > 1 within that subgraph.
     """
 
-
-    dm_raw  = matrices["coherent_global_nodes"].copy()
+    dm_raw = matrices["coherent_global_nodes"].copy()
     adj_raw = matrices["coherent_adjacent_nodes"].copy()
+    std_adj = matrices.get("std_adjacent")
     np.fill_diagonal(dm_raw, 1)
     np.fill_diagonal(adj_raw, np.nan)
 
@@ -1267,18 +1274,25 @@ def generate_frames(component_graph, matrices, maps, len_component, chunk_id, st
         sub = A[np.ix_(nodes, nodes)]  # submatriz de adjacência restrita aos nós escolhidos
         deg = sub.sum(axis=1)          # grau de cada nó dentro do subgrafo
 
-        # Verifica se o número de arestas é suficiente (deg.sum() // 2 = nº de arestas)
-        # if int(deg.sum() // 2) < 4:
-        #     return False, set()
+        if np.any(deg < 1):
+            return False, set(), {}
 
-        if np.any(deg < 1): # Colocar para reportar grafos com mais de 1 componente
-            return False, set()
-
-        # Extrai as arestas do subgrafo: usamos apenas a parte triangular superior para evitar duplicatas
         ii, jj = np.where(np.triu(sub, 1))
-        es = {frozenset((int(nodes[i]), int(nodes[j]))) for i, j in zip(ii, jj)}
 
-        return True, es
+        es = set()
+        edge_std = {}
+
+        for i, j in zip(ii, jj, strict=True):
+            u = int(nodes[i])
+            v = int(nodes[j])
+
+            es.add(frozenset((u, v)))
+
+            if std_adj is not None:
+                edge_std[(u, v)] = float(std_adj[u, v])
+
+        return True, es, edge_std
+
 
     # Bron–Kerbosch com pivô, restrito à fronteira usando a matriz de coerência C
     def maximal_cliques(frontier_set):
@@ -1498,7 +1512,7 @@ def generate_frames(component_graph, matrices, maps, len_component, chunk_id, st
                     if cn not in checked_node_sets:
                         checked_node_sets.add(cn)
                         log.debug(f"[{str_stack}] Checking if it's a valid subraph...")
-                        ok, es = valid_subgraph(chosen)
+                        ok, es, edge_std = valid_subgraph(chosen)
                         log.debug(f"[{str_stack}] Check finished")
                         if ok:
                             # chave canônica das arestas: pares (u<v), conjunto não-ordenado
@@ -1511,6 +1525,7 @@ def generate_frames(component_graph, matrices, maps, len_component, chunk_id, st
                                 frames[next_frame_id] = {
                                     "edges_indices": edges_idx,
                                     "edges_residues": edges_res,
+                                    "edges_std": edge_std
                                 }
                                 accepts += 1
                                 next_frame_id += 1
@@ -1642,12 +1657,17 @@ def generate_frames(component_graph, matrices, maps, len_component, chunk_id, st
     )
     return final_frames, union_graph
 
-def create_graph(edges_dict: dict, typeEdge: str = "edges_indices", comp_id = 0):
+def create_graph(edges_dict: dict, 
+            typeEdge: str = "edges_indices",
+            comp_id = 0, 
+            *,
+            edge_std_matrix: np.ndarray | None = None,
+            node_index_map: dict[Any, int] | None = None):
     Graphs = []
     k = 0
     for frame in range(0, len(edges_dict.keys())):
         edges = edges_dict[frame][typeEdge]
-
+        std_map = edges_dict[frame].get("edges_std", {})
         G_sub = nx.Graph()
 
         if len(edges) > 1:
@@ -1657,7 +1677,14 @@ def create_graph(edges_dict: dict, typeEdge: str = "edges_indices", comp_id = 0)
 
                 node_a = tuple(sublist[0]) if isinstance(sublist[0], np.ndarray) else sublist[0]
                 node_b = tuple(sublist[1]) if isinstance(sublist[1], np.ndarray) else sublist[1]
-                G_sub.add_edge(node_a, node_b)
+
+                std_val = std_map.get((node_a, node_b)) or std_map.get((node_b, node_a))
+
+                G_sub.add_edge(
+                    node_a,
+                    node_b,
+                    # std=std_val
+                )
 
             chain_color_map = {}
             color_palette = plt.cm.get_cmap('tab10', 20)
@@ -1673,6 +1700,13 @@ def create_graph(edges_dict: dict, typeEdge: str = "edges_indices", comp_id = 0)
                         color_counter += 1
 
                     G_sub.nodes[nodes]['chain_id'] = chain_color_map[chain_id]
+
+            if edge_std_matrix is not None:
+                G_sub.graph["edge_std_matrix"] = edge_std_matrix
+                # input(f"Edge std matrix: {edge_std_matrix}")
+            if node_index_map is not None:
+                G_sub.graph["node_index_map"] = node_index_map
+                # input(f"node_index_map: {node_index_map}")
 
             G_sub.remove_nodes_from(list(nx.isolates(G_sub)))
             log.debug(f"{comp_id} Number of nodes graph {k}: {len(G_sub.nodes)}")

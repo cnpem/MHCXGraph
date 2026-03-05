@@ -23,6 +23,7 @@ from MHCXGraph.core.config import GraphConfig, make_default_config
 from MHCXGraph.core.pipeline import build_graph_with_config
 from MHCXGraph.core.subgraphs import extract_subgraph
 from MHCXGraph.utils.logging_utils import get_log
+from MHCXGraph.utils.pyvis_inject import inject_std_hover
 from MHCXGraph.utils.tools import association_product
 
 log = get_log()
@@ -649,6 +650,14 @@ class AssociatedGraph:
                 )
                 net.from_nx(H)
 
+                std_matrix = graph.graph.get("edge_std_matrix")
+                node_index_map = graph.graph.get("node_index_map")
+
+                if std_matrix is not None and node_index_map is not None:
+                    safe_node_index = {safe_map[n]: node_index_map[n] for n in graph.nodes() if n in node_index_map}
+                else:
+                    safe_node_index = None
+
                 # optional edge hover with weight
                 for (u, v, data) in H.edges(data=True):
                     w = data.get('weight')
@@ -695,6 +704,8 @@ class AssociatedGraph:
                         local=True
                     )
 
+                    if std_matrix is not None and safe_node_index is not None:
+                        html = inject_std_hover(html, std_matrix=std_matrix, safe_node_index=safe_node_index)
                     with open(str(full), "w+", encoding="utf-8") as out:
                         out.write(html)
 
@@ -707,5 +718,8 @@ class AssociatedGraph:
                         local=True
                     )
 
+                    if std_matrix is not None and safe_node_index is not None:
+                        html = inject_std_hover(html, std_matrix=std_matrix, safe_node_index=safe_node_index)
                     with open(str(tmpfile), "w+", encoding="utf-8") as out:
                         out.write(html)
+

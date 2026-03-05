@@ -75,6 +75,12 @@ docs = [
     "mkdocs-material>=9.6.9",
 ]
 
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.package-data]
+MHCXGraph = ["assets/*.js"]
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["MHCXGraph*"]
