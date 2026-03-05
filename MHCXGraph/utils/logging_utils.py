@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 from pathlib import Path
 
 import coloredlogs
@@ -50,6 +51,12 @@ def setup_logging(
 ) -> VerboseLoggerAdapter:
     global _LOG
 
+    logging.getLogger("matplotlib").setLevel(logging.ERROR)
+    logging.basicConfig(
+        stream=sys.stdout,
+        level=logging.DEBUG if debug else logging.INFO,
+    )
+
     root = logging.getLogger("MHCXGraph")
     root.handlers.clear()
     root.propagate = False
@@ -81,6 +88,7 @@ def setup_logging(
     _LOG = VerboseLoggerAdapter(root, {})
     _LOG.info(f"Logger initialized | debug={debug} verbose={verbose}")
     _LOG.debug(f"Debug log file at: {file_path}")
+
     return _LOG
 
 
