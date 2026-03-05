@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 from importlib import resources
-from typing import Any
 
 import numpy as np
 
@@ -18,7 +17,6 @@ def _json_safe_index_map(d: dict[str, int]) -> str:
 
 
 def load_pyvis_std_js() -> str:
-    # MHCXGraph/assets/pyvis_std_hover.js
     return resources.files("MHCXGraph").joinpath("assets/pyvis_std_hover.js").read_text(encoding="utf-8")
 
 
@@ -38,3 +36,32 @@ def inject_std_hover(
     if "</body>" in html:
         return html.replace("</body>", block + "</body>")
     return html + block
+
+
+def inject_fullscreen_css(html: str) -> str:
+    css = """
+<style>
+html, body {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* pyvis usually wraps in a "card" and a "vis-network" div */
+.card {
+  height: 100vh !important;
+  width: 100vw !important;
+  margin: 0 !important;
+}
+
+#mynetwork, .vis-network, canvas {
+  height: 100% !important;
+  width: 100% !important;
+}
+</style>
+"""
+    if "</head>" in html:
+        return html.replace("</head>", css + "\n</head>")
+    return css + html

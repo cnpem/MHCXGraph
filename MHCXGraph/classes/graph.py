@@ -3,7 +3,6 @@ from __future__ import annotations
 import copy
 import json
 import re
-from collections.abc import Callable
 from pathlib import Path
 from typing import Any, TypedDict
 
@@ -19,11 +18,11 @@ from Bio.PDB.PDBParser import PDBParser
 from Bio.PDB.Superimposer import Superimposer
 from pyvis.network import Network
 
-from MHCXGraph.core.config import GraphConfig, make_default_config
+from MHCXGraph.core.config import GraphConfig
 from MHCXGraph.core.pipeline import build_graph_with_config
 from MHCXGraph.core.subgraphs import extract_subgraph
 from MHCXGraph.utils.logging_utils import get_log
-from MHCXGraph.utils.pyvis_inject import inject_std_hover
+from MHCXGraph.utils.pyvis_inject import inject_fullscreen_css, inject_std_hover
 from MHCXGraph.utils.tools import association_product
 
 log = get_log()
@@ -234,7 +233,7 @@ class Graph:
         H = nx.relabel_nodes(graph, safe_map, copy=True)
 
         net = Network(
-            height="800px",
+            height="100%",
             width="100%",
             bgcolor="#ffffff",
             notebook=False,
@@ -641,7 +640,7 @@ class AssociatedGraph:
                 H = nx.relabel_nodes(graph, safe_map, copy=True)
 
                 net = Network(
-                    height="800px",
+                    height="100%",
                     width="100%",
                     bgcolor="#ffffff",
                     notebook=False,
@@ -706,6 +705,7 @@ class AssociatedGraph:
 
                     if std_matrix is not None and safe_node_index is not None:
                         html = inject_std_hover(html, std_matrix=std_matrix, safe_node_index=safe_node_index)
+                        html = inject_fullscreen_css(html)
                     with open(str(full), "w+", encoding="utf-8") as out:
                         out.write(html)
 
@@ -720,6 +720,8 @@ class AssociatedGraph:
 
                     if std_matrix is not None and safe_node_index is not None:
                         html = inject_std_hover(html, std_matrix=std_matrix, safe_node_index=safe_node_index)
+                        html = inject_fullscreen_css(html)
+
                     with open(str(tmpfile), "w+", encoding="utf-8") as out:
                         out.write(html)
 
