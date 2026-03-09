@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>MHCXGraph Dashboard</title>
+    __VIS_JS_INJECTION__
+    __3DMOL_JS_INJECTION__
+    
+    <style>
+        body { margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; font-family: ui-sans-serif, system-ui, sans-serif; overflow: hidden; background: #f3f4f6;}
+        
+        #app-container { display: flex; flex: 1; overflow: hidden; position: relative; }
+        
+        #sidebar { width: 340px; background: #ffffff; border-right: 1px solid #d1d5db; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; box-shadow: 2px 0 5px rgba(0,0,0,0.05); z-index: 10; transition: all 0.3s ease; white-space: nowrap; box-sizing: border-box; }
+        #sidebar.collapsed { width: 0; padding: 0; border: none; overflow: hidden; }
+        
+        #main-content { flex: 1; display: flex; flex-direction: column; position: relative; min-width: 0; }
+        #top-panel { flex: 1; min-height: 10%; position: relative; background: #ffffff; }
+        #v-splitter { height: 8px; background: #e5e7eb; cursor: row-resize; z-index: 50; border-top: 1px solid #d1d5db; border-bottom: 1px solid #d1d5db; display: flex; justify-content: center; align-items: center; transition: background 0.2s;}
+        #v-splitter:hover { background: #d1d5db; }
+        #v-splitter::after { content: "•••"; color: #9ca3af; font-size: 10px; letter-spacing: 2px; }
+        #bottom-panel { flex: 1; min-height: 10%; position: relative; background: #f9fafb; overflow-y: auto; overflow-x: hidden; display: flex; flex-wrap: wrap; align-content: flex-start;}
+        
+        #sidebar-toggle { position: absolute; top: 10px; left: 10px; z-index: 100; background: #ffffff; border: 1px solid #d1d5db; border-radius: 4px; padding: 6px 10px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.1); font-size: 16px; color: #374151;}
+        #sidebar-toggle:hover { background: #f3f4f6; }
+        
+        #viewer-toolbar { position: absolute; top: 10px; right: 15px; z-index: 100; background: rgba(255,255,255,0.95); border: 1px solid #d1d5db; border-radius: 6px; padding: 8px 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; align-items: center; gap: 10px; backdrop-filter: blur(4px); font-size: 13px;}
+        #viewer-toolbar select { padding: 4px 8px; border-radius: 4px; border: 1px solid #d1d5db; outline: none; font-size: 13px;}
+        
+        .mynetwork { width: 100%; height: 100%; position: absolute; top:0; left:0; }
+        
+        h3 { margin: 0 0 10px 0; font-size: 15px; color: #111827; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px;}
+        .control-group { background: #f9fafb; border: 1px solid #e5e7eb; padding: 12px; border-radius: 6px; font-size: 13px; color: #374151; white-space: normal; flex-shrink: 0;}
+        .btn { padding: 8px; background: #2563eb; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;}
+        .btn:hover { background: #1d4ed8; }
+        
+        .tree-level-1 { font-weight: bold; margin-top: 10px; padding: 4px; border-radius: 4px; display: flex; align-items: center;}
+        .tree-level-2 { margin-left: 15px; color: #4b5563; padding: 3px; border-radius: 4px; display: flex; align-items: center;}
+        .tree-level-3 { margin-left: 30px; color: #6b7280; font-size: 13px; padding: 2px; border-radius: 4px; display: flex; align-items: center;}
+        .tree-item label { cursor: pointer; display: flex; align-items: center; gap: 6px; width: 100%;}
+        .tree-item:hover { background: #e5e7eb; color: #111827; }
+        .collapse-toggle { cursor: pointer; font-size: 10px; width: 16px; text-align: center; user-select: none; color: #6b7280;}
+        .collapse-toggle:hover { color: #111827; }
+        
+        .mol-subviewer { position: relative; width: 100%; height: 100%; border: 1px solid #e5e7eb; box-sizing: border-box; border-radius: 6px; overflow: hidden; background: #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.1);}
+        #mol-tooltip { position: fixed; display: none; background: rgba(17, 24, 39, 0.9); color: white; padding: 8px 12px; border-radius: 6px; font-size: 13px; pointer-events: none; z-index: 99999; box-shadow: 0 4px 6px rgba(0,0,0,0.1);}
+        .viewer-title { position: absolute; top: 10px; left: 10px; background: rgba(255,255,255,0.95); padding: 4px 10px; border-radius: 4px; font-size: 13px; font-weight: bold; pointer-events: none; z-index: 50; border: 1px solid #d1d5db; box-shadow: 0 1px 3px rgba(0,0,0,0.1);}
+        .color-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+        
+        /* Full Bottom Footer */
+        #app-footer { height: 65px; background: #ffffff; border-top: 1px solid #d1d5db; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; font-size: 13px; color: #4b5563; flex-shrink: 0; box-shadow: 0 -2px 5px rgba(0,0,0,0.03); z-index: 100; }
+        #app-footer a { color: #111827; text-decoration: none; font-weight: 500; transition: color 0.2s;}
+        #app-footer a:hover { color: #2563eb; text-decoration: underline; }
+        .footer-left { display: flex; align-items: center; gap: 15px;}
+        .footer-right { display: flex; align-items: center;}
+    </style>
+</head>
+<body>
+
+<div id="app-container">
+    <div id="sidebar">
+        
+        <div class="control-group" id="metadata-panel"></div>
+
+        <div class="control-group" style="max-height: 160px; overflow-y: auto;">
+            <h3>Active Node List</h3>
+            <div id="active-nodes-text" style="font-size: 12px; line-height: 1.5;"><i>Select nodes to view.</i></div>
+        </div>
+
+        <div class="control-group">
+            <h3 onclick="toggleComp('advanced-options', this.querySelector('span'))" style="cursor: pointer; margin-bottom: 0;">
+                <span class="collapse-toggle">▶</span> Advanced Graph Options
+            </h3>
+            <div id="advanced-options" style="display: none; margin-top: 15px;">
+                <label style="display: flex; justify-content: space-between;">Node Size: <span id="valNodeSize">18</span></label>
+                <input type="range" id="optNodeSize" min="5" max="50" value="18" style="width:100%; margin-bottom: 10px;"><br>
+
+                <label style="display: flex; justify-content: space-between;">Label Size: <span id="valLabelSize">22</span></label>
+                <input type="range" id="optLabelSize" min="10" max="40" value="22" style="width:100%; margin-bottom: 10px;"><br>
+
+                <label style="display: flex; justify-content: space-between;">Base Edge Width: <span id="valEdgeWidth">1.0</span></label>
+                <input type="range" id="optEdgeWidth" min="0.1" max="10" step="0.1" value="1.0" style="width:100%; margin-bottom: 10px;"><br>
+
+                <label style="display: flex; justify-content: space-between;">Spring Length: <span id="valSpringLen">150</span></label>
+                <input type="range" id="optSpringLen" min="50" max="500" value="150" style="width:100%;">
+            </div>
+        </div>
+
+        <div class="control-group" id="edge-interactions-panel">
+            <h3>Graph Controls</h3>
+            <label><input type="checkbox" id="freezePhysics"> Freeze Physics</label><br><br>
+            <b>Node Visibility:</b><br>
+            <label><input type="radio" name="viewMode" value="hide"> Hide inactive</label><br>
+            <label><input type="radio" name="viewMode" value="fade" checked> Fade inactive</label><br><br>
+            <b>Edge Interactions:</b><br>
+            <label><input type="checkbox" id="showStdEdges" checked> Show STD edges on hover/click</label>
+        </div>
+
+        <div class="control-group" id="filtered-options-panel" style="display: none;">
+            <h3>Graph Controls</h3>
+            <label><input type="checkbox" id="freezePhysicsFiltered"> Freeze Physics</label><br><br>
+            <b>Edge Thickness:</b><br>
+            <label><input type="radio" name="edgeThickness" value="uniform" checked onchange="handleFilteredChange()"> Uniform Width</label><br>
+            <label style="margin-top: 4px; display: block;"><input type="radio" name="edgeThickness" value="distance" onchange="handleFilteredChange()"> Distance (Closer = Thicker)</label>
+        </div>
+
+        <div class="control-group" id="file-uploads">
+            <h3>3D Structures & Export</h3>
+            <label style="margin-top: 4px; display: block; margin-bottom: 10px;"><input type="checkbox" id="showLabels" checked> Show 3D Residue Labels</label>
+            <div id="upload-inputs"></div>
+            <button class="btn" style="width: 100%;" onclick="loadStructures()">Render 3D</button>
+            
+            <div style="margin-top: 15px; border-top: 1px solid #e5e7eb; padding-top: 10px;">
+                <b style="font-size: 12px;">Export Screenshot:</b>
+                <div style="display: flex; gap: 5px; margin-top: 5px;">
+                    <button class="btn" style="flex: 1; font-size: 11px; padding: 6px;" onclick="exportScreenshot('graph')">Graph</button>
+                    <button class="btn" style="flex: 1; font-size: 11px; padding: 6px;" onclick="exportScreenshot('protein')">Proteins</button>
+                    <button class="btn" style="flex: 1; font-size: 11px; padding: 6px;" onclick="exportScreenshot('both')">Both</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="control-group" style="flex:1; overflow-y:auto; min-height: 200px;">
+            <h3 id="nav-title">Navigation (Multi-Select)</h3>
+            <div id="hierarchy-tree"></div>
+            <div id="filtered-tree" style="display: none;"></div>
+        </div>
+
+    </div>
+
+    <div id="main-content">
+        <button id="sidebar-toggle" onclick="toggleSidebar()" title="Toggle Sidebar">☰</button>
+        
+        <div id="top-panel">
+            <div id="graph-view-selector" style="position: absolute; top: 15px; left: 50%; transform: translateX(-50%); z-index: 100; background: rgba(255,255,255,0.95); border: 1px solid #d1d5db; border-radius: 6px; padding: 6px 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); backdrop-filter: blur(4px); display: flex; align-items: center; gap: 8px;">
+                <b style="font-size: 13px; color: #111827;">Graph View:</b>
+                <select id="main-graph-selector" onchange="switchGraphViewMode()" style="padding: 4px 8px; border-radius: 4px; border: 1px solid #d1d5db; outline: none; font-size: 13px; font-weight: bold; cursor: pointer;">
+                    <option value="associated">🌐 Associated Graph</option>
+                    <option value="filtered">Filtered Graphs (Individual)</option>
+                </select>
+            </div>
+            
+            <div id="mynetwork" class="mynetwork"></div>
+        </div>
+        
+        <div id="v-splitter"></div>
+        
+        <div id="bottom-panel" id="mol-container">
+            <div id="viewer-toolbar" style="display: none;">
+                <b>3D View:</b>
+                <select id="view-selector" onchange="rebuildViewer()">
+                    <option value="aligned">Aligned (Single View)</option>
+                    <option value="separate">Separate (Grid View)</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="app-footer">
+    <div class="footer-left">
+        <b><a href="https://github.com/cnpem/MHCXGraph/" target="_blank">MHCXGraph</a></b>
+        <span>|</span>
+        <a href="https://lnbio.cnpem.br/" target="_blank">LNBio</a> - <a href="https://cnpem.br/" target="_blank">CNPEM</a>
+        <span>|</span>
+        <a href="https://github.com/cnpem/MHCXGraph/blob/main/LICENSE" target="_blank">AGPL-3.0 License</a>
+    </div>
+    <div class="footer-right">
+        <a href="https://lnbio.cnpem.br/" target="_blank">__LNBIO_LOGO_INJECTION__</a>
+    </div>
+</div>
+
+<div id="mol-tooltip"></div>
+
+<script>
+    const graphData = __GRAPH_DATA_INJECTION__;
+    const proteinColors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'];
+    
+    let currentGraphMode = 'associated';
+    let activeFilteredProtIdx = 0;
+
+    // Advanced Option Defaults
+    let optNodeSize = 18;
+    let optLabelSize = 22;
+    let optEdgeWidth = 1.0;
+    let optSpringLen = 150;
+
+    let network = null;
+    let nodesDataset = new vis.DataSet(graphData.nodes.map(n => ({...n, label: '<b>' + n.label + '</b>'})));
+    let edgesDataset = new vis.DataSet(graphData.edges);
+    let currentActiveNodes = new Set(graphData.nodes.map(n => n.id));
+    
+    let loadedModels = []; 
+    let viewers = []; 
+    let tempEdgeIds = [];
+    let pinnedNode = null;
+
+    function init() {
+        initNetwork();
+        initHierarchy();
+        initUploads();
+        initSplitter();
+        initAdvancedOptions();
+        
+        document.querySelectorAll('input[name="viewMode"]').forEach(r => r.addEventListener('change', applyGraphFilters));
+        document.getElementById('showLabels').addEventListener('change', update3DViewer);
+        
+        document.getElementById('showStdEdges').addEventListener('change', function() {
+            if (!this.checked) clearDynamicStdEdges();
+            else if (pinnedNode && currentGraphMode === 'associated') drawDynamicStdEdges(pinnedNode);
+        });
+
+        const togglePhysics = (e) => { if(network) network.setOptions({ physics: !e.target.checked }); };
+        document.getElementById('freezePhysics').addEventListener('change', togglePhysics);
+        document.getElementById('freezePhysicsFiltered').addEventListener('change', togglePhysics);
+
+        handleTreeChange();
+    }
+
+    function initAdvancedOptions() {
+        // Node Size
+        document.getElementById('optNodeSize').addEventListener('input', function(e) {
+            optNodeSize = parseInt(e.target.value);
+            document.getElementById('valNodeSize').innerText = optNodeSize;
+            if(network) network.setOptions({ nodes: { size: optNodeSize } });
+        });
+        
+        // Label Size
+        document.getElementById('optLabelSize').addEventListener('input', function(e) {
+            optLabelSize = parseInt(e.target.value);
+            document.getElementById('valLabelSize').innerText = optLabelSize;
+            if(network) network.setOptions({ nodes: { font: { size: optLabelSize } } });
+        });
+
+        // Edge Width
+        document.getElementById('optEdgeWidth').addEventListener('input', function(e) {
+            optEdgeWidth = parseFloat(e.target.value);
+            document.getElementById('valEdgeWidth').innerText = optEdgeWidth.toFixed(1);
+            if (currentGraphMode === 'associated') {
+                applyGraphFilters(); // Triggers redrawing edges with new base width
+            } else {
+                handleFilteredChange();
+            }
+        });
+
+        // Spring Length
+        document.getElementById('optSpringLen').addEventListener('input', function(e) {
+            optSpringLen = parseInt(e.target.value);
+            document.getElementById('valSpringLen').innerText = optSpringLen;
+            if(network) network.setOptions({ physics: { barnesHut: { springLength: optSpringLen } } });
+        });
+    }
+    
+    function toggleSidebar() {
+        document.getElementById('sidebar').classList.toggle('collapsed');
+        setTimeout(() => { if (network) network.fit(); }, 350);
+    }
+
+    function toggleComp(targetId, el) {
+        const target = document.getElementById(targetId);
+        if (target.style.display === 'none') {
+            target.style.display = 'block';
+            el.innerText = '▼';
+        } else {
+            target.style.display = 'none';
+            el.innerText = '▶';
+        }
+    }
+
+    function initSplitter() {
+        let isDragging = false;
+        const splitter = document.getElementById('v-splitter');
+        const topPanel = document.getElementById('top-panel');
+        const bottomPanel = document.getElementById('bottom-panel');
+        const mainContent = document.getElementById('main-content');
+
+        splitter.addEventListener('mousedown', function(e) {
+            isDragging = true;
+            document.body.style.cursor = 'row-resize';
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', function(e) {
+            if (!isDragging) return;
+            const containerRect = mainContent.getBoundingClientRect();
+            let newTopHeight = e.clientY - containerRect.top;
+            if (newTopHeight < containerRect.height * 0.1) newTopHeight = containerRect.height * 0.1;
+            if (newTopHeight > containerRect.height * 0.9) newTopHeight = containerRect.height * 0.9;
+            
+            topPanel.style.flex = `0 0 ${newTopHeight}px`;
+            bottomPanel.style.flex = `1 1 0%`;
+        });
+
+        document.addEventListener('mouseup', function(e) {
+            if (isDragging) {
+                isDragging = false;
+                document.body.style.cursor = 'default';
+            }
+        });
+    }
+
+    function initMetadata() {
+        const c = graphData.metadata;
+        document.getElementById('metadata-panel').innerHTML = `
+            <h3>Execution Metadata</h3>
+            <strong>Mode:</strong> ${c.run_mode || 'all'}<br>
+            <strong>Granularity:</strong> ${c.node_granularity || 'all_atoms'}<br>
+            <strong>Edge Thresh:</strong> ${c.edge_threshold} Å<br>
+            <strong>Global Diff:</strong> ${c.global_distance_diff_threshold} Å<br>
+            <strong>Local Diff:</strong> ${c.local_distance_diff_threshold} Å
+        `;
+    }
+
+    function initNetwork() {
+        const container = document.getElementById('mynetwork');
+        network = new vis.Network(container, { nodes: nodesDataset, edges: edgesDataset }, {
+            nodes: { 
+                shape: 'dot', size: optNodeSize, 
+                font: { size: optLabelSize, multi: 'html', color: '#111827', face: 'ui-sans-serif' }, borderWidth: 2
+            },
+            physics: { 
+                solver: 'barnesHut', 
+                barnesHut: { 
+                    gravitationalConstant: -10000, 
+                    centralGravity: 0.3, 
+                    springLength: optSpringLen, 
+                    avoidOverlap: 1 
+                } 
+            },
+            interaction: { hover: true, tooltipDelay: 150, dragNodes: true }
+        });
+        
+        network.on("hoverNode", function (params) {
+            if (currentGraphMode !== 'associated' || pinnedNode !== null || !document.getElementById('showStdEdges').checked) return;
+            drawDynamicStdEdges(params.node);
+        });
+
+        network.on("blurNode", function () {
+            if (currentGraphMode !== 'associated' || pinnedNode !== null) return;
+            clearDynamicStdEdges();
+        });
+
+        network.on("click", function (params) {
+            if (currentGraphMode !== 'associated') return;
+            const clickedNode = (params.nodes && params.nodes.length) ? params.nodes[0] : null;
+            if (!clickedNode) {
+                pinnedNode = null;
+                clearDynamicStdEdges();
+                return;
+            }
+
+            if (pinnedNode === clickedNode) {
+                pinnedNode = null;
+                clearDynamicStdEdges();
+            } else {
+                pinnedNode = clickedNode;
+                if (document.getElementById('showStdEdges').checked) {
+                    drawDynamicStdEdges(clickedNode);
+                }
+            }
+        });
+    }
+
+    function initUploads() {
+        const container = document.getElementById('upload-inputs');
+        graphData.proteins.forEach((protName, idx) => {
+            const color = proteinColors[idx % proteinColors.length];
+            container.innerHTML += `<div style="margin-bottom:8px; font-size:12px;">
+                <span class="color-dot" style="background-color: ${color};"></span><b>${protName}:</b><br>
+                <input type="file" id="file-prot-${idx}" accept=".pdb,.cif" style="width:100%; margin-top: 4px;">
+            </div>`;
+        });
+    }
+
+    function initHierarchy() {
+        const tree = document.getElementById('hierarchy-tree');
+        let html = '';
+        graphData.components.forEach(comp => {
+            if (comp.id === 0) {
+                html += `<div class="tree-item tree-level-1"><span class="collapse-toggle" style="visibility:hidden;"></span><label><input type="checkbox" class="tree-cb" value="global" checked onchange="handleTreeChange()"> 🌐 Global Associated Graph</label></div>`;
+            } else {
+                const hasFrames = comp.frames.some(f => f.id !== 0);
+                const toggleBtn = hasFrames ? `<span class="collapse-toggle" onclick="toggleComp('comp_${comp.id}_frames', this)">▼</span>` : `<span class="collapse-toggle" style="visibility:hidden;"></span>`;
+                
+                html += `<div class="tree-item tree-level-2">${toggleBtn}<label><input type="checkbox" class="tree-cb" value="comp_${comp.id}" onchange="handleTreeChange()"> 📦 Component ${comp.id}</label></div>`;
+                
+                if (hasFrames) {
+                    html += `<div id="comp_${comp.id}_frames" style="display:block;">`;
+                    comp.frames.forEach(frame => {
+                        if (frame.id !== 0) {
+                            html += `<div class="tree-item tree-level-3"><span class="collapse-toggle" style="visibility:hidden;"></span><label><input type="checkbox" class="tree-cb" value="frame_${comp.id}_${frame.id}" onchange="handleTreeChange()"> ↳ Frame ${frame.id}</label></div>`;
+                        }
+                    });
+                    html += `</div>`;
+                }
+            }
+        });
+        tree.innerHTML = html;
+
+        const fTree = document.getElementById('filtered-tree');
+        let fHtml = '';
+        graphData.filtered_graphs.forEach((fg, idx) => {
+            fHtml += `<div class="tree-item tree-level-1"><span class="collapse-toggle" style="visibility:hidden;"></span><label><input type="radio" name="filtered_prot" value="${idx}" ${idx===0 ? 'checked' : ''} onchange="handleFilteredChange()"> Prot ${idx}: ${fg.name}</label></div>`;
+        });
+        fTree.innerHTML = fHtml;
+    }
+
+    function resetPhysicsToggle() {
+        document.getElementById('freezePhysics').checked = false;
+        document.getElementById('freezePhysicsFiltered').checked = false;
+        if(network) network.setOptions({ physics: true });
+    }
+
+    function switchGraphViewMode() {
+        currentGraphMode = document.getElementById('main-graph-selector').value;
+        resetPhysicsToggle();
+        
+        if (currentGraphMode === 'associated') {
+            document.getElementById('hierarchy-tree').style.display = 'block';
+            document.getElementById('filtered-tree').style.display = 'none';
+            document.getElementById('edge-interactions-panel').style.display = 'block';
+            document.getElementById('filtered-options-panel').style.display = 'none';
+            document.getElementById('nav-title').innerText = "Navigation (Multi-Select)";
+            handleTreeChange();
+        } else {
+            document.getElementById('hierarchy-tree').style.display = 'none';
+            document.getElementById('filtered-tree').style.display = 'block';
+            document.getElementById('edge-interactions-panel').style.display = 'none';
+            document.getElementById('filtered-options-panel').style.display = 'block';
+            document.getElementById('nav-title').innerText = "Select Protein";
+            handleFilteredChange();
+        }
+    }
+
+    function handleFilteredChange() {
+        activeFilteredProtIdx = parseInt(document.querySelector('input[name="filtered_prot"]:checked').value);
+        const thicknessMode = document.querySelector('input[name="edgeThickness"]:checked').value;
+        const maxDist = graphData.metadata.edge_threshold || 10.0;
+        
+        const fg = graphData.filtered_graphs[activeFilteredProtIdx];
+        
+        nodesDataset.clear();
+        edgesDataset.clear();
+        clearDynamicStdEdges();
+        
+        const c = proteinColors[activeFilteredProtIdx % proteinColors.length];
+        
+        const coloredNodes = fg.nodes.map(n => ({
+            ...n, 
+            label: '<b>' + n.label + '</b>',
+            color: { background: c, border: '#111827' },
+            originalColor: c
+        }));
+        
+        const styledEdges = fg.edges.map(e => {
+            let edgeWidth = optEdgeWidth;
+            if (thicknessMode === 'distance' && e.raw_dist !== undefined && e.raw_dist !== null) {
+                let dist = parseFloat(e.raw_dist);
+                if (!isNaN(dist)) {
+                    let safeDist = Math.max(0, Math.min(dist, maxDist));
+                    let scale = 4.0 - ((safeDist / maxDist) * 3.8); 
+                    edgeWidth = optEdgeWidth * scale;
+                }
+            }
+            return { ...e, color: { color: '#9ca3af', opacity: 1.0 }, width: Math.max(0.1, edgeWidth) };
+        });
+
+        nodesDataset.add(coloredNodes);
+        edgesDataset.add(styledEdges);
+        
+        currentActiveNodes = new Set(fg.nodes.map(n => n.id));
+        update3DViewer();
+        updateNodeListText();
+        if (network) network.fit();
+    }
+
+    function handleTreeChange() {
+        if (currentGraphMode !== 'associated') return;
+
+        if (nodesDataset.length !== graphData.nodes.length) {
+            nodesDataset.clear();
+            edgesDataset.clear();
+            nodesDataset.add(graphData.nodes.map(n => ({...n, label: '<b>' + n.label + '</b>'})));
+            edgesDataset.add(graphData.edges);
+        }
+
+        let activeIds = new Set();
+        document.querySelectorAll('.tree-cb:checked').forEach(cb => {
+            let parts = cb.value.split('_');
+            if (parts[0] === 'global') {
+                graphData.nodes.forEach(n => activeIds.add(n.id));
+            } else if (parts[0] === 'comp') {
+                let comp = graphData.components.find(c => c.id === parseInt(parts[1]));
+                comp.node_ids.forEach(id => activeIds.add(id));
+            } else if (parts[0] === 'frame') {
+                let comp = graphData.components.find(c => c.id === parseInt(parts[1]));
+                let frame = comp.frames.find(f => f.id === parseInt(parts[2]));
+                frame.node_ids.forEach(id => activeIds.add(id));
+            }
+        });
+        currentActiveNodes = activeIds;
+        clearDynamicStdEdges();
+        applyGraphFilters();
+        update3DViewer();
+        updateNodeListText();
+    }
+
+    function updateNodeListText() {
+        const container = document.getElementById('active-nodes-text');
+        if (currentActiveNodes.size === 0) {
+            container.innerHTML = "<i>No nodes selected.</i>";
+            return;
+        }
+
+        let protNodes = {};
+        graphData.proteins.forEach((p, i) => protNodes[i] = []);
+
+        let nodesToIterate = currentGraphMode === 'associated' ? graphData.nodes : graphData.filtered_graphs[activeFilteredProtIdx].nodes;
+
+        nodesToIterate.forEach(n => {
+            if (currentActiveNodes.has(n.id)) {
+                n.mapping.forEach(m => {
+                    if (protNodes[m.model_idx]) {
+                        protNodes[m.model_idx].push(`${m.chain}:${m.resn}:${m.resi}`);
+                    }
+                });
+            }
+        });
+
+        let html = "";
+        for (let i = 0; i < graphData.proteins.length; i++) {
+            if (protNodes[i].length > 0) {
+                let uniqueNodes = [...new Set(protNodes[i])];
+                const color = proteinColors[i % proteinColors.length];
+                html += `<div style="margin-bottom: 6px;">
+                    <b style="color:${color}">Prot ${i}:</b> ${uniqueNodes.join(', ')}
+                </div>`;
+            }
+        }
+        container.innerHTML = html;
+    }
+
+    function getStdColor(std, threshold) {
+        if (std === null || std === undefined || isNaN(std)) return '#d1d5db'; 
+        let ratio = std / (threshold + 0.0001);
+        if (ratio > 1) ratio = 1;
+        if (ratio < 0) ratio = 0;
+        const hue = 120 * (1 - ratio); 
+        return `hsl(${hue}, 100%, 45%)`;
+    }
+
+    function clearDynamicStdEdges() {
+        if (tempEdgeIds.length) {
+            edgesDataset.remove(tempEdgeIds);
+            tempEdgeIds = [];
+        }
+        if (currentGraphMode === 'associated') applyGraphFilters();
+    }
+
+    function drawDynamicStdEdges(nodeId) {
+        if (currentGraphMode !== 'associated') return;
+        clearDynamicStdEdges();
+        
+        const globalThresh = graphData.metadata.global_distance_diff_threshold || 2.0;
+        let activeComp = null;
+        for (let c of graphData.components) {
+            if (c.id !== 0 && c.node_index_map && c.node_index_map[nodeId] !== undefined) {
+                activeComp = c; break;
+            }
+        }
+        if (!activeComp || !activeComp.std_matrix) return;
+
+        const i = activeComp.node_index_map[nodeId];
+        const newEdges = [];
+        const nodeUpdates = [];
+
+        graphData.nodes.forEach(n => {
+            if (n.id === nodeId) {
+                nodeUpdates.push({ id: n.id, color: { background: n.originalColor, border: '#111827' } });
+            } else {
+                nodeUpdates.push({ id: n.id, color: { background: 'rgba(229,231,235,0.1)', border: 'rgba(209,213,219,0.1)' } });
+            }
+        });
+
+        currentActiveNodes.forEach(targetId => {
+            if (targetId === nodeId) return;
+            const j = activeComp.node_index_map[targetId];
+            if (j === undefined) return;
+            
+            const std = activeComp.std_matrix[i][j];
+            if (std === null) return;
+
+            const color = getStdColor(std, globalThresh);
+            const targetNode = graphData.nodes.find(n => n.id === targetId);
+            
+            nodeUpdates.push({ id: targetId, color: { background: targetNode.originalColor, border: color } });
+            newEdges.push({
+                from: nodeId, to: targetId,
+                color: { color: color, opacity: 0.9 }, width: optEdgeWidth * 2.5, physics: false, smooth: false,
+                label: std.toFixed(3), font: { align: "top", size: 12, strokeWidth: 3, strokeColor: "#ffffff", face: "sans-serif" },
+                title: "STD: " + std.toFixed(4)
+            });
+        });
+
+        nodesDataset.update(nodeUpdates);
+        const added = edgesDataset.add(newEdges);
+        tempEdgeIds = Array.isArray(added) ? added : [added];
+    }
+
+    function applyGraphFilters() {
+        if (currentGraphMode !== 'associated' || tempEdgeIds.length > 0) return;
+
+        const mode = document.querySelector('input[name="viewMode"]:checked').value;
+        const nodeUpdates = [];
+        const edgeUpdates = [];
+
+        graphData.nodes.forEach(n => {
+            const isActive = currentActiveNodes.has(n.id);
+            if (mode === 'hide') {
+                nodeUpdates.push({ id: n.id, hidden: !isActive });
+            } else {
+                nodeUpdates.push({ 
+                    id: n.id, hidden: false, 
+                    color: isActive ? { background: n.originalColor, border: '#111827' } : { background: 'rgba(229,231,235,0.3)', border: 'rgba(209,213,219,0.3)' },
+                    font: { color: isActive ? '#111827' : 'rgba(156,163,175,0.5)' }
+                });
+            }
+        });
+
+        graphData.edges.forEach(e => {
+            const isEdgeActive = currentActiveNodes.has(e.from) && currentActiveNodes.has(e.to);
+            if (mode === 'hide') {
+                edgeUpdates.push({ id: e.id, hidden: !isEdgeActive, color: {color: '#9ca3af'}, width: optEdgeWidth });
+            } else {
+                edgeUpdates.push({ 
+                    id: e.id, hidden: false, 
+                    color: isEdgeActive ? { color: '#9ca3af', opacity: 1.0 } : { color: '#e5e7eb', opacity: 0.15 },
+                    width: isEdgeActive ? optEdgeWidth : Math.max(0.1, optEdgeWidth * 0.5)
+                });
+            }
+        });
+
+        nodesDataset.update(nodeUpdates);
+        edgesDataset.update(edgeUpdates);
+    }
+
+    // --- SCREENSHOT EXPORT LOGIC ---
+    
+    async function exportScreenshot(target) {
+        const c = document.createElement('canvas');
+        const ctx = c.getContext('2d');
+        let parts = [];
+        let totalW = 0, totalH = 0;
+
+        const graphCanvas = document.querySelector('#mynetwork canvas');
+        
+        if ((target === 'graph' || target === 'both') && graphCanvas) {
+            parts.push({ img: graphCanvas, type: 'graph' });
+            totalW = Math.max(totalW, graphCanvas.width);
+            totalH += graphCanvas.height;
+        }
+
+        if ((target === 'protein' || target === 'both') && viewers.length > 0) {
+            for (let v of viewers) {
+                const dataUrl = v.pngURI();
+                const img = new Image();
+                img.src = dataUrl;
+                await new Promise(r => img.onload = r);
+                parts.push({ img: img, type: 'mol' });
+                
+                totalW = Math.max(totalW, img.width);
+                totalH += img.height;
+            }
+        }
+
+        if (parts.length === 0) return;
+
+        c.width = totalW;
+        c.height = totalH;
+        
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, totalW, totalH);
+
+        let currentY = 0;
+        for (let part of parts) {
+            let xOffset = (totalW - part.img.width) / 2;
+            ctx.drawImage(part.img, xOffset, currentY);
+            currentY += part.img.height;
+        }
+
+        const link = document.createElement('a');
+        link.download = `MHCXGraph_Export_${target}.png`;
+        link.href = c.toDataURL('image/png');
+        link.click();
+    }
+
+    // --- 3DMOL JS LOGIC ---
+    
+    async function loadStructures() {
+        loadedModels = [];
+        for (let i = 0; i < graphData.proteins.length; i++) {
+            const fileInput = document.getElementById(`file-prot-${i}`);
+            if (fileInput.files.length > 0) {
+                const file = fileInput.files[0];
+                const text = await file.text();
+                const format = file.name.endsWith('.cif') ? 'cif' : 'pdb';
+                loadedModels.push({ text, format, name: graphData.proteins[i], protIdx: i });
+            } else {
+                loadedModels.push(null);
+            }
+        }
+        
+        const select = document.getElementById('view-selector');
+        select.innerHTML = '<option value="aligned">Aligned (Single View)</option><option value="separate">Separate (Grid View)</option>';
+        loadedModels.forEach(m => {
+            if (m) select.innerHTML += `<option value="prot_${m.protIdx}">Prot ${m.protIdx}: ${m.name}</option>`;
+        });
+        
+        document.getElementById('viewer-toolbar').style.display = 'flex';
+        rebuildViewer();
+    }
+
+    function hoverCallback(atom, viewer, event) {
+        if (!atom.resn) return;
+        const tt = document.getElementById("mol-tooltip");
+        let pName = viewer.protName || "Unknown";
+        
+        if (viewer.layoutMode === 'aligned') {
+            const loaded = loadedModels.find(lm => lm && lm.internalModel === atom.model);
+            if (loaded) pName = loaded.name;
+        }
+
+        tt.innerHTML = `<b>Protein:</b> ${pName}<br><b>Residue:</b> ${atom.resn} ${atom.resi} (Chain ${atom.chain})`;
+        tt.style.display = "block";
+        tt.style.left = (event.clientX + 15) + "px";
+        tt.style.top = (event.clientY + 15) + "px";
+    }
+
+    function unhoverCallback() {
+        document.getElementById("mol-tooltip").style.display = "none";
+    }
+
+    function rebuildViewer() {
+        const container = document.getElementById('bottom-panel');
+        const toolbar = document.getElementById('viewer-toolbar');
+        container.innerHTML = ''; 
+        container.appendChild(toolbar);
+        viewers = [];
+        
+        const layoutMode = document.getElementById('view-selector').value;
+        const validModels = loadedModels.filter(m => m !== null);
+        if (validModels.length === 0) return;
+
+        if (layoutMode === 'separate') {
+            container.style.display = 'grid';
+            container.style.gridTemplateColumns = 'repeat(auto-fit, minmax(300px, 1fr))';
+            container.style.gridAutoRows = '65%'; 
+            container.style.gap = '15px';
+            container.style.padding = '15px';
+            container.style.alignContent = 'start';
+
+            validModels.forEach((m) => {
+                const subDiv = document.createElement('div');
+                subDiv.className = 'mol-subviewer';
+                
+                const titleDiv = document.createElement('div');
+                titleDiv.className = 'viewer-title';
+                titleDiv.innerHTML = `<span class="color-dot" style="background-color: ${proteinColors[m.protIdx]};"></span>Prot ${m.protIdx}: ${m.name}`;
+                subDiv.appendChild(titleDiv);
+                
+                const molDiv = document.createElement('div');
+                molDiv.style.width = '100%';
+                molDiv.style.height = '100%';
+                subDiv.appendChild(molDiv);
+                container.appendChild(subDiv);
+                
+                let v = $3Dmol.createViewer(molDiv, { backgroundColor: "#ffffff", preserveDrawingBuffer: true });
+                let mObj = v.addModel(m.text, m.format);
+                m.internalModel = mObj.getID();
+                
+                v.setStyle({}, { cartoon: { color: proteinColors[m.protIdx] } });
+                
+                v.protIdx = m.protIdx;
+                v.protName = m.name;
+                v.layoutMode = 'separate';
+                v.setHoverable({}, true, hoverCallback, unhoverCallback);
+                v.zoomTo();
+                viewers.push(v);
+            });
+        } else if (layoutMode.startsWith('prot_')) {
+            container.style.display = 'block';
+            container.style.padding = '0';
+            
+            const targetIdx = parseInt(layoutMode.split('_')[1]);
+            const targetModel = validModels.find(m => m.protIdx === targetIdx);
+            
+            if (targetModel) {
+                let v = $3Dmol.createViewer(container, { backgroundColor: "#ffffff", preserveDrawingBuffer: true });
+                let mObj = v.addModel(targetModel.text, targetModel.format);
+                targetModel.internalModel = mObj.getID();
+                v.setStyle({}, { cartoon: { color: proteinColors[targetModel.protIdx] } });
+                
+                v.protIdx = targetModel.protIdx;
+                v.protName = targetModel.name;
+                v.layoutMode = 'single';
+                v.setHoverable({}, true, hoverCallback, unhoverCallback);
+                v.zoomTo();
+                viewers.push(v);
+            }
+        } else {
+            container.style.display = 'block';
+            container.style.padding = '0';
+            
+            let v = $3Dmol.createViewer(container, { backgroundColor: "#ffffff", preserveDrawingBuffer: true });
+            validModels.forEach(m => {
+                let mObj = v.addModel(m.text, m.format);
+                m.internalModel = mObj.getID();
+                v.setStyle({model: m.internalModel}, { cartoon: { color: proteinColors[m.protIdx] } });
+            });
+            v.layoutMode = 'aligned';
+            v.setHoverable({}, true, hoverCallback, unhoverCallback);
+            v.zoomTo();
+            viewers.push(v);
+        }
+        update3DViewer();
+    }
+
+    function update3DViewer() {
+        if (viewers.length === 0 || loadedModels.length === 0) return;
+        const layoutMode = document.getElementById('view-selector').value;
+        const showLabels = document.getElementById('showLabels').checked;
+        
+        viewers.forEach(v => {
+            v.removeAllLabels();
+            if (layoutMode === 'aligned') {
+                loadedModels.forEach(m => {
+                    if (m) v.setStyle({model: m.internalModel}, { cartoon: { color: proteinColors[m.protIdx], opacity: 0.5 } });
+                });
+            } else if (layoutMode === 'separate') {
+                v.setStyle({}, { cartoon: { color: proteinColors[v.protIdx], opacity: 0.5 } });
+            } else if (layoutMode.startsWith('prot_')) {
+                v.setStyle({}, { cartoon: { color: proteinColors[v.protIdx], opacity: 0.5 } });
+            }
+        });
+        
+        let nodesToIterate = currentGraphMode === 'associated' ? graphData.nodes : graphData.filtered_graphs[activeFilteredProtIdx].nodes;
+        
+        nodesToIterate.forEach(n => {
+            if (currentActiveNodes.has(n.id)) {
+                n.mapping.forEach(m => {
+                    const protIdx = m.model_idx;
+                    const loaded = loadedModels.find(lm => lm && lm.protIdx === protIdx);
+                    if (!loaded) return;
+
+                    let v = null;
+                    let targetModel = 0;
+                    
+                    if (layoutMode === 'aligned') {
+                        v = viewers[0]; targetModel = loaded.internalModel;
+                    } else if (layoutMode === 'separate') {
+                        v = viewers.find(vo => vo.protIdx === protIdx); targetModel = 0;
+                    } else if (layoutMode.startsWith('prot_')) {
+                        const activeProtIdx = parseInt(layoutMode.split('_')[1]);
+                        if (protIdx !== activeProtIdx) return; 
+                        v = viewers[0]; targetModel = 0;
+                    }
+
+                    if (!v) return;
+
+                    let sel = { model: targetModel, chain: m.chain, resi: parseInt(m.resi) };
+                    const drawColor = n.originalColor || proteinColors[protIdx % proteinColors.length];
+                    v.setStyle(sel, { cartoon: { color: drawColor }, stick: { colorscheme: 'whiteCarbon', radius: 0.25 } }, true);
+                    
+                    if (showLabels) {
+                        const labelText = `${m.resn}:${m.resi}`;
+                        v.addLabel(labelText, {
+                            font: "sans-serif", fontSize: 13, fontColor: "black", 
+                            backgroundColor: "transparent", showBackground: false, alignment: "center", position: sel
+                        }, sel, true);
+                    }
+                });
+            }
+        });
+        
+        viewers.forEach(v => v.render());
+    }
+
+    window.onload = init;
+</script>
+</body>
+</html>

@@ -48,4 +48,11 @@ def parse_args():
         default=False,
     )
 
+    parser.add_argument(
+            "--dashboard",
+            help="Automatically open the interactive dashboard in the default web browser after execution.",
+            action="store_true",
+            default=False,
+        )
+
     return parser.parse_args()

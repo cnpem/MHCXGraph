@@ -527,12 +527,12 @@ def create_graphs(manifest: dict) -> list[tuple]:
 
         sub_dir = output_path / "filtered_graphs"
         base_name = Path(orig_path).stem
-        graph_instance.save_subgraph_view(
-            g=subgraph,
-            output_dir=sub_dir,
-            name=f"{base_name}_filtered",
-            with_html=True,
-        )
+        # graph_instance.save_subgraph_view(
+        #     g=subgraph,
+        #     output_dir=sub_dir,
+        #     name=f"{base_name}_filtered",
+        #     with_html=True,
+        # )
 
         graph_instance.save_filtered_pdb(
             g=subgraph,

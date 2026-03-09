@@ -1,3 +1,4 @@
+import webbrowser
 from itertools import combinations
 from pathlib import Path
 
@@ -96,6 +97,16 @@ def main():
     if tracker_residues:
         out_path = tracker_residues.dump_json()
         log.info(f"Residue tracking report saved to: {out_path}")
+
+    if args.dashboard:
+        log.info("Opening dashboard in the default web browser...")
+        if run_mode == "all":
+            dash_path = base_output / "ALL" / "Dashboard.html"
+            if dash_path.exists():
+                webbrowser.open(f"file://{dash_path.resolve()}")
+        else:
+            for dash_path in (base_output / "PAIR").rglob("Dashboard.html"):
+                webbrowser.open(f"file://{dash_path.resolve()}")
 
 
 if __name__ == "__main__":

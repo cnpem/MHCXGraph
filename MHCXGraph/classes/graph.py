@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import copy
 import json
 import re
@@ -16,7 +17,6 @@ from Bio.PDB.MMCIFParser import MMCIFParser
 from Bio.PDB.PDBIO import PDBIO
 from Bio.PDB.PDBParser import PDBParser
 from Bio.PDB.Superimposer import Superimposer
-from pyvis.network import Network
 
 from MHCXGraph.core.config import GraphConfig
 from MHCXGraph.core.pipeline import build_graph_with_config
@@ -170,114 +170,6 @@ class Graph:
         io.set_structure(new_struct)
         io.save(str(out_file))
         log.info(f"Filtered structure saved to {out_file}")
-
-    def save_subgraph_view(
-        self,
-        g: nx.Graph,
-        output_dir: str | Path,
-        name: str,
-        with_html: bool = True,
-    ) -> None:
-        out_dir = Path(output_dir)
-        out_dir.mkdir(parents=True, exist_ok=True)
-
-        base = name
-
-        # JSON "cru" do grafo
-        data = self._nx_to_serializable(g)
-        json_path = out_dir / f"{base}.json"
-        json_path.write_text(json.dumps(data, indent=4), encoding="utf-8")
-        log.vinfo(f"{name} JSON subgraph saved in {json_path}.", f"{name} JSON subgraph saved.")
-
-        if not with_html:
-            return
-
-        # trabalhar em uma cópia para o HTML
-        graph = g.copy()
-
-        # chain_id + attrs mínimos para PyVis
-        for n in graph.nodes():
-            label = str(n)
-            chain_id = label.split(":")[0] if ":" in label else "?"
-            graph.nodes[n]["chain_id"] = chain_id
-            graph.nodes[n]["label"] = label
-            graph.nodes[n]["title"] = f"chain: {chain_id}\n{label}"
-            graph.nodes[n]["size"] = 12
-            graph.nodes[n]["group"] = chain_id
-
-        chain_ids = sorted({data.get("chain_id", "?") for _, data in graph.nodes(data=True)})
-        cmap = plt.cm.get_cmap("tab10", max(1, len(chain_ids)))
-        palette = {cid: _rgba_to_hex(cmap(idx)) for idx, cid in enumerate(chain_ids)}
-
-        for n in graph.nodes():
-            cid = graph.nodes[n].get("chain_id", "?")
-            graph.nodes[n]["color"] = palette.get(cid, "#999999")
-
-        # LIMPEZA: deixar só atributos serializáveis básicos
-        allowed_node_keys = {"label", "title", "color", "size", "group", "chain_id"}
-        for _, data_node in graph.nodes(data=True):
-            for k in list(data_node.keys()):
-                if k not in allowed_node_keys:
-                    del data_node[k]
-
-        for _, _, data_edge in graph.edges(data=True):
-            w = data_edge.get("weight")
-            for k in list(data_edge.keys()):
-                if k != "weight":
-                    del data_edge[k]
-            if not isinstance(w, (int, float)) and "weight" in data_edge:
-                del data_edge["weight"]
-
-        # renomear nós para ids simples
-        safe_map = {n: f"v{idx}" for idx, n in enumerate(graph.nodes())}
-        H = nx.relabel_nodes(graph, safe_map, copy=True)
-
-        net = Network(
-            height="100%",
-            width="100%",
-            bgcolor="#ffffff",
-            notebook=False,
-            cdn_resources="in_line",
-            directed=graph.is_directed(),
-        )
-        net.from_nx(H)
-
-        for (u, v, data) in H.edges(data=True):
-            w = data.get("weight")
-            if w is not None:
-                title = f"weight: {w}"
-                for e in net.edges:
-                    if (e["from"] == u and e["to"] == v) or (
-                        not graph.is_directed() and e["from"] == v and e["to"] == u
-                    ):
-                        e["title"] = title
-                        if isinstance(w, (int, float)):
-                            e.setdefault("value", float(w))
-
-        net.set_options("""
-        {
-          "nodes": { "shape": "dot" },
-          "interaction": { "hover": true, "tooltipDelay": 150, "zoomView": true, "dragView": true },
-          "physics": {
-            "enabled": true,
-            "solver": "barnesHut",
-            "barnesHut": {
-              "gravitationalConstant": -8000,
-              "centralGravity": 0.3,
-              "springLength": 95,
-              "springConstant": 0.04,
-              "damping": 0.09,
-              "avoidOverlap": 0.1
-            },
-            "minVelocity": 0.75
-          }
-        }
-        """)
-
-        html_path = out_dir / f"{base}.html"
-        html = net.generate_html(notebook=False, local=True)
-        html_path.write_text(html, encoding="utf-8")
-        log.vinfo(f"{name} HTML subgraph saved in {html_path}.", f"{name} subgraph HTML saved.")
 
 
 class AssociatedGraph:
@@ -597,131 +489,251 @@ class AssociatedGraph:
         out_dir = Path(self.output_path)
         out_dir.mkdir(parents=True, exist_ok=True)
 
+        export_data = {
+            "metadata": self.association_config,
+            "proteins": [gd['name'] for gd in self.graphs_data],
+            "nodes": [],
+            "edges": [],
+            "components": [],
+            "filtered_graphs": []
+        }
+
+        global_nodes = {}
+        global_edges = {}
+        node_id_counter = 0
+        edge_id_counter = 0
+        all_chain_ids = set()
+
+        # Pass 1: Gather Associated Graphs Nodes, edges, and std_matrices
         for j, comps in enumerate(self.associated_graphs):
+            comp_data = {
+                "id": j, 
+                "node_ids": [], 
+                "frames": [],
+                "std_matrix": None,
+                "node_index_map": {}
+            }
+            
+            if len(comps[0]) > 0:
+                comp_std_matrix = comps[0][0].graph.get("edge_std_matrix")
+                if comp_std_matrix is not None:
+                    safe_matrix = [
+                        [None if np.isnan(val) else float(val) for val in row]
+                        for row in comp_std_matrix
+                    ]
+                    comp_data["std_matrix"] = safe_matrix
+
             for i, graph in enumerate(comps[0]):
                 if graph.number_of_nodes() == 0:
-                    log.warning(f"{j}:{i} graph has no nodes. Skipping.")
                     continue
-
-                # chain_id per node
-                for node in graph.nodes():
-                    try:
-                        residues = [r for r in node]  # flatten tuples
-                    except TypeError:
-                        residues = [str(node)]
-                    chains = [str(r).split(':')[0] for r in residues]
-                    graph.nodes[node]['chain_id'] = ''.join(chains) or "?"
-
-                chain_ids = sorted({data.get('chain_id', '?') for _, data in graph.nodes(data=True)})
-                cmap = plt.cm.get_cmap('tab10', max(1, len(chain_ids)))
-                palette = {cid: _rgba_to_hex(cmap(idx)) for idx, cid in enumerate(chain_ids)}
-
-                node_labels = {}
-                for n in graph.nodes():
-                    if isinstance(n, tuple) and n and isinstance(n[0], tuple):
-                        combo1, combo2 = n
-                        lab1 = repr(combo1).replace(" ", "")
-                        lab2 = repr(combo2).replace(" ", "")
-                        node_labels[n] = f"({lab1})({lab2})"
-                    else:
-                        node_labels[n] = str(n)
-
-                for n in graph.nodes():
-                    cid = graph.nodes[n].get('chain_id', '?')
-                    graph.nodes[n]['label'] = node_labels[n]
-                    graph.nodes[n]['title'] = f"chain: {cid}\n{node_labels[n]}"
-                    graph.nodes[n]['color'] = palette.get(cid, "#999999")
-                    graph.nodes[n]['size'] = 12
-                    graph.nodes[n]['group'] = cid
-
-                safe_map = {n: f"v{idx}" for idx, n in enumerate(graph.nodes())}
-                H = nx.relabel_nodes(graph, safe_map, copy=True)
-
-                net = Network(
-                    height="100%",
-                    width="100%",
-                    bgcolor="#ffffff",
-                    notebook=False,
-                    cdn_resources="in_line",
-                    directed=graph.is_directed()
-                )
-                net.from_nx(H)
-
-                std_matrix = graph.graph.get("edge_std_matrix")
+                
+                frame_data = {"id": i, "node_ids": []}
                 node_index_map = graph.graph.get("node_index_map")
 
-                if std_matrix is not None and node_index_map is not None:
-                    safe_node_index = {safe_map[n]: node_index_map[n] for n in graph.nodes() if n in node_index_map}
-                else:
-                    safe_node_index = None
+                # Nodes
+                for n in graph.nodes():
+                    node_label = str(n)
+                    try:
+                        residues = [r for r in n]
+                    except TypeError:
+                        residues = [str(n)]
+                        
+                    mapping = []
+                    chains = []
+                    for prot_idx, res in enumerate(residues):
+                        parts = str(res).split(':')
+                        if len(parts) >= 3: 
+                            chains.append(parts[0])
+                            mapping.append({
+                                "model_idx": prot_idx,
+                                "chain": parts[0],
+                                "resn": parts[1],
+                                "resi": parts[2]
+                            })
+                    
+                    chain_id = ''.join(chains) or "?"
+                    all_chain_ids.add(chain_id)
 
-                # optional edge hover with weight
-                for (u, v, data) in H.edges(data=True):
-                    w = data.get('weight')
-                    if w is not None:
-                        # PyVis stores edges in net.edges, update matching one
-                        # create a small title for hover
-                        title = f"weight: {w}"
-                        # there can be multiple edges, so update all matches
-                        for e in net.edges:
-                            if (e['from'] == u and e['to'] == v) or (not graph.is_directed() and e['from'] == v and e['to'] == u):
-                                e['title'] = title
-                                e.setdefault('value', float(w) if isinstance(w, (int, float)) else 1)
+                    if node_label not in global_nodes:
+                        global_nodes[node_label] = {
+                            "id": node_id_counter,
+                            "label": node_label,
+                            "title": f"Chains: {chain_id}\n{node_label}",
+                            "group": chain_id,
+                            "chain_id": chain_id,
+                            "mapping": mapping,
+                            "originalColor": None, 
+                        }
+                        node_id_counter += 1
+                    
+                    numeric_id = global_nodes[node_label]["id"]
+                    if numeric_id not in comp_data["node_ids"]:
+                        comp_data["node_ids"].append(numeric_id)
+                    frame_data["node_ids"].append(numeric_id)
+                    
+                    if node_index_map is not None and n in node_index_map:
+                        comp_data["node_index_map"][numeric_id] = int(node_index_map[n])
 
-                net.set_options("""
-                {
-                "nodes": { "shape": "dot" },
-                "interaction": { "hover": true, "tooltipDelay": 150, "zoomView": true, "dragView": true },
-                "physics": {
-                    "enabled": true,
-                    "solver": "barnesHut",
-                    "barnesHut": {
-                    "gravitationalConstant": -8000,
-                    "centralGravity": 0.3,
-                    "springLength": 95,
-                    "springConstant": 0.04,
-                    "damping": 0.09,
-                    "avoidOverlap": 0.1
-                    },
-                    "minVelocity": 0.75
-                }
-                }
-                """)
+                # Edges
+                for u, v, data in graph.edges(data=True):
+                    u_id = global_nodes[str(u)]["id"]
+                    v_id = global_nodes[str(v)]["id"]
+                    edge_key = tuple(sorted([u_id, v_id]))
+                    
+                    if edge_key not in global_edges:
+                        dist_tuple = []
+                        for prot_idx, gd in enumerate(self.graphs_data):
+                            u_res = u[prot_idx] if isinstance(u, tuple) else str(u)
+                            v_res = v[prot_idx] if isinstance(v, tuple) else str(v)
+                            try:
+                                u_parts = u_res.split(":")
+                                v_parts = v_res.split(":")
+                                u_tup = (u_parts[0], u_parts[2], u_parts[1])
+                                v_tup = (v_parts[0], v_parts[2], v_parts[1])
+                                distance = gd["contact_map"][gd["residue_map_all"][u_tup], gd["residue_map_all"][v_tup]]
+                                dist_tuple.append(f"{distance:.2f}")
+                            except:
+                                dist_tuple.append("N/A")
+                        
+                        dists = "(" + ", ".join(dist_tuple) + ")"
+                        w = data.get('weight')
+                        
+                        std_val = None
+                        if node_index_map is not None and comp_data["std_matrix"] is not None:
+                            idx_u = node_index_map.get(u)
+                            idx_v = node_index_map.get(v)
+                            if idx_u is not None and idx_v is not None:
+                                std_val = comp_data["std_matrix"][idx_u][idx_v]
+                        
+                        title = f"Distances: {dists}\n"
+                        if w is not None: title += f"Weight: {w}\n"
+                        if std_val is not None: title += f"STD: {std_val:.3f}"
+                        
+                        global_edges[edge_key] = {
+                            "id": edge_id_counter,
+                            "from": u_id,
+                            "to": v_id,
+                            "std": std_val,
+                            "title": title,
+                            "raw_dist": float(w) if isinstance(w, (int, float)) else None
+                        }
+                        edge_id_counter += 1
 
-                if save:
-                    if i == 0 and j == 0:
-                        filename = "Associated Graph.html"
-                    elif i == 0 and j != 0:
-                        filename = f"Associated Graph Component {j}.html"
-                    else:
-                        filename = f"Associated Graph Component {j} Frame {i}.html"
-                    full = out_dir / filename
-                    html = net.generate_html(
-                        notebook=False,
-                        local=True
-                    )
+                comp_data["frames"].append(frame_data)
+            export_data["components"].append(comp_data)
 
-                    if self.association_config["show_std_edges"] and std_matrix is not None and safe_node_index is not None:
-                            html = inject_std_hover(html, std_matrix=std_matrix, safe_node_index=safe_node_index)
+        # Associated Graph Colors
+        sorted_chain_ids = sorted(list(all_chain_ids))
+        cmap = plt.cm.get_cmap('tab10', max(1, len(sorted_chain_ids)))
+        palette = {cid: _rgba_to_hex(cmap(idx)) for idx, cid in enumerate(sorted_chain_ids)}
 
-                    html = inject_fullscreen_css(html)
-                    with open(str(full), "w+", encoding="utf-8") as out:
-                        out.write(html)
+        for n_data in global_nodes.values():
+            base_hex = palette.get(n_data["chain_id"], "#999999")
+            n_data["originalColor"] = base_hex
+            export_data["nodes"].append(n_data)
+            
+        export_data["edges"] = list(global_edges.values())
 
-                    log.info(f"{j}: saved graph {i} to {full}")
+        # Pass 2: Extract Original Filtered Graphs
+        filtered_graphs_data = []
+        for prot_idx, (g, pdb_file, name) in enumerate(self.graphs):
+            f_nodes = []
+            f_edges = []
+            
+            for n in g.nodes():
+                node_label = str(n)
+                parts = node_label.split(':')
+                chain_id = parts[0] if len(parts) >= 1 else "?"
+                mapping = []
+                if len(parts) >= 3:
+                    mapping.append({
+                        "model_idx": prot_idx,
+                        "chain": parts[0],
+                        "resn": parts[1],
+                        "resi": parts[2]
+                    })
+                
+                f_nodes.append({
+                    "id": node_label,
+                    "label": node_label,
+                    "title": f"Chain: {chain_id}\n{node_label}",
+                    "group": chain_id,
+                    "chain_id": chain_id,
+                    "mapping": mapping
+                })
+                
+            for u, v, data in g.edges(data=True):
+                w = data.get('weight')
+                dist_val = data.get('distance', w)
+                
+                title = f"Distance: {float(dist_val):.2f} Å" if dist_val is not None else ""
+                
+                f_edges.append({
+                    "id": f"{u}-{v}",
+                    "from": str(u),
+                    "to": str(v),
+                    "title": title,
+                    "raw_dist": float(dist_val) if isinstance(dist_val, (int, float)) else None
+                })
+                
+            filtered_graphs_data.append({
+                "id": prot_idx,
+                "name": name,
+                "nodes": f_nodes,
+                "edges": f_edges
+            })
+            
+        export_data["filtered_graphs"] = filtered_graphs_data
 
-                elif show:
-                    tmpfile = out_dir / f"__preview_{j}_{i}.html"
-                    html = net.generate_html(
-                        notebook=False,
-                        local=True
-                    )
+        # Safely load local Frameworks or fallback to CDNs
+        assets_dir = Path(__file__).resolve().parent.parent / "assets"
+        
+        vis_local = assets_dir / "vis-network.min.js"
+        if vis_local.exists():
+            vis_injection = f'<script>\n{vis_local.read_text(encoding="utf-8")}\n</script>'
+        else:
+            log.warning("Local vis-network.min.js not found in assets/. Falling back to CDN.")
+            vis_injection = '<script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>'
 
-                    if self.association_config["show_std_edges"] and std_matrix is not None and safe_node_index is not None:
-                        html = inject_std_hover(html, std_matrix=std_matrix, safe_node_index=safe_node_index)
+        mol3d_local = assets_dir / "3Dmol-min.js"
+        if mol3d_local.exists():
+            mol3d_injection = f'<script>\n{mol3d_local.read_text(encoding="utf-8")}\n</script>'
+        else:
+            log.warning("Local 3Dmol-min.js not found in assets/. Falling back to CDN.")
+            mol3d_injection = '<script src="https://3Dmol.csb.pitt.edu/build/3Dmol-min.js"></script>'
 
-                    html = inject_fullscreen_css(html)
+        logo_path = assets_dir / "LNBio.png"
+        logo_injection = ""
+        if logo_path.exists():
+            with open(logo_path, "rb") as image_file:
+                encoded_string = base64.b64encode(image_file.read()).decode("utf-8")
+                # Create the image tag with the base64 data
+                logo_injection = f'<img src="data:image/png;base64,{encoded_string}" alt="LNBio Logo" style="height: 150px; width: auto; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));">'
+        else:
+            log.debug("LNBio.png not found in assets/. Skipping logo injection.")
 
-                    with open(str(tmpfile), "w+", encoding="utf-8") as out:
-                        out.write(html)
+        # Load Template and Inject Data
+        template_path = assets_dir / "dashboard_template.html"
+        try:
+            with open(template_path, "r", encoding="utf-8") as f:
+                html_template = f.read()
+        except FileNotFoundError:
+            log.error(f"Template not found at {template_path}. Please create it.")
+            return
 
+        json_data = json.dumps(export_data)
+        final_html = html_template.replace("__GRAPH_DATA_INJECTION__", json_data)
+        final_html = final_html.replace("__VIS_JS_INJECTION__", vis_injection)
+        final_html = final_html.replace("__3DMOL_JS_INJECTION__", mol3d_injection)
+        final_html = final_html.replace("__LNBIO_LOGO_INJECTION__", logo_injection)
+
+        if save:
+            full_path = out_dir / "Dashboard.html"
+            with open(str(full_path), "w+", encoding="utf-8") as out:
+                out.write(final_html)
+            log.info(f"Interactive Dashboard saved to {full_path}")
+            
+        if show:
+            tmpfile = out_dir / "__preview.html"
+            with open(str(tmpfile), "w+", encoding="utf-8") as out:
+                out.write(final_html)
