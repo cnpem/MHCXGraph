@@ -46,17 +46,52 @@ class GraphData(TypedDict):
 
 
 class Graph:
-    """Represents a protein structure graph (no external framework assumptions)."""
+    """
+    Graph representation of a protein structure.
+
+    This class loads a structural file (PDB or mmCIF), constructs a
+    residue interaction graph using the configured pipeline, and
+    provides utilities for extracting and exporting filtered subgraphs.
+
+    Attributes
+    ----------
+    graph_path : str
+        Path to the structure file used to construct the graph.
+
+    config : GraphConfig
+        Configuration object defining graph construction parameters.
+
+    graph : networkx.Graph
+        Graph representation of the protein structure.
+
+    subgraphs : dict[str, networkx.Graph | list[str]]
+        Dictionary storing named subgraphs or node selections.
+
+    pdb_df : pandas.DataFrame or None
+        DataFrame containing PDB atom-level information.
+
+    raw_pdb_df : pandas.DataFrame or None
+        DataFrame containing raw PDB data before filtering.
+
+    dssp_df : pandas.DataFrame or None
+        DataFrame containing DSSP secondary structure annotations.
+    """
 
     def __init__(self, graph_path: str, config: GraphConfig):
         """
+        Initialize a protein structure graph.
+
         Parameters
         ----------
         graph_path : str
             Path to a PDB or mmCIF file.
-        config : GraphConfig, optional
-            Unified graph configuration. If not provided, a sensible default is used.
+
+        config : GraphConfig
+            Graph configuration object specifying node granularity,
+            edge construction rules, and inclusion criteria for waters,
+            ligands, and noncanonical residues.
         """
+
         self.graph_path = graph_path
         self.config = config
 
@@ -68,6 +103,21 @@ class Graph:
         self.dssp_df: pd.DataFrame | None = self.graph.graph.get("dssp_df")
 
     def get_subgraph(self, name: str):
+        """
+        Retrieve a stored subgraph by name.
+
+        Parameters
+        ----------
+        name : str
+            Name of the stored subgraph.
+
+        Returns
+        -------
+        subgraph : networkx.Graph or list[str] or None
+            Requested subgraph or node list if it exists. Returns
+            ``None`` if the subgraph is not found.
+        """
+
         if name not in self.subgraphs:
             log.warning(f"Can't find {name} in subgraph")
             return None
@@ -75,6 +125,35 @@ class Graph:
             return self.subgraphs[name]
 
     def create_subgraph(self, name: str, node_list: list | None = None, return_node_list: bool = False, **args):
+        """
+        Create and store a subgraph.
+
+        A subgraph may be generated either from an explicit list of nodes
+        or by applying filtering arguments passed to the subgraph
+        extraction pipeline.
+
+        Parameters
+        ----------
+        name : str
+            Name used to store the subgraph.
+
+        node_list : list, optional
+            Explicit list of node identifiers used to build the subgraph.
+
+        return_node_list : bool, default=False
+            If True, return the node list of the generated subgraph.
+
+        **args : dict
+            Additional keyword arguments forwarded to the subgraph
+            extraction function.
+
+        Returns
+        -------
+        nodes : list or networkx.classes.reportviews.NodeView, optional
+            Node identifiers of the generated subgraph if
+            ``return_node_list`` is True.
+        """
+
         if node_list is None:
             node_list = []
 
@@ -95,10 +174,20 @@ class Graph:
 
     def _nx_to_serializable(self, g: nx.Graph) -> dict[str, Any]:
         """
-        Converte um nx.Graph qualquer em um dicionário simples
-        com nodes, edges e vizinhos, tudo como string.
-        Serve tanto para o grafo bruto quanto para subgrafos filtrados.
+        Convert a NetworkX graph into a JSON-serializable dictionary.
+
+        Parameters
+        ----------
+        g : networkx.Graph
+            Graph to be serialized.
+
+        Returns
+        -------
+        data : dict[str, Any]
+            Dictionary containing node identifiers, edge lists, and
+            adjacency relationships encoded as strings.
         """
+
         nodes = [str(n) for n in g.nodes()]
         edges = [[str(u), str(v)] for u, v in g.edges()]
         neighbors = {
@@ -118,6 +207,28 @@ class Graph:
         output_path: str | Path,
         name: str,
         use_cif: bool = False):
+        """
+        Save a filtered structural file containing only selected residues.
+
+        Parameters
+        ----------
+        g : networkx.Graph
+            Graph containing the subset of residues to export.
+
+        output_path : str or pathlib.Path
+            Directory where the filtered structure file will be written.
+
+        name : str
+            Base filename used when saving the structure.
+
+        use_cif : bool, default=False
+            If True, save the output in mmCIF format. Otherwise, save
+            the structure as a PDB file.
+
+        Returns
+        -------
+        None
+        """
 
         path = str(self.graph_path)
         if path.lower().endswith((".cif", ".mmcif")):
@@ -173,25 +284,59 @@ class Graph:
 
 
 class AssociatedGraph:
-    """Handles the association of multiple protein graphs."""
+    """
+    Association engine for multiple protein graphs.
+
+    This class performs structural association between several
+    residue graphs, computes alignment frames, and generates
+    visualization outputs and structural frames.
+
+    Attributes
+    ----------
+    graphs : list[tuple]
+        List containing graph tuples generated by preprocessing.
+
+    output_path : pathlib.Path
+        Directory where association outputs are written.
+
+    run_name : str
+        Identifier for the current association run.
+
+    association_config : dict[str, Any]
+        Configuration dictionary controlling association behavior.
+
+    graphs_data : list[GraphData]
+        Processed metadata extracted from the input graphs.
+
+    associated_graphs : list or None
+        Resulting association graph structures.
+    """
 
     def __init__(self,
                 graphs: list[tuple],
                 output_path: str,
                 run_name: str,
-                association_config: dict[str, Any] | None = None):
+                association_config: dict[str, Any]):
         """
-        Initialize an AssociatedGraph instance with a reduced configuration.
- 
-        :param graphs: List of tuples (Graph instance, raw_data) from preprocessing.
-        :param output_path: Where to save results.
-        :param run_name: Unique run identifier.
-        :param association_config: Dictionary with keys.
+        Initialize an association task between protein graphs.
+
+        Parameters
+        ----------
+        graphs : list[tuple]
+            List of tuples produced during preprocessing containing
+            graph objects and metadata.
+
+        output_path : str
+            Directory where association outputs will be saved.
+
+        run_name : str
+            Unique identifier for this run.
+
+        association_config : dict[str, Any], optional
+            Configuration dictionary controlling association behavior.
         """
-        if association_config is None:
-            self.association_config = {}
-        else:
-            self.association_config = association_config
+
+        self.association_config = association_config
 
         self.track_residues = self.association_config.get("track_residues")
         self.graphs = graphs
@@ -211,8 +356,22 @@ class AssociatedGraph:
 
     def _parse_resnum_and_icode(self, resnum_str: str) -> tuple[int, str]:
         """
-        Converte uma string de resnum (tipo '6', '6A') em (6, ' ') ou (6, 'A').
+        Parse a residue number string into residue number and insertion code.
+
+        Parameters
+        ----------
+        resnum_str : str
+            Residue number string such as ``"6"`` or ``"6A"``.
+
+        Returns
+        -------
+        resnum : int
+            Residue sequence number.
+
+        icode : str
+            Insertion code or a blank space if none is present.
         """
+
         resnum_str = str(resnum_str).strip()
         if resnum_str.isdigit() or (resnum_str.startswith('-') and resnum_str[1:].isdigit()):
             return int(resnum_str), ' '
@@ -225,9 +384,27 @@ class AssociatedGraph:
 
     def _find_residue_by_label(self, model, label: str):
         """
-        Dado um rótulo tipo 'C:SEP:6', tenta achar o Residue correspondente no modelo,
-        independente de ser ATOM ou HETATM (SEP, MSE, ligantes, etc.).
+        Locate a residue in a structural model using a node label.
+
+        Parameters
+        ----------
+        model : Bio.PDB.Model.Model
+            Structural model containing residues.
+
+        label : str
+            Node label formatted as ``"CHAIN:RESNAME:RESNUM"``.
+
+        Returns
+        -------
+        residue : Bio.PDB.Residue.Residue
+            Residue matching the specified label.
+
+        Raises
+        ------
+        KeyError
+            If the residue cannot be found.
         """
+
         try:
             chain_id, resname, resnum_str = label.split(':')
         except ValueError:
@@ -259,13 +436,17 @@ class AssociatedGraph:
 
     def _prepare_graph_data(self) -> list[GraphData]:
         """
-        For each (Graph, raw) tuple, build a dictionary with the necessary data:
-            - "graph": The Graph instance.
-            - "contact_map": Output of build_contact_map(raw)[0].
-            - "residue_map_all": Output of build_contact_map(raw)[2].
-            - "rsa": np.array(g.graph["dssp_df"]["rsa"]).
-            - "depth": g.depth.
+        Construct metadata required for graph association.
+
+        The method extracts graph attributes such as contact maps,
+        residue mappings, and solvent accessibility values.
+
+        Returns
+        -------
+        graphs_data : list[GraphData]
+            Structured metadata describing each input graph.
         """
+
         graphs_data = []
         for i, (g, pdb_file, name) in enumerate(self.graphs):
             contact_map = g.graph["contact_map"]
@@ -290,6 +471,17 @@ class AssociatedGraph:
         return graphs_data
 
     def create_pdb_per_protein(self):
+        """
+        Generate frame structures for each associated graph component.
+
+        The method reconstructs residue subsets for each frame and writes
+        them as separate structural models.
+
+        Returns
+        -------
+        None
+        """
+
         if not isinstance(self.associated_graphs, list):
             return
 
@@ -359,19 +551,27 @@ class AssociatedGraph:
     def _write_frame_multichain(self, comp_idx: int, frame_idx: int,
                                 models: list, output_dir: Path):
         """
-        Write one mmCIF in which *all* proteins are merged into Model 0
-        and distinguished only by their (renamed) chains.
+        Write a multi-chain mmCIF file containing aligned protein models.
 
-        The original chain IDs are suffixed with the protein index:
-        chain A in protein 0  -> 'A0'
-        chain C in protein 2  -> 'C2'
-        This preserves one-letter labels when you view the file in PyMOL
-        (PyMOL truncates after the first character) but keeps unique
-        `_atom_site.label_asym_id` in mmCIF so nothing collides.
+        Parameters
+        ----------
+        comp_idx : int
+            Component index of the association result.
 
-        mmCIF permits multi-character chain IDs, so MMCIFIO will write them
-        without complaints.
+        frame_idx : int
+            Frame index within the component.
+
+        models : list
+            List of structural models to be written.
+
+        output_dir : pathlib.Path
+            Directory where the mmCIF file will be saved.
+
+        Returns
+        -------
+        None
         """
+
         combo = Structure.Structure(f"comp{comp_idx}_frame{frame_idx}")
         combo_model = Model.Model(0)
         combo.add(combo_model)
@@ -393,15 +593,17 @@ class AssociatedGraph:
 
     def align_all_frames(self):
         """
-        For each component (frame) in self.associated_graphs:
-        - recreate fresh instances of the PDB models in self.graphs
-        - use model 0 as the reference
-        - align each mobile protein using a subset of nodes
-            for which ALL involved residues have a CA atom
-        - ignore water, ligands, and anything that lacks a CA atom
-        - save a multichain mmCIF with all models already aligned
+        Align protein structures across all associated graph frames.
 
+        The alignment is performed using C-alpha atoms of residues
+        shared across proteins. Frames lacking sufficient common
+        residues are skipped.
+
+        Returns
+        -------
+        None
         """
+
         parser = PDBParser(QUIET=True)
 
         if self.associated_graphs is not None:
@@ -477,6 +679,24 @@ class AssociatedGraph:
                     self._write_frame_multichain(comp_idx, frame_idx, models, output_dir)
 
     def draw_graph_interactive(self, show=False, save=True):
+        """
+        Generate interactive visualizations of associated graphs.
+
+        Graphs are rendered using PyVis and can be displayed in a
+        browser or saved as HTML files.
+
+        Parameters
+        ----------
+        show : bool, default=False
+            If True, display the generated visualization.
+
+        save : bool, default=True
+            If True, save the visualization to disk.
+
+        Returns
+        -------
+        None
+        """
 
         if not show and not save:
             log.info("You are not saving or viewing the graph. Please leave at least one of the parameters as true.")
