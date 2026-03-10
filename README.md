@@ -32,3 +32,8 @@ pip install -e MHCXGraph
 ## License
 
 The software is licensed under the terms of the GNU Affero General Public License 3 (AGPL3) and is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more details.
+ 
+
+## TODO
+
+Adicionar um botão para travar a rotação de todas as proteínas
