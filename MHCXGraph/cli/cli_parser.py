@@ -28,12 +28,7 @@ def parse_args():
         "focus on peptide-MHC (pMHC) systems involved in T cell receptor "
         "(TCR) recognition."
     )
-    parser.add_argument(
-        "manifest",
-        type=str,
-        metavar="<path>",
-        help="Path to the JSON manifest with complete set of parameters and settings.",
-    )
+
     parser.add_argument(
         "--version",
         action="version",
@@ -54,5 +49,39 @@ def parse_args():
             action="store_true",
             default=False,
         )
+
+    subparsers = parser.add_subparsers(
+        title="commands",
+        dest="command",
+        help="Choose a command to run."
+    )
+
+    subparsers.required = True
+
+    parser_run = subparsers.add_parser(
+        "run",
+        help="Run the main MHCXGraph analysis using a manifest file."
+    )
+    parser_run.add_argument(
+        "manifest",
+        type=str,
+        metavar="<path>",
+        help="Path to the JSON manifest with complete set of parameters and settings.",
+    )
+
+    parser_renumber = subparsers.add_parser(
+        "renumber",
+        help="Renumber MHC structures using IMGT mapping."
+    )
+
+    parser_renumber.add_argument("-i", "--input-dir", required=True, help="Input directory with .pdb/.cif/.mmcif files")
+    parser_renumber.add_argument("-o", "--output-dir", required=True, help="Output directory")
+    parser_renumber.add_argument("-c", "--mhc-class", required=True, help="The class of MHC to renumber.")
+    # parser_renumber.add_argument("--numbering-csv", required=True, help="Path to imgt_numbering_mapping_all.csv")
+    # parser_renumber.add_argument("--display-csv", required=True, help="Path to imgt_display_all.csv")
+    # parser_renumber.add_argument("--mhc-chain", default=None, help="Optional fixed chain ID for MHC-I heavy chain")
+    parser_renumber.add_argument("--warn-score", type=float, default=50.0, help="Warn if the best alignment score is below this value")
+    parser_renumber.add_argument("--debug", action="store_true", help="Print debug output")
+    parser_renumber.add_argument("--suffix", default="", help="Optional suffix added before file extension in output")
 
     return parser.parse_args()

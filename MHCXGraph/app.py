@@ -1,3 +1,6 @@
+import logging
+import os
+import sys
 import webbrowser
 from itertools import combinations
 from pathlib import Path
@@ -5,6 +8,8 @@ from pathlib import Path
 from MHCXGraph.cli.cli_parser import parse_args
 from MHCXGraph.core.residue_tracking import ResidueTracker
 from MHCXGraph.core.tracking import init_tracker
+from MHCXGraph.scripts.renumber_MHCI_imgt import load_mhci_templates, process_structure_file_mhci
+from MHCXGraph.scripts.renumber_MHCII_imgt import load_mhcii_templates, process_structure_file_mhcii
 from MHCXGraph.utils.logging_utils import setup_logging
 from MHCXGraph.utils.preprocessing import create_graphs
 from MHCXGraph.workflow.association import run_association_task
@@ -33,7 +38,7 @@ def setup_trackers(output_dir, settings):
     tracker_residues : ResidueTracker or None
         Residue tracker instance if residue monitoring is enabled,
         otherwise ``None``.
-    """
+"""
     tracker_residues = (
         ResidueTracker(settings.get("watch_residues"))
     ) if settings.get("watch_residues") else None
@@ -142,36 +147,7 @@ def run_pair_mode(graphs, base_output, run_name, config, log):
         )
 
 
-def main():
-    """
-    Run the MHCXGraph command-line pipeline.
-
-    This function orchestrates the full workflow:
-
-    1. Parse command-line arguments.
-    2. Load the execution manifest.
-    3. Configure logging and runtime tracking.
-    4. Generate graph representations from input structures.
-    5. Execute the association workflow.
-
-    The workflow can operate in two modes defined in the manifest:
-
-    ``all``
-        Process all graphs together in a single association task.
-
-    ``pair``
-        Perform pairwise comparisons between all graph combinations.
-
-    Returns
-    -------
-    None
-
-    Raises
-    ------
-    ValueError
-        If the configured ``run_mode`` is not ``"all"`` or ``"pair"``.
-    """
-    args = parse_args()
+def run(args):
     manifest = load_manifest(args.manifest)
     settings = manifest["settings"]
 
@@ -213,6 +189,103 @@ def main():
         else:
             for dash_path in (base_output / "PAIR").rglob("Dashboard.html"):
                 webbrowser.open(f"file://{dash_path.resolve()}")
+
+
+def renumber(args):
+    if args.mhc_class.upper() == "MHCI":
+        load_templates = load_mhci_templates
+        process_structure_file = process_structure_file_mhci
+    elif args.mhc_class.upper() == "MHCII":
+        load_templates = load_mhcii_templates
+        process_structure_file = process_structure_file_mhcii
+    else:
+        raise ValueError(f"{args.mhc_class} is an invalid class of MHC. Please, choose between MHCI and MHCII.")
+
+
+    log = logging.getLogger("MHCXGraph")
+
+    os.makedirs(args.output_dir, exist_ok=True)
+    assets_dir = Path(__file__).resolve().parent / "assets"
+    display_csv_path = assets_dir / "imgt_display_all.csv"
+    numbering_csv_path = assets_dir / "imgt_numbering_mapping_all.csv"
+
+    templates = load_templates(display_csv_path, numbering_csv_path)
+
+    valid_ext = {".pdb", ".cif", ".mmcif"}
+    files = sorted(
+        f for f in os.listdir(args.input_dir)
+        if os.path.isfile(os.path.join(args.input_dir, f))
+        and os.path.splitext(f)[1].lower() in valid_ext
+    )
+
+    if not files:
+        raise RuntimeError("No .pdb, .cif, or .mmcif files found in input directory.")
+
+    n_ok = 0
+    n_fail = 0
+
+    for fname in files:
+        input_path = os.path.join(args.input_dir, fname)
+        stem, ext = os.path.splitext(fname)
+        out_name = f"{stem}{args.suffix}{ext}" if args.suffix else fname
+        output_path = os.path.join(args.output_dir, out_name)
+
+        log.info(f"Processing: {fname}")
+        try:
+            process_structure_file(
+                input_path=input_path,
+                output_path=output_path,
+                templates=templates,
+                debug=args.debug,
+                warn_score=args.warn_score
+            )
+            log.info(f"  OK -> {output_path}")
+            n_ok += 1
+        except Exception as e:
+            log.info(f"  FAILED -> {fname}: {e}")
+            n_fail += 1
+
+    log.info("\nFinished.")
+    log.info(f"  Success: {n_ok}")
+    log.info(f"  Failed : {n_fail}")
+
+
+def main():
+    """
+    Run the MHCXGraph command-line pipeline.
+
+    This function orchestrates the full workflow:
+
+    1. Parse command-line arguments.
+    2. Load the execution manifest.
+    3. Configure logging and runtime tracking.
+    4. Generate graph representations from input structures.
+    5. Execute the association workflow.
+
+    The workflow can operate in two modes defined in the manifest:
+
+    ``all``
+        Process all graphs together in a single association task.
+
+    ``pair``
+        Perform pairwise comparisons between all graph combinations.
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    ValueError
+        If the configured ``run_mode`` is not ``"all"`` or ``"pair"``.
+    """
+    args = parse_args()
+
+    if args.command == "run":
+        run(args)
+
+    elif args.command == "renumber":
+        renumber(args)
 
 
 if __name__ == "__main__":
