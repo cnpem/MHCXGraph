@@ -73,8 +73,13 @@ def contact_map_from_graph(
 
         # Build residue maps
         chain = str(d.get("chain_id", d.get("chain")))
-        resnum = str(d.get("residue_number", d.get("resseq")))
+        resseq = str(d.get("residue_number", d.get("resseq")))
         resname = str(d.get("residue_name", d.get("resname")))
+
+        icode_raw = d.get("icode", d.get("insertion_code", ""))
+        icode = str(icode_raw).strip() if icode_raw is not None else ""
+        
+        resnum = f"{resseq}{icode}" if icode else resseq
 
         chain_ids.append(chain)
         residue_numbers.append(resnum)
