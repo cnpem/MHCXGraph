@@ -1,5 +1,5 @@
 import argparse
-
+import os
 
 from .. import __version__
 
@@ -68,6 +68,11 @@ def parse_args():
         metavar="<path>",
         help="Path to the JSON manifest with complete set of parameters and settings.",
     )
+
+    parser_heatmap = subparsers.add_parser("heatmap")
+    parser_heatmap.add_argument("-i", '--input-dir', required=True, nargs='?', default=os.getcwd())
+    parser_heatmap.add_argument("-o", "--output-dir", required=True, help="Output directory")
+    parser_heatmap.add_argument("-n", "--name", required=True)
 
     parser_renumber = subparsers.add_parser(
         "renumber",

@@ -1,6 +1,5 @@
 import logging
 import os
-import sys
 import webbrowser
 from itertools import combinations
 from pathlib import Path
@@ -8,6 +7,7 @@ from pathlib import Path
 from MHCXGraph.cli.cli_parser import parse_args
 from MHCXGraph.core.residue_tracking import ResidueTracker
 from MHCXGraph.core.tracking import init_tracker
+from MHCXGraph.scripts.create_heatmaps import create_heatmap
 from MHCXGraph.scripts.renumber_MHCI_imgt import load_mhci_templates, process_structure_file_mhci
 from MHCXGraph.scripts.renumber_MHCII_imgt import load_mhcii_templates, process_structure_file_mhcii
 from MHCXGraph.utils.logging_utils import setup_logging
@@ -286,7 +286,9 @@ def main():
 
     elif args.command == "renumber":
         renumber(args)
-
+    
+    elif args.command == "heatmap":
+        create_heatmap(args) 
 
 if __name__ == "__main__":
     main()
