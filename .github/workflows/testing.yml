@@ -31,4 +31,4 @@ jobs:
 
       - name: Test MHCXGraph
         run: |
-          MHCXGraph examples/minimal/manifest.json
+          MHCXGraph run examples/minimal/manifest.json
