@@ -52,7 +52,6 @@ dependencies = [
     "networkx>=3.4.2",
     "numpy>=2.2.6",
     "pandas>=2.3.3",
-    "pyvis>=0.3.2",
     "coloredlogs>=15.0.1",
     "pydssp>=0.9.1",
     "freesasa>=2.2.1",
