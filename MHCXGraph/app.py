@@ -12,6 +12,28 @@ from MHCXGraph.workflow.manifest import build_association_config, load_manifest
 
 
 def setup_trackers(output_dir, settings):
+    """
+    Initialize runtime tracking utilities.
+
+    This function configures the global tracking system used to store
+    intermediate artifacts produced during execution and optionally
+    creates a :class:`ResidueTracker` to monitor selected residues.
+
+    Parameters
+    ----------
+    output_dir : pathlib.Path
+        Directory where tracking artifacts and debug files will be stored.
+
+    settings : dict[str, Any]
+        Runtime configuration dictionary loaded from the manifest.
+        Relevant keys include ``watch_residues`` and ``debug_tracking``.
+
+    Returns
+    -------
+    tracker_residues : ResidueTracker or None
+        Residue tracker instance if residue monitoring is enabled,
+        otherwise ``None``.
+    """
     tracker_residues = (
         ResidueTracker(settings.get("watch_residues"))
     ) if settings.get("watch_residues") else None
@@ -28,6 +50,34 @@ def setup_trackers(output_dir, settings):
 
 
 def run_all_mode(graphs, base_output, run_name, config, log):
+    """
+    Execute the association workflow in all-graphs mode.
+
+    In this mode all graphs are processed together in a single
+    association task.
+
+    Parameters
+    ----------
+    graphs : list
+        Collection of graph objects produced by the preprocessing stage.
+
+    base_output : pathlib.Path
+        Base directory where output results are written.
+
+    run_name : str
+        Identifier for the current execution run.
+
+    config : dict[str, Any]
+        Association configuration dictionary controlling the
+        graph association algorithm.
+
+    log : logging.Logger
+        Logger instance used to record runtime messages.
+
+    Returns
+    -------
+    None
+    """
     target_dir = base_output / "ALL"
 
     run_association_task(
@@ -46,6 +96,34 @@ def clean_graph_name(graph):
 
 
 def run_pair_mode(graphs, base_output, run_name, config, log):
+    """
+    Execute the association workflow in pairwise mode.
+
+    Each unique pair of graphs is processed independently and
+    written to a dedicated output directory.
+
+    Parameters
+    ----------
+    graphs : list
+        Collection of graph objects produced by preprocessing.
+
+    base_output : pathlib.Path
+        Root directory where pairwise comparison results will be saved.
+
+    run_name : str
+        Base identifier for the run.
+
+    config : dict[str, Any]
+        Association configuration dictionary controlling the
+        graph association algorithm.
+
+    log : logging.Logger
+        Logger instance used to record runtime messages.
+
+    Returns
+    -------
+    None
+    """
     pair_base_dir = base_output / "PAIR"
 
     for g1, g2 in combinations(graphs, 2):
@@ -65,6 +143,34 @@ def run_pair_mode(graphs, base_output, run_name, config, log):
 
 
 def main():
+    """
+    Run the MHCXGraph command-line pipeline.
+
+    This function orchestrates the full workflow:
+
+    1. Parse command-line arguments.
+    2. Load the execution manifest.
+    3. Configure logging and runtime tracking.
+    4. Generate graph representations from input structures.
+    5. Execute the association workflow.
+
+    The workflow can operate in two modes defined in the manifest:
+
+    ``all``
+        Process all graphs together in a single association task.
+
+    ``pair``
+        Perform pairwise comparisons between all graph combinations.
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    ValueError
+        If the configured ``run_mode`` is not ``"all"`` or ``"pair"``.
+    """
     args = parse_args()
     manifest = load_manifest(args.manifest)
     settings = manifest["settings"]

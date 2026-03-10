@@ -14,15 +14,45 @@ from MHCXGraph.utils.logging_utils import get_log
 
 log = get_log()
 
+
 class LogicError(Exception):
-    """Logic error while evaluating boolean set expression."""
-    pass
+    """
+    Raised when a logical selection expression cannot be evaluated.
+    """
 
 
 def _eval_logic_expression(expr: str,
                            sets: dict[str, set],
                            universe: set) -> set:
-    """Evaluate a boolean expression over named sets using &, |, ! and parentheses."""
+    """
+    Evaluate a boolean expression over named sets.
+
+    The expression may contain logical operators ``&`` (AND),
+    ``|`` (OR), and ``!`` (NOT), as well as parentheses.
+
+    Parameters
+    ----------
+    expr : str
+        Boolean expression referencing named sets.
+
+    sets : dict[str, set]
+        Mapping from set names to Python sets used in evaluation.
+
+    universe : set
+        Universal set used when computing logical negation.
+
+    Returns
+    -------
+    result : set
+        Resulting set produced by evaluating the logical expression.
+
+    Raises
+    ------
+    LogicError
+        If the expression contains invalid tokens, unknown set names,
+        mismatched parentheses, or missing operands.
+    """
+
     if not expr or not expr.strip():
         raise LogicError("Empty logic expression")
 
@@ -93,19 +123,23 @@ def _eval_logic_expression(expr: str,
 
 def _remove_isolated_ligands(G: nx.Graph, nodes: set[str]) -> set[str]:
     """
-    Remove ligands nodes that have no edges inside the selected node set.
+    Remove isolated ligand and water nodes.
+
+    Nodes representing waters or ligands are removed if they have
+    no edges within the selected node subset.
 
     Parameters
     ----------
-    G : nx.Graph
-        Original graph.
+    G : networkx.Graph
+        Original graph containing all nodes and edges.
+
     nodes : set[str]
-        Nodes currently selected by filters.
+        Node identifiers currently selected by filtering operations.
 
     Returns
     -------
-    set[str]
-        Filtered node set with isolated waters removed.
+    filtered_nodes : set[str]
+        Node set with isolated ligand and water nodes removed.
     """
     sub = G.subgraph(nodes)
 
@@ -118,6 +152,39 @@ def _remove_isolated_ligands(G: nx.Graph, nodes: set[str]) -> set[str]:
     return filtered
 
 def get_exposed_residues(graph: Graph, rsa_filter: float, asa_filter: float, selection_params=None) -> nx.Graph:
+    """
+    Generate a filtered subgraph containing exposed residues.
+
+    The function creates a residue subgraph based on solvent exposure
+    criteria and optional structural or logical filters defined in
+    the manifest.
+
+    Parameters
+    ----------
+    graph : Graph
+        Graph representation of the protein structure.
+
+    rsa_filter : float
+        Relative solvent accessibility threshold.
+
+    asa_filter : float
+        Absolute solvent accessibility threshold.
+
+    selection_params : dict[str, Any], optional
+        Additional selection constraints such as chains, residues,
+        secondary structure elements, or logical expressions.
+
+    Returns
+    -------
+    subgraph : networkx.Graph
+        Filtered graph containing the selected residues.
+
+    Raises
+    ------
+    Exception
+        If no residues satisfy the filtering conditions.
+    """
+
     selection_params = selection_params or {}
     logic_expr = selection_params.get("logic")
 
@@ -278,7 +345,23 @@ def get_exposed_residues(graph: Graph, rsa_filter: float, asa_filter: float, sel
     raise Exception("Unexpected error: s_graph is None")
 
 def _is_within(child: Path, parent: Path) -> bool:
-    """True se child está dentro de parent (ou igual)."""
+    """
+    Determine whether a path lies inside another directory.
+
+    Parameters
+    ----------
+    child : pathlib.Path
+        Path to test.
+
+    parent : pathlib.Path
+        Candidate parent directory.
+
+    Returns
+    -------
+    result : bool
+        True if ``child`` is inside ``parent`` or equal to it.
+    """
+
     try:
         child.resolve().relative_to(parent.resolve())
         return True
@@ -286,7 +369,23 @@ def _is_within(child: Path, parent: Path) -> bool:
         return False
 
 def _name_contains(fname: str, cond: Any) -> bool:
-    """Suporta string ou lista de strings para 'file_name_contains'."""
+    """
+    Test whether a filename matches a substring condition.
+
+    Parameters
+    ----------
+    fname : str
+        Filename to test.
+
+    cond : str or list[str] or None
+        Substring or list of substrings that must appear in the filename.
+
+    Returns
+    -------
+    match : bool
+        True if the condition is satisfied.
+    """
+
     if cond is None:
         return True
     if isinstance(cond, str):
@@ -298,23 +397,31 @@ def _name_contains(fname: str, cond: Any) -> bool:
 
 def _merge_constraints(base: dict[str, Any], add: dict[str, Any]) -> dict[str, Any]:
     """
-    Merge chain, residue, and structure constraints from two selector blocks.
+    Merge selector constraints from two configuration blocks.
+
+    Chain, residue, and structure constraints are unified into
+    a single configuration dictionary.
 
     Parameters
     ----------
-    base : dict
+    base : dict[str, Any]
         First constraint dictionary.
-    add : dict
+
+    add : dict[str, Any]
         Second constraint dictionary.
 
     Returns
     -------
-    dict
-        Unified constraint dictionary containing merged chains, residue
-        positions per chain, and structure specifications. The ``structures``
-        field is preserved either as a list or as a dict; mixing both
-        representations across inputs is not allowed and raises TypeError.
+    merged : dict[str, Any]
+        Combined constraint dictionary.
+
+    Raises
+    ------
+    TypeError
+        If incompatible representations of the ``structures`` field
+        are merged.
     """
+
     out: dict[str, Any] = {
         "chains": [],
         "residues": {},
@@ -374,6 +481,23 @@ def _infer_is_dir_or_file(path_str: str) -> str:
     return "file" if any(path_str.endswith(ext) for ext in typical_exts) else "dir"
 
 def list_struct_files(folder: Path, extensions: list[str]) -> list[Path]:
+    """
+    Recursively list structure files inside a directory.
+
+    Parameters
+    ----------
+    folder : pathlib.Path
+        Root directory to search.
+
+    extensions : list[str]
+        Allowed file extensions.
+
+    Returns
+    -------
+    files : list[pathlib.Path]
+        Sorted list of structure file paths.
+    """
+
     exts = set(extensions or [".pdb", ".pdb.gz", ".cif"])
     files: list[Path] = []
     for p in folder.rglob("*"):
@@ -386,6 +510,20 @@ def list_struct_files(folder: Path, extensions: list[str]) -> list[Path]:
     return files
 
 def collect_selected_files_from_manifest(manifest):
+    """
+    Collect structure files defined in the manifest input rules.
+
+    Parameters
+    ----------
+    manifest : dict
+        Manifest configuration dictionary.
+
+    Returns
+    -------
+    selected_files : list[dict]
+        List of dictionaries describing selected input files.
+    """
+
     results = []
 
     for rule in manifest.get("inputs", []):
@@ -427,6 +565,23 @@ def collect_selected_files_from_manifest(manifest):
     return out
 
 def resolve_selection_params_for_file(file_path: Path, manifest: dict[str, Any]) -> dict[str, Any]:
+    """
+    Resolve selection parameters for a specific input file.
+
+    Parameters
+    ----------
+    file_path : pathlib.Path
+        Path to the structure file.
+
+    manifest : dict[str, Any]
+        Manifest configuration.
+
+    Returns
+    -------
+    params : dict[str, Any]
+        Combined selector parameters applied to the file.
+    """
+
     if not manifest:
         return {}
     fname = file_path.name
@@ -489,6 +644,25 @@ def resolve_selection_params_for_file(file_path: Path, manifest: dict[str, Any])
 
 
 def create_graphs(manifest: dict) -> list[tuple]:
+    """
+    Construct filtered graphs from the manifest input structures.
+
+    The function loads structure files, builds graph representations,
+    applies residue selection filters, and stores intermediate outputs.
+
+    Parameters
+    ----------
+    manifest : dict
+        Manifest configuration dictionary containing runtime settings
+        and input selection rules.
+
+    Returns
+    -------
+    graphs : list[tuple]
+        List of tuples containing the filtered graph, original file path,
+        and base structure name.
+    """
+
     settings = manifest["settings"]
 
     output_path = Path(settings["output_path"]).expanduser().resolve()

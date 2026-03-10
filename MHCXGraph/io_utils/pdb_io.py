@@ -7,10 +7,7 @@ def _match_ext(name: str, extensions: list[str]) -> bool:
     return any(name.endswith(ext) for ext in extensions)
 
 def list_pdb_files(pdb_dir: str, extensions: list[str] = None) -> list[str]:
-    """
-    Lista SOMENTE os arquivos do diretório (sem recursão) que batem com extensions
-    e imprime o menu de seleção. Retorna apenas os NOMES dos arquivos (como antes).
-    """
+
     extensions = extensions or [".pdb", ".cif"]
     dir_path = Path(pdb_dir).expanduser().resolve()
 
@@ -31,10 +28,6 @@ def list_pdb_files(pdb_dir: str, extensions: list[str] = None) -> list[str]:
     return files
 
 def get_user_selection(pdb_files: list[str], pdb_dir: str):
-    """
-    Pergunta no terminal e retorna [[full_path, file_name], ...]
-    Mantém a semântica antiga: '1' significa todos; caso contrário números separados por vírgula.
-    """
     raw = input("\nEnter the numbers (comma-separated) or '1' for All: ").strip()
 
     if raw.lower() in {"1", "all", "*"}:
@@ -61,5 +54,3 @@ def get_user_selection(pdb_files: list[str], pdb_dir: str):
     if not selected_files:
         print("No valid selections. Selecting none.")
     return selected_files
-
-

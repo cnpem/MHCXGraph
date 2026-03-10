@@ -78,9 +78,25 @@ ResidueList = list[tuple[str, Residue, ResidueKind, np.ndarray]]
 @contextmanager
 def capture_c_stderr(logger):
     """
-    Intercepts C-level stderr (file descriptor 2) and pipes it to a Python logger.
-    This prevents C-libraries like FreeSASA from spamming the console.
+    Capture stderr output from C libraries and redirect it to logging.
+
+    Parameters
+    ----------
+    logger : logging.Logger
+        Logger instance used to record intercepted messages.
+
+    Yields
+    ------
+    None
+        Context manager that temporarily redirects the C-level
+        standard error stream.
+
+    Notes
+    -----
+    This utility is primarily used to intercept verbose output
+    from FreeSASA and forward it to the project logging system.
     """
+
     old_stderr_fd = os.dup(sys.stderr.fileno())
 
     with tempfile.TemporaryFile(mode='w+t') as temp_err:
@@ -146,12 +162,41 @@ class _NoWaterSelect(Select):
 
 
 def _is_water(res: Residue) -> bool:
-    """Return True for water residues."""
+    """
+    Determine whether a residue corresponds to a water molecule.
+
+    Parameters
+    ----------
+    res : Bio.PDB.Residue.Residue
+        Residue object from the parsed structure.
+
+    Returns
+    -------
+    bool
+        True if the residue name matches a known water identifier,
+        otherwise False.
+    """
+
     name = res.get_resname().strip().upper()
     return name in WATER_NAMES
 
 def _heavy_atom_coords(res: Residue) -> np.ndarray:
-    """Return heavy-atom coordinates of a residue as (N, 3) array."""
+    """
+    Extract heavy-atom coordinates from a residue.
+
+    Parameters
+    ----------
+    res : Bio.PDB.Residue.Residue
+        Residue whose atomic coordinates will be extracted.
+
+    Returns
+    -------
+    numpy.ndarray
+        Array of shape (N, 3) containing the coordinates of all
+        heavy atoms in the residue. If no heavy atoms are detected,
+        coordinates of all atoms are returned as a fallback.
+    """
+
     coords: list[np.ndarray] = []
 
     for atom in res.get_atoms():
@@ -182,6 +227,23 @@ def _node_id(chain_id: str, res: Residue, kind: str = "residue") -> str:
 
 
 def check_res_inconsistencies(res_tuples):
+    """
+    Validate consistency between node identifiers and residue objects.
+
+    Parameters
+    ----------
+    res_tuples : list[tuple]
+        List containing tuples of the form
+        ``(node_id, residue_object, kind, centroid)``.
+
+    Returns
+    -------
+    inconsistencies : list[str]
+        List of formatted messages describing mismatches between
+        the residue information encoded in the node identifier and
+        the values stored in the Bio.PDB residue object.
+    """
+
     inconsistencies = []
     for id_str, residue, _, _ in res_tuples:
         _, resseq, _ = residue.get_id()
@@ -639,6 +701,7 @@ class PDBGraphBuilder:
         tuple of float
             Virtual CB coordinate. NaN triplet if invalid.
         """
+
         # Check for NaNs
         if any(math.isnan(x) for v in (ca, n, c) for x in v):
             return (float("nan"), float("nan"), float("nan"))
@@ -680,6 +743,7 @@ class PDBGraphBuilder:
         raw_df : pandas.DataFrame
             All atoms (including waters/ligands).
         """
+
         rows = []
         model_idx = self.config.model_index
 

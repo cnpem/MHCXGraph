@@ -24,15 +24,34 @@ Combo = tuple[Triad, ...]
 Filtered = dict[tuple, list[Combo]]
 
 def convert_edges_to_residues(edges: set[frozenset], maps: dict) -> tuple[list, list, list]:
-    """Convert the edges that contains tuple of indices to tuple of residues
-
-    Args:
-        edges (List[Tuple]): A list that contains tuple of edges that are made of tuples of indices
-        maps (Dict): A map that relates the indice to residue
-
-    Returns:
-        convert_edge (List[Tuple]): Return edges converted to residues notation
     """
+    Convert edge representations from node indices to residue labels.
+
+    Parameters
+    ----------
+    edges : set[frozenset]
+        Set of edges represented as frozensets of node indices.
+
+    maps : dict
+        Mapping structure containing:
+        - ``residue_maps_unique`` : dict[int, tuple]
+            Mapping from node index to residue tuple.
+        - ``possible_nodes`` : dict
+            Mapping from node index to node tuple.
+
+    Returns
+    -------
+    original_edges : list
+        Original edge objects as provided in the input set.
+
+    edges_indices : list[tuple]
+        Edge representation using tuples of node indices.
+
+    converted_edges : list[tuple]
+        Edge representation where node indices are converted to
+        residue labels of the form ``"CHAIN:RESNAME:RESNUM"``.
+    """
+
     original_edges = []
     edges_indices = []
     converted_edges = []
@@ -57,7 +76,31 @@ def filter_maps_by_nodes(data: dict,
                         matrices_dict: dict,
                         distance_threshold: float = 10.0,
                     ) -> tuple[dict, dict]:
+    """
+    Filter contact and RSA maps according to graph nodes.
 
+    Parameters
+    ----------
+    data : dict
+        Input data containing contact maps, RSA values, residue maps,
+        and node lists for each protein.
+
+    matrices_dict : dict
+        Dictionary used to store derived matrices produced during
+        preprocessing.
+
+    distance_threshold : float, default=10.0
+        Maximum allowed contact distance for adjacency.
+
+    Returns
+    -------
+    matrices_dict : dict
+        Updated dictionary containing pruned and thresholded matrices.
+
+    maps : dict
+        Mapping structure describing residue indices and filtered
+        residue maps.
+    """
 
     contact_maps = data["contact_maps"]
     rsa_maps = data["rsa_maps"]
@@ -120,16 +163,34 @@ def value_to_class(
     close_tolerance: float = 0.1,  # Absolute tolerance in 'value' units
     ) -> int | list[int] | None:
     """
-    Non-inverse:
-      - Domain: (0, threshold]
-      - Bins: (L, R] spaced by bin_width. Last bin may be smaller than bin_width.
-      - Uncertainty: half of the bin_width.
-      - If |value - center_of_bin| <= close_tolerance, returns [class_index].
-      - Otherwise, returns all classes whose bins intersect with [value - inc, value + inc].
+    Assign a numeric value to one or more discretized bins.
 
-    Inverse:
-      - Domain: [threshold, upper_bound]
-      - Same multi-class behavior as non-inverse, but bins live on [threshold, upper_bound].
+    Parameters
+    ----------
+    value : float
+        Numeric value to classify.
+
+    bin_width : float
+        Width of each bin interval.
+
+    threshold : float
+        Boundary separating lower and upper classification domains.
+
+    inverse : bool, default=False
+        If True, classification occurs in the range
+        ``[threshold, upper_bound]``.
+
+    upper_bound : float, default=100.0
+        Maximum allowed value in inverse classification mode.
+
+    close_tolerance : float, default=0.1
+        Absolute tolerance used to detect values close to bin centers.
+
+    Returns
+    -------
+    classes : int or list[int] or None
+        Bin index or indices representing the classification result.
+        Returns None if the value lies outside the allowed domain.
     """
 
     if bin_width <= 0:
@@ -183,10 +244,24 @@ def value_to_class(
 
 def find_class(classes: dict[str, dict[str, float]], value: float):
     """
-    Return all class names whose interval contains value.
-    Assumes structure:
-        classes = { "bin_1": {"low": ..., "high": ...}, ... }
+    Find class intervals that contain a numeric value.
+
+    Parameters
+    ----------
+    classes : dict[str, dict[str, float]]
+        Dictionary defining class intervals with keys
+        ``"low"`` and ``"high"``.
+
+    value : float
+        Value to evaluate against interval definitions.
+
+    Returns
+    -------
+    class_name : str or list[str] or None
+        Name of the matching class, a list of classes if multiple
+        intervals match, or None if no interval contains the value.
     """
+
     hits = []
     for name, interval in classes.items():
         low = interval["low"]
@@ -247,24 +322,40 @@ def triad_chirality_with_cb(
     majority_only: bool = True,
 ) -> dict[str, Any]:
     """
-    Compute a pose-invariant, mirror-variant chirality for a single triad using Cα + Cβ.
+    Compute the chirality of a residue triad using Cα and Cβ atoms.
 
-    Returns a dict with:
-      - chi     : int in {-1,+1}, the handedness bit (flips under mirror, invariant to pose)
-      - score   : float in [-1,1], margin = n · s̄  (near 0 ⇒ ambiguous)
-      - kappa   : float in (0,1], side-chain consistency (higher = better)
-      - n       : np.ndarray(3,), triangle unit normal (from Cα only)
-      - sbar    : np.ndarray(3,), final averaged side-chain unit direction
-      - details : dict with per-residue signs, which residues contributed, etc.
+    The method estimates a pose-invariant but mirror-sensitive
+    chirality signature based on side-chain orientation relative
+    to the triangle defined by three Cα atoms.
 
-    Arguments:
-      weights        : optional per-residue weights (e.g., RSA, 1/B-factor). If None, all 1.0.
-      outward_normal : if provided (pose-invariant local "outward" direction), each side-chain
-                       is first oriented outward: s_i <- sign(outward_normal·s_i) * s_i
-      majority_only  : if True (default), use only the majority set of side-chains according to
-                       sign(n·s_i). This is robust when you have "two outward, one inward".
-                       If False, all three side-chains are averaged.
+    Parameters
+    ----------
+    ca_a, ca_b, ca_c : ndarray of shape (3,)
+        Cartesian coordinates of Cα atoms.
+
+    cb_a, cb_b, cb_c : ndarray of shape (3,)
+        Cartesian coordinates of Cβ atoms.
+
+    weights : tuple[float, float, float], optional
+        Optional per-residue weights applied when averaging
+        side-chain direction vectors.
+
+    outward_normal : ndarray of shape (3,), optional
+        Reference outward direction used to orient side-chain vectors.
+
+    majority_only : bool, default=True
+        If True, only side chains consistent with the majority
+        orientation relative to the triangle normal contribute
+        to the final direction.
+
+    Returns
+    -------
+    result : dict
+        Dictionary containing chirality information, including
+        handedness bit, score, side-chain consistency, and
+        intermediate geometric vectors.
     """
+
     # Triangle normal from Cα only
     n = _triangle_normal(ca_a, ca_b, ca_c)
 
@@ -325,6 +416,40 @@ def triad_chirality_with_cb(
 
 
 def find_triads(graph_data, classes, config, checks, protein_index, tracker: ResidueTracker | None = None):
+    """
+    Identify residue triads within a protein interaction graph.
+
+    Parameters
+    ----------
+    graph_data : dict
+        Graph metadata containing the graph object, contact map,
+        RSA values, and residue mappings.
+
+    classes : dict
+        Classification dictionaries defining bins for residues,
+        distances, or solvent accessibility.
+
+    config : dict
+        Association configuration controlling thresholds,
+        discretization, and filtering rules.
+
+    checks : dict
+        Dictionary controlling optional filters such as RSA checks.
+
+    protein_index : int
+        Index of the protein currently being processed.
+
+    tracker : ResidueTracker, optional
+        Tracking object used for debugging and provenance
+        recording of triad generation.
+
+    Returns
+    -------
+    triads : dict
+        Dictionary mapping triad tokens to metadata including
+        counts and absolute triad instances.
+    """
+
     ctx = TrackCtx(run_id=config.get("run_id", "default"), stage="triads", protein_i=protein_index)
 
     G = graph_data["graph"]
@@ -511,6 +636,33 @@ def find_triads(graph_data, classes, config, checks, protein_index, tracker: Res
 
 
 def cross_protein_triads(step_idx, chunk_idx, triads_per_protein, diff, check_distances=True):
+    """
+    Generate cross-protein combinations of compatible triads.
+
+    Parameters
+    ----------
+    step_idx : int
+        Current hierarchical association step.
+
+    chunk_idx : int
+        Index of the chunk being processed.
+
+    triads_per_protein : list[dict]
+        List of triad dictionaries for each protein.
+
+    diff : float
+        Maximum allowed distance difference across proteins.
+
+    check_distances : bool, default=True
+        If True, distance bounds are used to filter candidate
+        triad combinations.
+
+    Returns
+    -------
+    cross : dict
+        Dictionary describing cross-protein triad combinations.
+    """
+
     common_tokens = set.intersection(*(set(d.keys()) for d in triads_per_protein))
     cross = dict()
 
@@ -604,7 +756,6 @@ def cross_protein_triads(step_idx, chunk_idx, triads_per_protein, diff, check_di
                 if not ok:
                     continue
 
-                # 5. Formação dos combos finais e merge dos Limites em O(1)
                 ref_abs_val = ref_data["abs"][i]
                 ref_full_val = ref_data["full"][i]
 
@@ -658,9 +809,20 @@ def cross_protein_triads(step_idx, chunk_idx, triads_per_protein, diff, check_di
 
 def build_graph_from_cross_combos(cross_combos) -> set[tuple[tuple[str, ...], tuple[str, ...]]]:
     """
-    Para cada combo aprovado, cria as arestas (C,U) e (C,W) nos nós alinhados.
-    Retorna um set de arestas entre nós-tupla (um rótulo por proteína).
+    Build graph edges from cross-protein triad combinations.
+
+    Parameters
+    ----------
+    cross_combos : dict
+        Cross-protein triad combination structure produced by
+        ``cross_protein_triads``.
+
+    Returns
+    -------
+    edges : set[tuple]
+        Set of edges between associated residue nodes across proteins.
     """
+
     edges: set[tuple[tuple[str, ...], tuple[str, ...]]] = set()
     for _, data in cross_combos.items():
         combos = data.get("triads_full", [])
@@ -680,6 +842,24 @@ def build_graph_from_cross_combos(cross_combos) -> set[tuple[tuple[str, ...], tu
     return edges
 
 def rebuild_cross_combos(cross_combos: dict[dict, list[tuple[tuple, ...]]], graph_nodes):
+    """
+    Reconstruct cross-combo structures after graph pruning.
+
+    Parameters
+    ----------
+    cross_combos : dict
+        Original cross-combination dictionary.
+
+    graph_nodes : iterable
+        Nodes currently present in the graph.
+
+    Returns
+    -------
+    new_combos : dict
+        Filtered cross-combination dictionary containing only
+        combinations consistent with the remaining graph nodes.
+    """
+
     new = {}
     graph_nodes = set(graph_nodes)
 
@@ -772,6 +952,33 @@ def _build_threshold_matrix(nodes, maps, threshold_cfg):
     return T
 
 def create_coherent_matrices(nodes, matrices: dict, maps: dict, threshold: float | dict = 3.0):
+    """
+    Compute coherence matrices across proteins.
+
+    Parameters
+    ----------
+    nodes : list
+        Node index lists representing aligned nodes across proteins.
+
+    matrices : dict
+        Dictionary containing distance matrices.
+
+    maps : dict
+        Residue mapping dictionary.
+
+    threshold : float or dict, default=3.0
+        Distance difference threshold used to determine coherence.
+
+    Returns
+    -------
+    new_matrices : dict
+        Dictionary containing coherence masks and standard deviation
+        matrices.
+
+    maps : dict
+        Updated node mapping dictionary.
+    """
+
     dim = len(nodes[0])
     K = len(nodes)
 
@@ -855,6 +1062,41 @@ def execute_step(
     global_state,
     residue_tracker
 ):
+    """
+    Execute a single hierarchical association step.
+
+    Parameters
+    ----------
+    step_idx : int
+        Current step index.
+
+    graph_collection : dict
+        Graph collection produced during preprocessing.
+
+    max_chunks : int
+        Maximum chunk size used for hierarchical grouping.
+
+    current_filtered_cross_combos : list
+        Cross-combo results from the previous step.
+
+    graphs_data : list
+        Graph metadata structures.
+
+    global_state : dict
+        Shared global state containing matrices, maps, and
+        configuration parameters.
+
+    residue_tracker : ResidueTracker, optional
+        Tracking object used for debugging and provenance logging.
+
+    Returns
+    -------
+    filtered_cross_combos : list
+        Filtered cross combinations for the next step.
+
+    step_graphs : list
+        Graphs produced during the step.
+    """
 
     if step_idx == 1:
         source = graph_collection["triads"]
@@ -904,6 +1146,35 @@ def execute_step(
 
 
 def process_chunk(step_idx, chunk_idx, chunk_triads, global_state, residue_tracker):
+    """
+    Process a chunk of triads during hierarchical association.
+
+    Parameters
+    ----------
+    step_idx : int
+        Current association step.
+
+    chunk_idx : int
+        Index of the chunk being processed.
+
+    chunk_triads : list
+        Triad groups contained within the chunk.
+
+    global_state : dict
+        Global state containing matrices, maps, and configuration.
+
+    residue_tracker : ResidueTracker, optional
+        Tracking object used for recording intermediate states.
+
+    Returns
+    -------
+    rebuilt_combos : dict or list or None
+        Reconstructed combinations used in the next step.
+
+    final_graphs : list
+        Graphs generated from the processed chunk.
+    """
+
     config = global_state["config"]
     dm_adjacent = global_state["dm_adjacent"]
     inv_maps = global_state["inv_maps"]
@@ -1054,6 +1325,27 @@ def process_chunk(step_idx, chunk_idx, chunk_triads, global_state, residue_track
 
 def association_product(graphs_data: list,
                         config: dict) -> dict[str, list] | None:
+    """
+    Compute the cross-protein association product.
+
+    This function orchestrates the full multi-protein association
+    pipeline including triad detection, chunked combination,
+    graph construction, and frame generation.
+
+    Parameters
+    ----------
+    graphs_data : list
+        List of graph metadata structures.
+
+    config : dict
+        Association configuration dictionary.
+
+    Returns
+    -------
+    result : dict or None
+        Dictionary containing associated graphs or None if no
+        associations were produced.
+    """
 
     residue_tracker = config.get("watch_residues")
 
@@ -1195,13 +1487,56 @@ def association_product(graphs_data: list,
 
 def generate_frames(component_graph, matrices, maps, len_component, chunk_id, step, config, debug=False, debug_every=5000, nodes=None, steps_end=False, residue_tracker: ResidueTracker | None=None):
     """
-    Build frames by branching on coherent groups of the frontier.
+    Generate coherent structural frames from a component graph.
 
-    dm  : coherence indicator (1 = coherent, else != 1 or NaN)
-    adj : adjacency indicator for edges (1 = edge, NaN on diagonal)
+    Frames correspond to coherent subgraphs satisfying distance
+    and adjacency constraints.
 
-    A branch is accepted when the induced subgraph (by adj) over the chosen
-    nodes has >= 4 edges and all nodes have degree > 1 within that subgraph.
+    Parameters
+    ----------
+    component_graph : networkx.Graph
+        Graph component under analysis.
+
+    matrices : dict
+        Coherence matrices and adjacency matrices.
+
+    maps : dict
+        Residue mapping dictionary.
+
+    len_component : int
+        Number of nodes in the component.
+
+    chunk_id : int
+        Chunk identifier.
+
+    step : int
+        Association step index.
+
+    config : dict
+        Association configuration.
+
+    debug : bool, default=False
+        Enable debug logging.
+
+    debug_every : int, default=5000
+        Interval for progress logging during search.
+
+    nodes : list, optional
+        Node ordering corresponding to matrix indices.
+
+    steps_end : bool, default=False
+        If True, perform final frame filtering.
+
+    residue_tracker : ResidueTracker, optional
+        Tracking object used for recording accepted frames.
+
+    Returns
+    -------
+    frames : dict
+        Dictionary describing generated frames.
+
+    union_graph : dict
+        Graph representation combining all accepted frames.
     """
 
     dm_raw = matrices["coherent_global_nodes"].copy()
@@ -1657,12 +1992,38 @@ def generate_frames(component_graph, matrices, maps, len_component, chunk_id, st
     )
     return final_frames, union_graph
 
-def create_graph(edges_dict: dict, 
+def create_graph(edges_dict: dict,
             typeEdge: str = "edges_indices",
-            comp_id = 0, 
+            comp_id = 0,
             *,
             edge_std_matrix: np.ndarray | None = None,
             node_index_map: dict[Any, int] | None = None):
+    """
+    Construct NetworkX graphs from frame edge definitions.
+
+    Parameters
+    ----------
+    edges_dict : dict
+        Frame dictionary containing edge definitions.
+
+    typeEdge : str, default="edges_indices"
+        Key specifying which edge representation to use.
+
+    comp_id : int, default=0
+        Component identifier used for logging.
+
+    edge_std_matrix : ndarray, optional
+        Matrix of edge standard deviations used for visualization.
+
+    node_index_map : dict, optional
+        Mapping between node identifiers and matrix indices.
+
+    Returns
+    -------
+    graphs : list[networkx.Graph]
+        List of constructed NetworkX graphs.
+    """
+
     Graphs = []
     k = 0
     for frame in range(0, len(edges_dict.keys())):
