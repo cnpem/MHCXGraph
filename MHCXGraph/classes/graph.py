@@ -710,6 +710,7 @@ class AssociatedGraph:
         out_dir.mkdir(parents=True, exist_ok=True)
 
         export_data = {
+            "run_name": self.run_name,
             "metadata": self.association_config,
             "proteins": [gd['name'] for gd in self.graphs_data],
             "nodes": [],
@@ -842,16 +843,7 @@ class AssociatedGraph:
                 comp_data["frames"].append(frame_data)
             export_data["components"].append(comp_data)
 
-        # Associated Graph Colors
-        sorted_chain_ids = sorted(list(all_chain_ids))
-        cmap = plt.cm.get_cmap('tab10', max(1, len(sorted_chain_ids)))
-        palette = {cid: _rgba_to_hex(cmap(idx)) for idx, cid in enumerate(sorted_chain_ids)}
-
-        for n_data in global_nodes.values():
-            base_hex = palette.get(n_data["chain_id"], "#999999")
-            n_data["originalColor"] = base_hex
-            export_data["nodes"].append(n_data)
-            
+        export_data["nodes"] = list(global_nodes.values())
         export_data["edges"] = list(global_edges.values())
 
         # Pass 2: Extract Original Filtered Graphs
@@ -922,15 +914,28 @@ class AssociatedGraph:
             log.warning("Local 3Dmol-min.js not found in assets/. Falling back to CDN.")
             mol3d_injection = '<script src="https://3Dmol.csb.pitt.edu/build/3Dmol-min.js"></script>'
 
-        logo_path = assets_dir / "LNBio.png"
+        logo_dark_path = assets_dir / "LNBio white.png"
+        logo_light_path = assets_dir / "LNBio.png"
         logo_injection = ""
-        if logo_path.exists():
-            with open(logo_path, "rb") as image_file:
-                encoded_string = base64.b64encode(image_file.read()).decode("utf-8")
-                # Create the image tag with the base64 data
-                logo_injection = f'<img src="data:image/png;base64,{encoded_string}" alt="LNBio Logo" style="height: 150px; width: auto; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));">'
+        if logo_light_path.exists():
+            with open(logo_light_path, "rb") as image_file:
+                encoded = base64.b64encode(image_file.read()).decode("utf-8")
+                logo_injection += f'<img src="data:image/png;base64,{encoded}" alt="LNBio Logo" class="logo-light" style="height: 7rem; width: auto;">'
+        if logo_dark_path.exists():
+            with open(logo_dark_path, "rb") as image_file:
+                encoded = base64.b64encode(image_file.read()).decode("utf-8")
+                logo_injection += f'<img src="data:image/png;base64,{encoded}" alt="LNBio Logo" class="logo-dark" style="height: 7rem; width: auto;">'
+        if not logo_injection:
+            log.debug("LNBio logos not found in assets/. Skipping logo injection.")
+
+        mhcx_logo_path = assets_dir / "MHCXGraph logo.png"
+        mhcx_logo_injection = "<h2>MHCXGraph</h2>" # Fallback text if image is missing
+        if mhcx_logo_path.exists():
+            with open(mhcx_logo_path, "rb") as image_file:
+                encoded = base64.b64encode(image_file.read()).decode("utf-8")
+                mhcx_logo_injection = f'<img src="data:image/png;base64,{encoded}" alt="MHCXGraph Logo" style="max-width: 80%; height: auto;">'
         else:
-            log.debug("LNBio.png not found in assets/. Skipping logo injection.")
+            log.debug("MHCXGraph logo not found in assets/. Using text fallback.")
 
         # Load Template and Inject Data
         template_path = assets_dir / "dashboard_template.html"
@@ -945,6 +950,7 @@ class AssociatedGraph:
         final_html = html_template.replace("__GRAPH_DATA_INJECTION__", json_data)
         final_html = final_html.replace("__VIS_JS_INJECTION__", vis_injection)
         final_html = final_html.replace("__3DMOL_JS_INJECTION__", mol3d_injection)
+        final_html = final_html.replace("__MHCXGRAPH_LOGO_INJECTION__", mhcx_logo_injection)
         final_html = final_html.replace("__LNBIO_LOGO_INJECTION__", logo_injection)
 
         if save:

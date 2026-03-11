@@ -7,59 +7,96 @@
     __3DMOL_JS_INJECTION__
     
     <style>
-        body { margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; font-family: ui-sans-serif, system-ui, sans-serif; overflow: hidden; background: #f3f4f6;}
+        /* CSS Variables for Dark/Light Mode */
+        :root {
+            --bg-body: #f3f4f6;
+            --bg-panel: #ffffff;
+            --bg-control: #f9fafb;
+            --border: #d1d5db;
+            --border-light: #e5e7eb;
+            --text-main: #111827;
+            --text-muted: #4b5563;
+            --text-faint: #6b7280;
+            --hover-bg: #e5e7eb;
+            --btn-bg: #2563eb;
+            --btn-hover: #1d4ed8;
+        }
+        [data-theme="dark"] {
+            --bg-body: #030712;
+            --bg-panel: #111827;
+            --bg-control: #1f2937;
+            --border: #374151;
+            --border-light: #1f2937;
+            --text-main: #f9fafb;
+            --text-muted: #9ca3af;
+            --text-faint: #6b7280;
+            --hover-bg: #374151;
+            --btn-bg: #3b82f6;
+            --btn-hover: #60a5fa;
+        }
+
+        body { margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; font-family: ui-sans-serif, system-ui, sans-serif; overflow: hidden; background: var(--bg-body); color: var(--text-main); transition: background 0.3s, color 0.3s;}
         
         #app-container { display: flex; flex: 1; overflow: hidden; position: relative; }
-        
-        #sidebar { width: 340px; background: #ffffff; border-right: 1px solid #d1d5db; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; box-shadow: 2px 0 5px rgba(0,0,0,0.05); z-index: 10; transition: all 0.3s ease; white-space: nowrap; box-sizing: border-box; }
+        #sidebar-header { text-align: center; padding-bottom: 15px; border-bottom: 1px solid var(--border-light); margin-bottom: 5px; }  
+        #sidebar { width: 340px; background: var(--bg-panel); border-right: 1px solid var(--border); padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; box-shadow: 2px 0 5px rgba(0,0,0,0.05); z-index: 10; transition: all 0.3s ease; white-space: nowrap; box-sizing: border-box; }
         #sidebar.collapsed { width: 0; padding: 0; border: none; overflow: hidden; }
         
         #main-content { flex: 1; display: flex; flex-direction: column; position: relative; min-width: 0; }
-        #top-panel { flex: 1; min-height: 10%; position: relative; background: #ffffff; }
-        #v-splitter { height: 8px; background: #e5e7eb; cursor: row-resize; z-index: 50; border-top: 1px solid #d1d5db; border-bottom: 1px solid #d1d5db; display: flex; justify-content: center; align-items: center; transition: background 0.2s;}
-        #v-splitter:hover { background: #d1d5db; }
-        #v-splitter::after { content: "•••"; color: #9ca3af; font-size: 10px; letter-spacing: 2px; }
-        #bottom-panel { flex: 1; min-height: 10%; position: relative; background: #f9fafb; overflow-y: auto; overflow-x: hidden; display: flex; flex-wrap: wrap; align-content: flex-start;}
+        #top-panel { flex: 1; min-height: 10%; position: relative; background: var(--bg-panel); }
+        #v-splitter { height: 8px; background: var(--border-light); cursor: row-resize; z-index: 50; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); display: flex; justify-content: center; align-items: center; transition: background 0.2s;}
+        #v-splitter:hover { background: var(--border); }
+        #v-splitter::after { content: "•••"; color: var(--text-faint); font-size: 10px; letter-spacing: 2px; }
+        #bottom-panel { flex: 1; min-height: 10%; position: relative; background: var(--bg-control); overflow-y: auto; overflow-x: hidden; display: flex; flex-wrap: wrap; align-content: flex-start;}
         
-        #sidebar-toggle { position: absolute; top: 10px; left: 10px; z-index: 100; background: #ffffff; border: 1px solid #d1d5db; border-radius: 4px; padding: 6px 10px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.1); font-size: 16px; color: #374151;}
-        #sidebar-toggle:hover { background: #f3f4f6; }
+        #sidebar-toggle { position: absolute; top: 10px; left: 10px; z-index: 100; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 4px; padding: 6px 10px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.1); font-size: 16px; color: var(--text-main);}
+        #sidebar-toggle:hover { background: var(--hover-bg); }
+
+        #theme-toggle { position: absolute; top: 10px; right: 15px; z-index: 100; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 4px; padding: 6px 10px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.1); font-size: 16px; color: var(--text-main);}
+        #theme-toggle:hover { background: var(--hover-bg); }
         
-        #viewer-toolbar { position: absolute; top: 10px; right: 15px; z-index: 100; background: rgba(255,255,255,0.95); border: 1px solid #d1d5db; border-radius: 6px; padding: 8px 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; align-items: center; gap: 10px; backdrop-filter: blur(4px); font-size: 13px;}
-        #viewer-toolbar select { padding: 4px 8px; border-radius: 4px; border: 1px solid #d1d5db; outline: none; font-size: 13px;}
+        #viewer-toolbar { position: absolute; top: 10px; right: 15px; z-index: 100; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; align-items: center; gap: 10px; font-size: 13px;}
+        select, input[type="range"] { background: var(--bg-panel); color: var(--text-main); border: 1px solid var(--border); padding: 4px 8px; border-radius: 4px; outline: none; font-size: 13px;}
         
         .mynetwork { width: 100%; height: 100%; position: absolute; top:0; left:0; }
         
-        h3 { margin: 0 0 10px 0; font-size: 15px; color: #111827; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px;}
-        .control-group { background: #f9fafb; border: 1px solid #e5e7eb; padding: 12px; border-radius: 6px; font-size: 13px; color: #374151; white-space: normal; flex-shrink: 0;}
-        .btn { padding: 8px; background: #2563eb; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;}
-        .btn:hover { background: #1d4ed8; }
+        h3 { margin: 0 0 10px 0; font-size: 15px; color: var(--text-main); border-bottom: 1px solid var(--border-light); padding-bottom: 5px;}
+        .control-group { background: var(--bg-control); border: 1px solid var(--border-light); padding: 12px; border-radius: 6px; font-size: 13px; color: var(--text-muted); white-space: normal; flex-shrink: 0;}
+        .btn { padding: 8px; background: var(--btn-bg); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;}
+        .btn:hover { background: var(--btn-hover); }
         
-        .tree-level-1 { font-weight: bold; margin-top: 10px; padding: 4px; border-radius: 4px; display: flex; align-items: center;}
-        .tree-level-2 { margin-left: 15px; color: #4b5563; padding: 3px; border-radius: 4px; display: flex; align-items: center;}
-        .tree-level-3 { margin-left: 30px; color: #6b7280; font-size: 13px; padding: 2px; border-radius: 4px; display: flex; align-items: center;}
+        .tree-level-1 { font-weight: bold; margin-top: 10px; padding: 4px; border-radius: 4px; display: flex; align-items: center; color: var(--text-main);}
+        .tree-level-2 { margin-left: 15px; color: var(--text-muted); padding: 3px; border-radius: 4px; display: flex; align-items: center;}
+        .tree-level-3 { margin-left: 30px; color: var(--text-faint); font-size: 13px; padding: 2px; border-radius: 4px; display: flex; align-items: center;}
         .tree-item label { cursor: pointer; display: flex; align-items: center; gap: 6px; width: 100%;}
-        .tree-item:hover { background: #e5e7eb; color: #111827; }
-        .collapse-toggle { cursor: pointer; font-size: 10px; width: 16px; text-align: center; user-select: none; color: #6b7280;}
-        .collapse-toggle:hover { color: #111827; }
+        .tree-item:hover { background: var(--hover-bg); color: var(--text-main); }
+        .collapse-toggle { cursor: pointer; font-size: 10px; width: 16px; text-align: center; user-select: none; color: var(--text-faint);}
+        .collapse-toggle:hover { color: var(--text-main); }
         
-        .mol-subviewer { position: relative; width: 100%; height: 100%; border: 1px solid #e5e7eb; box-sizing: border-box; border-radius: 6px; overflow: hidden; background: #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.1);}
+        .mol-subviewer { position: relative; width: 100%; height: 100%; border: 1px solid var(--border-light); box-sizing: border-box; border-radius: 6px; overflow: hidden; background: var(--bg-panel); box-shadow: 0 1px 3px rgba(0,0,0,0.1);}
         #mol-tooltip { position: fixed; display: none; background: rgba(17, 24, 39, 0.9); color: white; padding: 8px 12px; border-radius: 6px; font-size: 13px; pointer-events: none; z-index: 99999; box-shadow: 0 4px 6px rgba(0,0,0,0.1);}
-        .viewer-title { position: absolute; top: 10px; left: 10px; background: rgba(255,255,255,0.95); padding: 4px 10px; border-radius: 4px; font-size: 13px; font-weight: bold; pointer-events: none; z-index: 50; border: 1px solid #d1d5db; box-shadow: 0 1px 3px rgba(0,0,0,0.1);}
+        .viewer-title { position: absolute; top: 10px; left: 10px; background: var(--bg-panel); color: var(--text-main); padding: 4px 10px; border-radius: 4px; font-size: 13px; font-weight: bold; pointer-events: none; z-index: 50; border: 1px solid var(--border); box-shadow: 0 1px 3px rgba(0,0,0,0.1);}
         .color-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
         
         /* Full Bottom Footer */
-        #app-footer { height: 65px; background: #ffffff; border-top: 1px solid #d1d5db; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; font-size: 13px; color: #4b5563; flex-shrink: 0; box-shadow: 0 -2px 5px rgba(0,0,0,0.03); z-index: 100; }
-        #app-footer a { color: #111827; text-decoration: none; font-weight: 500; transition: color 0.2s;}
-        #app-footer a:hover { color: #2563eb; text-decoration: underline; }
+        #app-footer { height: 65px; background: var(--bg-panel); border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 20px; font-size: 13px; color: var(--text-muted); flex-shrink: 0; box-shadow: 0 -2px 5px rgba(0,0,0,0.03); z-index: 100; }
+        #app-footer a { color: var(--text-main); text-decoration: none; font-weight: 500; transition: color 0.2s;}
+        #app-footer a:hover { color: var(--btn-bg); text-decoration: underline; }
         .footer-left { display: flex; align-items: center; gap: 15px;}
         .footer-right { display: flex; align-items: center;}
+        
+        /* Logo Theme Toggle */
+        [data-theme="light"] .logo-dark { display: none; }
+        [data-theme="dark"] .logo-light { display: none; }
     </style>
 </head>
-<body>
+<body data-theme="dark">
 
 <div id="app-container">
     <div id="sidebar">
-        
+       <div id="sidebar-header">
+            __MHCXGRAPH_LOGO_INJECTION__
+        </div> 
         <div class="control-group" id="metadata-panel"></div>
 
         <div class="control-group" style="max-height: 160px; overflow-y: auto;">
@@ -69,9 +106,16 @@
 
         <div class="control-group">
             <h3 onclick="toggleComp('advanced-options', this.querySelector('span'))" style="cursor: pointer; margin-bottom: 0;">
-                <span class="collapse-toggle">▶</span> Advanced Graph Options
+                <span class="collapse-toggle">▼</span> Advanced Graph Options
             </h3>
-            <div id="advanced-options" style="display: none; margin-top: 15px;">
+            <div id="advanced-options" style="display: block; margin-top: 15px;">
+                <label style="display: flex; justify-content: space-between;">Graph Palette:</label>
+                <select id="optPalette" style="width: 100%; margin-bottom: 10px;">
+                    <option value="colorblind">Colorblind Safe (Okabe-Ito)</option>
+                    <option value="standard">Standard (Category10)</option>
+                    <option value="high_contrast">High Contrast</option>
+                </select><br>
+
                 <label style="display: flex; justify-content: space-between;">Node Size: <span id="valNodeSize">18</span></label>
                 <input type="range" id="optNodeSize" min="5" max="50" value="18" style="width:100%; margin-bottom: 10px;"><br>
 
@@ -106,12 +150,23 @@
 
         <div class="control-group" id="file-uploads">
             <h3>3D Structures & Export</h3>
-            <label style="margin-top: 4px; display: block; margin-bottom: 10px;"><input type="checkbox" id="showLabels" checked> Show 3D Residue Labels</label>
-            <div id="upload-inputs"></div>
-            <button class="btn" style="width: 100%;" onclick="loadStructures()">Render 3D</button>
             
-            <div style="margin-top: 15px; border-top: 1px solid #e5e7eb; padding-top: 10px;">
-                <b style="font-size: 12px;">Export Screenshot:</b>
+            <label style="margin-top: 4px; display: block; margin-bottom: 10px;"><input type="checkbox" id="showLabels" checked> Show 3D Residue Labels</label>
+            
+            <div id="upload-inputs"></div>
+            
+            <h4 onclick="toggleComp('color-tree-container', this.querySelector('span'))" style="cursor: pointer; margin: 15px 0 5px 0; font-size: 13px; color: var(--text-main); border-bottom: 1px solid var(--border-light); padding-bottom: 5px;">
+                <span class="collapse-toggle">▶</span> 3D Color Management
+            </h4>
+            <div id="color-tree-container" style="display: none;">
+                <div id="color-tree" style="max-height: 200px; overflow-y: auto;"></div>
+                <button class="btn" style="width: 100%; margin-top: 10px; font-size: 11px;" onclick="resetMolColors()">Reset to Theme Defaults</button>
+            </div>
+
+            <button class="btn" style="width: 100%; margin-top: 15px;" onclick="loadStructures()">Render 3D</button>
+            
+            <div style="margin-top: 15px; border-top: 1px solid var(--border-light); padding-top: 10px;">
+                <b style="font-size: 12px; color: var(--text-main);">Export Screenshot:</b>
                 <div style="display: flex; gap: 5px; margin-top: 5px;">
                     <button class="btn" style="flex: 1; font-size: 11px; padding: 6px;" onclick="exportScreenshot('graph')">Graph</button>
                     <button class="btn" style="flex: 1; font-size: 11px; padding: 6px;" onclick="exportScreenshot('protein')">Proteins</button>
@@ -130,16 +185,16 @@
 
     <div id="main-content">
         <button id="sidebar-toggle" onclick="toggleSidebar()" title="Toggle Sidebar">☰</button>
+        <button id="theme-toggle" onclick="toggleTheme()" title="Toggle Theme">☀️ / 🌙</button>
         
         <div id="top-panel">
-            <div id="graph-view-selector" style="position: absolute; top: 15px; left: 50%; transform: translateX(-50%); z-index: 100; background: rgba(255,255,255,0.95); border: 1px solid #d1d5db; border-radius: 6px; padding: 6px 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); backdrop-filter: blur(4px); display: flex; align-items: center; gap: 8px;">
-                <b style="font-size: 13px; color: #111827;">Graph View:</b>
-                <select id="main-graph-selector" onchange="switchGraphViewMode()" style="padding: 4px 8px; border-radius: 4px; border: 1px solid #d1d5db; outline: none; font-size: 13px; font-weight: bold; cursor: pointer;">
+            <div id="graph-view-selector" style="position: absolute; top: 15px; left: 50%; transform: translateX(-50%); z-index: 100; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; align-items: center; gap: 8px;">
+                <b style="font-size: 13px; color: var(--text-main);">Graph View:</b>
+                <select id="main-graph-selector" onchange="switchGraphViewMode()">
                     <option value="associated">🌐 Associated Graph</option>
                     <option value="filtered">Filtered Graphs (Individual)</option>
                 </select>
             </div>
-            
             <div id="mynetwork" class="mynetwork"></div>
         </div>
         
@@ -147,7 +202,7 @@
         
         <div id="bottom-panel" id="mol-container">
             <div id="viewer-toolbar" style="display: none;">
-                <b>3D View:</b>
+                <b style="color: var(--text-main);">3D View:</b>
                 <select id="view-selector" onchange="rebuildViewer()">
                     <option value="aligned">Aligned (Single View)</option>
                     <option value="separate">Separate (Grid View)</option>
@@ -174,21 +229,38 @@
 
 <script>
     const graphData = __GRAPH_DATA_INJECTION__;
-    const proteinColors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'];
     
+    // --- PALETTES FOR THE GRAPH ---
+    const GRAPH_PALETTES = {
+        standard: ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'],
+        colorblind: ['#E69F00', '#56B4E9', '#009E73', '#0072B2', '#CC79A7', '#999999', '#D55E00', '#F0E442'], 
+        high_contrast: ['#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe']
+    };
+    
+    // --- DEFAULTS FOR 3DMOL ---
+    const MOL_DEFAULTS = {
+        dark: ['#FFC107', '#4FC3F7', '#69F0AE', '#FF8A65', '#E040FB', '#CDDC39', '#448AFF', '#18FFFF'],
+        light: ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#17becf']
+    };
+
+    let activePaletteName = 'colorblind';
+    let graphNodeColors = {}; 
+    let molChainColors = {};  
+
     let currentGraphMode = 'associated';
     let activeFilteredProtIdx = 0;
 
-    // Advanced Option Defaults
     let optNodeSize = 18;
     let optLabelSize = 22;
     let optEdgeWidth = 1.0;
     let optSpringLen = 150;
+    let themeText = '#f9fafb';
+    let themeBorder = '#f9fafb';
 
     let network = null;
-    let nodesDataset = new vis.DataSet(graphData.nodes.map(n => ({...n, label: '<b>' + n.label + '</b>'})));
-    let edgesDataset = new vis.DataSet(graphData.edges);
-    let currentActiveNodes = new Set(graphData.nodes.map(n => n.id));
+    let nodesDataset = new vis.DataSet([]);
+    let edgesDataset = new vis.DataSet([]);
+    let currentActiveNodes = new Set();
     
     let loadedModels = []; 
     let viewers = []; 
@@ -196,6 +268,9 @@
     let pinnedNode = null;
 
     function init() {
+        updateThemeVars();
+        assignGraphColorsToData();
+        initMolColors();
         initMetadata();
         initNetwork();
         initHierarchy();
@@ -218,33 +293,153 @@
         handleTreeChange();
     }
 
+    function toggleTheme() {
+        const body = document.body;
+        const currentlyDark = body.getAttribute('data-theme') === 'dark';
+        const newIsDark = !currentlyDark;
+        
+        body.setAttribute('data-theme', newIsDark ? 'dark' : 'light');
+        updateThemeVars();
+        
+        if(network) {
+            network.setOptions({ nodes: { font: { color: themeText } } });
+        }
+        
+        if (currentGraphMode === 'associated') {
+            applyGraphFilters();
+        } else {
+            handleFilteredChange();
+        }
+
+        const bgMol = newIsDark ? "#1f2937" : "#ffffff"; 
+        viewers.forEach(v => {
+            v.setBackgroundColor(bgMol);
+        });
+
+        resetMolColors();
+    }
+
+    function updateThemeVars() {
+        const isDark = document.body.getAttribute('data-theme') === 'dark';
+        themeText = isDark ? '#f9fafb' : '#111827';
+        themeBorder = isDark ? '#f9fafb' : '#111827';
+    }
+
+    function assignGraphColorsToData() {
+        const pal = GRAPH_PALETTES[activePaletteName];
+        let uniqueGroups = [...new Set(graphData.nodes.map(n => n.group))].sort();
+        uniqueGroups.forEach((g, i) => {
+            graphNodeColors[g] = pal[i % pal.length];
+        });
+        graphData.nodes.forEach(n => n.originalColor = graphNodeColors[n.group]);
+        
+        graphData.filtered_graphs.forEach(fg => {
+            let fgGroups = [...new Set(fg.nodes.map(n => n.group))].sort();
+            let fgColors = {};
+            fgGroups.forEach((g, i) => {
+                fgColors[g] = pal[i % pal.length];
+            });
+            fg.nodes.forEach(n => n.originalColor = fgColors[n.group]);
+        });
+    }
+    
+    function initMolColors(forceReset = false) {
+        if (Object.keys(molChainColors).length > 0 && !forceReset) return;
+        
+        const isDark = document.body.getAttribute('data-theme') === 'dark';
+        const pal = isDark ? MOL_DEFAULTS.dark : MOL_DEFAULTS.light;
+        let i = 0;
+
+        graphData.proteins.forEach((protName, pIdx) => {
+            let chains = new Set();
+            graphData.nodes.forEach(n => {
+                n.mapping.forEach(m => {
+                    if (m.model_idx === pIdx) chains.add(m.chain);
+                });
+            });
+            
+            Array.from(chains).sort().forEach(c => {
+                const key = `${pIdx}_${c}`;
+                molChainColors[key] = pal[i % pal.length]; 
+                i++;
+            });
+        });
+        
+        renderMolColorTree();
+    }
+
+    function renderMolColorTree() {
+        const container = document.getElementById('color-tree');
+        let html = '';
+        
+        graphData.proteins.forEach((protName, pIdx) => {
+            html += `
+            <div class="tree-item tree-level-1" style="justify-content: space-between;">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <span class="collapse-toggle" onclick="toggleComp('colors_prot_${pIdx}', this)">▼</span>
+                    <label>Prot ${pIdx}: ${protName}</label>
+                </div>
+            </div>
+            <div id="colors_prot_${pIdx}" style="display:block; padding-left: 10px;">
+            `;
+
+            let chains = new Set();
+            graphData.nodes.forEach(n => n.mapping.forEach(m => { if(m.model_idx === pIdx) chains.add(m.chain); }));
+
+            Array.from(chains).sort().forEach(c => {
+                const key = `${pIdx}_${c}`;
+                html += `
+                <div class="tree-item tree-level-2" style="justify-content: space-between; padding-right: 15px;">
+                    <label>Chain ${c}</label>
+                    <input type="color" value="${molChainColors[key]}" onchange="updateMolChainColor(${pIdx}, '${c}', this.value)" style="width: 25px; height: 25px; padding: 0; border: none; background: none; cursor: pointer; border-radius: 4px;">
+                </div>
+                `;
+            });
+            html += `</div>`;
+        });
+        container.innerHTML = html;
+    }
+
+    function updateMolChainColor(pIdx, chain, color) {
+        molChainColors[`${pIdx}_${chain}`] = color;
+        update3DViewer();
+        initUploads(); 
+    }
+
+    function resetMolColors() {
+        initMolColors(true);
+        update3DViewer();
+        initUploads(); 
+    }
+
     function initAdvancedOptions() {
-        // Node Size
+        document.getElementById('optPalette').addEventListener('change', function(e) {
+            activePaletteName = e.target.value;
+            assignGraphColorsToData();
+            initMetadata(); 
+            if (currentGraphMode === 'associated') handleTreeChange();
+            else handleFilteredChange();
+        });
+
         document.getElementById('optNodeSize').addEventListener('input', function(e) {
             optNodeSize = parseInt(e.target.value);
             document.getElementById('valNodeSize').innerText = optNodeSize;
             if(network) network.setOptions({ nodes: { size: optNodeSize } });
         });
         
-        // Label Size
         document.getElementById('optLabelSize').addEventListener('input', function(e) {
             optLabelSize = parseInt(e.target.value);
             document.getElementById('valLabelSize').innerText = optLabelSize;
             if(network) network.setOptions({ nodes: { font: { size: optLabelSize } } });
         });
 
-        // Edge Width
         document.getElementById('optEdgeWidth').addEventListener('input', function(e) {
             optEdgeWidth = parseFloat(e.target.value);
             document.getElementById('valEdgeWidth').innerText = optEdgeWidth.toFixed(1);
-            if (currentGraphMode === 'associated') {
-                applyGraphFilters(); // Triggers redrawing edges with new base width
-            } else {
-                handleFilteredChange();
-            }
+            if (currentGraphMode === 'associated') applyGraphFilters(); 
+            else handleFilteredChange();
         });
 
-        // Spring Length
         document.getElementById('optSpringLen').addEventListener('input', function(e) {
             optSpringLen = parseInt(e.target.value);
             document.getElementById('valSpringLen').innerText = optSpringLen;
@@ -300,12 +495,12 @@
         });
     }
 
-function initMetadata() {
+    function initMetadata() {
         const c = graphData.metadata;
+        const pal = GRAPH_PALETTES[activePaletteName];
         
-        // Monta a lista de proteínas com a cor correspondente
         let p_html = graphData.proteins.map((p, i) => {
-            const color = proteinColors[i % proteinColors.length];
+            const color = pal[i % pal.length];
             return `<div style="margin-bottom: 3px;">
                         <span class="color-dot" style="background-color: ${color};"></span><b>Prot ${i}:</b> ${p}
                     </div>`;
@@ -313,17 +508,18 @@ function initMetadata() {
 
         document.getElementById('metadata-panel').innerHTML = `
             <h3>Execution Metadata</h3>
+            <div style="margin-bottom: 10px;"><b>Run Name:</b> ${graphData.run_name || 'N/A'}</div>
             
             <div style="margin-bottom: 12px;">
-                <b style="color: #111827;">Protein Order (Tuple Layout):</b>
+                <b>Protein Order (Tuple Layout):</b>
                 <div style="margin-top: 5px;">${p_html}</div>
             </div>
             
             <div>
-                <b style="color: #111827;">Parameters:</b>
+                <b>Parameters:</b>
                 <ul style="margin: 5px 0 0 0; padding-left: 20px; line-height: 1.5;">
-                    <li><b>Mode:</b> ${c.run_mode || None}</li>
-                    <li><b>Granularity:</b> ${c.node_granularity || None}</li>
+                    <li><b>Mode:</b> ${c.run_mode || 'all'}</li>
+                    <li><b>Granularity:</b> ${c.node_granularity || 'all_atoms'}</li>
                     <li><b>Edge Thresh:</b> ${c.edge_threshold} Å</li>
                     <li><b>Global Diff:</b> ${c.global_distance_diff_threshold} Å</li>
                     <li><b>Local Diff:</b> ${c.local_distance_diff_threshold} Å</li>
@@ -332,12 +528,12 @@ function initMetadata() {
         `;
     }
 
-       function initNetwork() {
+    function initNetwork() {
         const container = document.getElementById('mynetwork');
         network = new vis.Network(container, { nodes: nodesDataset, edges: edgesDataset }, {
             nodes: { 
                 shape: 'dot', size: optNodeSize, 
-                font: { size: optLabelSize, multi: 'html', color: '#111827', face: 'ui-sans-serif' }, borderWidth: 2
+                font: { size: optLabelSize, multi: 'html', color: themeText, face: 'ui-sans-serif' }, borderWidth: 2
             },
             physics: { 
                 solver: 'barnesHut', 
@@ -384,11 +580,18 @@ function initMetadata() {
 
     function initUploads() {
         const container = document.getElementById('upload-inputs');
+        container.innerHTML = '';
         graphData.proteins.forEach((protName, idx) => {
-            const color = proteinColors[idx % proteinColors.length];
+            let firstChainColor = '#999999';
+            for (let key in molChainColors) {
+                if (key.startsWith(`${idx}_`)) {
+                    firstChainColor = molChainColors[key];
+                    break;
+                }
+            }
             container.innerHTML += `<div style="margin-bottom:8px; font-size:12px;">
-                <span class="color-dot" style="background-color: ${color};"></span><b>${protName}:</b><br>
-                <input type="file" id="file-prot-${idx}" accept=".pdb,.cif" style="width:100%; margin-top: 4px;">
+                <span class="color-dot" style="background-color: ${firstChainColor};"></span><b>${protName}:</b><br>
+                <input type="file" id="file-prot-${idx}" accept=".pdb,.cif" style="width:100%; margin-top: 4px; color: var(--text-main);">
             </div>`;
         });
     }
@@ -426,15 +629,8 @@ function initMetadata() {
         fTree.innerHTML = fHtml;
     }
 
-    function resetPhysicsToggle() {
-        document.getElementById('freezePhysics').checked = false;
-        document.getElementById('freezePhysicsFiltered').checked = false;
-        if(network) network.setOptions({ physics: true });
-    }
-
     function switchGraphViewMode() {
         currentGraphMode = document.getElementById('main-graph-selector').value;
-        resetPhysicsToggle();
         
         if (currentGraphMode === 'associated') {
             document.getElementById('hierarchy-tree').style.display = 'block';
@@ -457,20 +653,17 @@ function initMetadata() {
         activeFilteredProtIdx = parseInt(document.querySelector('input[name="filtered_prot"]:checked').value);
         const thicknessMode = document.querySelector('input[name="edgeThickness"]:checked').value;
         const maxDist = graphData.metadata.edge_threshold || 10.0;
-        
         const fg = graphData.filtered_graphs[activeFilteredProtIdx];
         
         nodesDataset.clear();
         edgesDataset.clear();
         clearDynamicStdEdges();
         
-        const c = proteinColors[activeFilteredProtIdx % proteinColors.length];
-        
         const coloredNodes = fg.nodes.map(n => ({
             ...n, 
             label: '<b>' + n.label + '</b>',
-            color: { background: c, border: '#111827' },
-            originalColor: c
+            color: { background: n.originalColor, border: themeBorder },
+            font: { color: themeText } 
         }));
         
         const styledEdges = fg.edges.map(e => {
@@ -501,7 +694,11 @@ function initMetadata() {
         if (nodesDataset.length !== graphData.nodes.length) {
             nodesDataset.clear();
             edgesDataset.clear();
-            nodesDataset.add(graphData.nodes.map(n => ({...n, label: '<b>' + n.label + '</b>'})));
+            nodesDataset.add(graphData.nodes.map(n => ({
+                ...n, 
+                label: '<b>' + n.label + '</b>',
+                font: { color: themeText } 
+            })));
             edgesDataset.add(graphData.edges);
         }
 
@@ -549,10 +746,11 @@ function initMetadata() {
         });
 
         let html = "";
+        const pal = GRAPH_PALETTES[activePaletteName];
         for (let i = 0; i < graphData.proteins.length; i++) {
             if (protNodes[i].length > 0) {
                 let uniqueNodes = [...new Set(protNodes[i])];
-                const color = proteinColors[i % proteinColors.length];
+                const color = pal[i % pal.length];
                 html += `<div style="margin-bottom: 6px;">
                     <b style="color:${color}">Prot ${i}:</b> ${uniqueNodes.join(', ')}
                 </div>`;
@@ -595,11 +793,15 @@ function initMetadata() {
         const newEdges = [];
         const nodeUpdates = [];
 
+        const isDark = document.body.getAttribute('data-theme') === 'dark';
+        const dimBg = isDark ? 'rgba(55,65,81,0.3)' : 'rgba(229,231,235,0.3)';
+        const dimBorder = isDark ? 'rgba(75,85,99,0.3)' : 'rgba(209,213,219,0.3)';
+
         graphData.nodes.forEach(n => {
             if (n.id === nodeId) {
-                nodeUpdates.push({ id: n.id, color: { background: n.originalColor, border: '#111827' } });
+                nodeUpdates.push({ id: n.id, color: { background: n.originalColor, border: themeBorder } });
             } else {
-                nodeUpdates.push({ id: n.id, color: { background: 'rgba(229,231,235,0.1)', border: 'rgba(209,213,219,0.1)' } });
+                nodeUpdates.push({ id: n.id, color: { background: dimBg, border: dimBorder } });
             }
         });
 
@@ -618,7 +820,7 @@ function initMetadata() {
             newEdges.push({
                 from: nodeId, to: targetId,
                 color: { color: color, opacity: 0.9 }, width: optEdgeWidth * 2.5, physics: false, smooth: false,
-                label: std.toFixed(3), font: { align: "top", size: 12, strokeWidth: 3, strokeColor: "#ffffff", face: "sans-serif" },
+                label: std.toFixed(3), font: { align: "top", size: optLabelSize-4, strokeWidth: 3, strokeColor: (isDark ? '#1f2937' : '#ffffff'), face: "sans-serif" },
                 title: "STD: " + std.toFixed(4)
             });
         });
@@ -632,18 +834,29 @@ function initMetadata() {
         if (currentGraphMode !== 'associated' || tempEdgeIds.length > 0) return;
 
         const mode = document.querySelector('input[name="viewMode"]:checked').value;
+        const isDark = document.body.getAttribute('data-theme') === 'dark';
+        const dimBg = isDark ? 'rgba(55,65,81,0.3)' : 'rgba(229,231,235,0.3)';
+        const dimBorder = isDark ? 'rgba(75,85,99,0.3)' : 'rgba(209,213,219,0.3)';
+        const dimText = isDark ? 'rgba(156,163,175,0.5)' : 'rgba(107,114,128,0.5)';
+
         const nodeUpdates = [];
         const edgeUpdates = [];
 
         graphData.nodes.forEach(n => {
             const isActive = currentActiveNodes.has(n.id);
             if (mode === 'hide') {
-                nodeUpdates.push({ id: n.id, hidden: !isActive });
+                nodeUpdates.push({ 
+                    id: n.id, 
+                    hidden: !isActive, 
+                    color: { background: n.originalColor, border: themeBorder },
+                    font: { color: themeText } 
+                });
             } else {
                 nodeUpdates.push({ 
-                    id: n.id, hidden: false, 
-                    color: isActive ? { background: n.originalColor, border: '#111827' } : { background: 'rgba(229,231,235,0.3)', border: 'rgba(209,213,219,0.3)' },
-                    font: { color: isActive ? '#111827' : 'rgba(156,163,175,0.5)' }
+                    id: n.id, 
+                    hidden: false, 
+                    color: isActive ? { background: n.originalColor, border: themeBorder } : { background: dimBg, border: dimBorder },
+                    font: { color: isActive ? themeText : dimText }
                 });
             }
         });
@@ -655,7 +868,7 @@ function initMetadata() {
             } else {
                 edgeUpdates.push({ 
                     id: e.id, hidden: false, 
-                    color: isEdgeActive ? { color: '#9ca3af', opacity: 1.0 } : { color: '#e5e7eb', opacity: 0.15 },
+                    color: isEdgeActive ? { color: '#9ca3af', opacity: 1.0 } : { color: '#6b7280', opacity: 0.15 },
                     width: isEdgeActive ? optEdgeWidth : Math.max(0.1, optEdgeWidth * 0.5)
                 });
             }
@@ -666,7 +879,6 @@ function initMetadata() {
     }
 
     // --- SCREENSHOT EXPORT LOGIC ---
-    
     async function exportScreenshot(target) {
         const c = document.createElement('canvas');
         const ctx = c.getContext('2d');
@@ -688,7 +900,6 @@ function initMetadata() {
                 img.src = dataUrl;
                 await new Promise(r => img.onload = r);
                 parts.push({ img: img, type: 'mol' });
-                
                 totalW = Math.max(totalW, img.width);
                 totalH += img.height;
             }
@@ -699,7 +910,7 @@ function initMetadata() {
         c.width = totalW;
         c.height = totalH;
         
-        ctx.fillStyle = '#ffffff';
+        ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--bg-panel').trim() || '#ffffff';
         ctx.fillRect(0, 0, totalW, totalH);
 
         let currentY = 0;
@@ -717,6 +928,10 @@ function initMetadata() {
 
     // --- 3DMOL JS LOGIC ---
     
+    function get3DColor(chain, protIdx) {
+        return molChainColors[`${protIdx}_${chain}`] || '#cccccc';
+    }
+
     async function loadStructures() {
         loadedModels = [];
         for (let i = 0; i < graphData.proteins.length; i++) {
@@ -772,6 +987,9 @@ function initMetadata() {
         const validModels = loadedModels.filter(m => m !== null);
         if (validModels.length === 0) return;
 
+        const isDark = document.body.getAttribute('data-theme') === 'dark';
+        const bgMol = isDark ? "#1f2937" : "#ffffff";
+
         if (layoutMode === 'separate') {
             container.style.display = 'grid';
             container.style.gridTemplateColumns = 'repeat(auto-fit, minmax(300px, 1fr))';
@@ -786,7 +1004,8 @@ function initMetadata() {
                 
                 const titleDiv = document.createElement('div');
                 titleDiv.className = 'viewer-title';
-                titleDiv.innerHTML = `<span class="color-dot" style="background-color: ${proteinColors[m.protIdx]};"></span>Prot ${m.protIdx}: ${m.name}`;
+                const baseCol = get3DColor('A', m.protIdx);
+                titleDiv.innerHTML = `<span class="color-dot" style="background-color: ${baseCol};"></span>Prot ${m.protIdx}: ${m.name}`;
                 subDiv.appendChild(titleDiv);
                 
                 const molDiv = document.createElement('div');
@@ -795,11 +1014,11 @@ function initMetadata() {
                 subDiv.appendChild(molDiv);
                 container.appendChild(subDiv);
                 
-                let v = $3Dmol.createViewer(molDiv, { backgroundColor: "#ffffff", preserveDrawingBuffer: true });
+                let v = $3Dmol.createViewer(molDiv, { backgroundColor: bgMol, preserveDrawingBuffer: true });
                 let mObj = v.addModel(m.text, m.format);
                 m.internalModel = mObj.getID();
                 
-                v.setStyle({}, { cartoon: { color: proteinColors[m.protIdx] } });
+                v.setStyle({}, { cartoon: { colorfunc: function(atom) { return get3DColor(atom.chain, m.protIdx); } } });
                 
                 v.protIdx = m.protIdx;
                 v.protName = m.name;
@@ -816,10 +1035,10 @@ function initMetadata() {
             const targetModel = validModels.find(m => m.protIdx === targetIdx);
             
             if (targetModel) {
-                let v = $3Dmol.createViewer(container, { backgroundColor: "#ffffff", preserveDrawingBuffer: true });
+                let v = $3Dmol.createViewer(container, { backgroundColor: bgMol, preserveDrawingBuffer: true });
                 let mObj = v.addModel(targetModel.text, targetModel.format);
                 targetModel.internalModel = mObj.getID();
-                v.setStyle({}, { cartoon: { color: proteinColors[targetModel.protIdx] } });
+                v.setStyle({}, { cartoon: { colorfunc: function(atom) { return get3DColor(atom.chain, targetModel.protIdx); } } });
                 
                 v.protIdx = targetModel.protIdx;
                 v.protName = targetModel.name;
@@ -832,11 +1051,11 @@ function initMetadata() {
             container.style.display = 'block';
             container.style.padding = '0';
             
-            let v = $3Dmol.createViewer(container, { backgroundColor: "#ffffff", preserveDrawingBuffer: true });
+            let v = $3Dmol.createViewer(container, { backgroundColor: bgMol, preserveDrawingBuffer: true });
             validModels.forEach(m => {
                 let mObj = v.addModel(m.text, m.format);
                 m.internalModel = mObj.getID();
-                v.setStyle({model: m.internalModel}, { cartoon: { color: proteinColors[m.protIdx] } });
+                v.setStyle({model: m.internalModel}, { cartoon: { colorfunc: function(atom) { return get3DColor(atom.chain, m.protIdx); } } });
             });
             v.layoutMode = 'aligned';
             v.setHoverable({}, true, hoverCallback, unhoverCallback);
@@ -850,17 +1069,16 @@ function initMetadata() {
         if (viewers.length === 0 || loadedModels.length === 0) return;
         const layoutMode = document.getElementById('view-selector').value;
         const showLabels = document.getElementById('showLabels').checked;
+        const isDark = document.body.getAttribute('data-theme') === 'dark';
         
         viewers.forEach(v => {
             v.removeAllLabels();
             if (layoutMode === 'aligned') {
                 loadedModels.forEach(m => {
-                    if (m) v.setStyle({model: m.internalModel}, { cartoon: { color: proteinColors[m.protIdx], opacity: 0.5 } });
+                    if (m) v.setStyle({model: m.internalModel}, { cartoon: { colorfunc: function(atom) { return get3DColor(atom.chain, m.protIdx); }, opacity: 0.5 } });
                 });
-            } else if (layoutMode === 'separate') {
-                v.setStyle({}, { cartoon: { color: proteinColors[v.protIdx], opacity: 0.5 } });
-            } else if (layoutMode.startsWith('prot_')) {
-                v.setStyle({}, { cartoon: { color: proteinColors[v.protIdx], opacity: 0.5 } });
+            } else if (layoutMode === 'separate' || layoutMode.startsWith('prot_')) {
+                v.setStyle({}, { cartoon: { colorfunc: function(atom) { return get3DColor(atom.chain, v.protIdx); }, opacity: 0.5 } });
             }
         });
         
@@ -889,14 +1107,15 @@ function initMetadata() {
                     if (!v) return;
 
                     let sel = { model: targetModel, chain: m.chain, resi: parseInt(m.resi) };
-                    const drawColor = n.originalColor || proteinColors[protIdx % proteinColors.length];
+                    const drawColor = get3DColor(m.chain, protIdx);
+                    
                     v.setStyle(sel, { cartoon: { color: drawColor }, stick: { colorscheme: 'whiteCarbon', radius: 0.25 } }, true);
                     
                     if (showLabels) {
                         const labelText = `${m.resn}:${m.resi}`;
                         v.addLabel(labelText, {
-                            font: "sans-serif", fontSize: 13, fontColor: "black", 
-                            backgroundColor: "transparent", showBackground: false, alignment: "center", position: sel
+                            font: "sans-serif", fontSize: 13, fontColor: isDark ? "white" : "black", 
+                            showBackground: false, alignment: "center", position: sel
                         }, sel, true);
                     }
                 });
