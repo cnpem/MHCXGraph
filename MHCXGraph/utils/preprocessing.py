@@ -681,7 +681,8 @@ def create_graphs(manifest: dict) -> list[tuple]:
         granularity=settings["node_granularity"],
         include_waters=settings["include_waters"],
         include_ligands=settings["include_ligands"],
-        include_noncanonical_residues=settings["include_noncanonical_residues"]
+        include_noncanonical_residues=settings["include_noncanonical_residues"],
+        max_gap_helix=settings["max_gap_helix"]
     )
 
     graphs: list[tuple] = []

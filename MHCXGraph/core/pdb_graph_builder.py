@@ -1013,6 +1013,7 @@ class PDBGraphBuilder:
             G,
             chains=chains,
             include_noncanonical_residues=self.config.include_noncanonical_residues,
+            max_gap_helix=self.config.max_gap_helix
         )
 
         cut = float(self.config.residue_distance_cutoff)

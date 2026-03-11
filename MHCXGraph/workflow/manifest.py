@@ -55,6 +55,7 @@ def load_manifest(manifest_path: str) -> dict[str, Any]:
 
     settings.setdefault("show_std_edges", False)
 
+    settings.setdefault("max_gap_helix", 0)
     return data
 
 
@@ -91,6 +92,7 @@ def build_association_config(settings: dict[str, Any], run_mode: str, tracker_re
         "debug_logs":               settings.get("debug_logs"),
         "debug_tracking":           settings.get("debug_tracking"),
         "verbose":                  settings.get("verbose"),
-        "show_std_edges":           settings.get("show_std_edges")
+        "show_std_edges":           settings.get("show_std_edges"),
+        "max_gap_helix":            settings.get("max_gap_helix")
     }
 
