@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pydssp
+import re
 import torch
 
 import numpy as np
@@ -14,12 +15,10 @@ BACKBONE_ATOMS = ("N", "CA", "C", "O")
 def secondary_structure(G, **ctx):
     """
     Anota estrutura secundária via DSSP.
-
-    Aceita dssp_config com ou sem atributo `.enabled`.
-    Usa dssp_config.executable (Graphein) ou dssp_config.dssp_path (legado).
     """
     chains = ctx.get("chains")
     include_noncanonical_residues = ctx.get("include_noncanonical_residues")
+    max_gap_helix = ctx.get("max_gap_helix", 0)
     if chains is None:
         return G
 
@@ -55,7 +54,7 @@ def secondary_structure(G, **ctx):
         coord = torch.from_numpy(np.asarray(coords, dtype=np.float32))
         return coord, used_residues, sequence
 
-    def assign_ss_to_chain(chain, chain_id, include_noncanonical_residues):
+    def assign_ss_to_chain(chain, chain_id, include_noncanonical_residues, max_gap_helix):
         """
         Runs pydssp for a chain and maps SS back to residues.
         Returns:
@@ -77,6 +76,10 @@ def secondary_structure(G, **ctx):
         ss = pydssp.assign(coord, donor_mask=donor_mask)
         ss_used = "".join(ss)
 
+        if max_gap_helix > 0:
+            pattern = rf"(?<=[Hh])[-]{{1,{max_gap_helix}}}(?=[Hh])"
+            ss_used = re.sub(pattern, lambda m: "H" * len(m.group()), ss_used)
+
         ss_map = {res[0]: s for res, s in zip(used_residues, ss_used, strict=True)}
 
         return ss_map
@@ -84,7 +87,7 @@ def secondary_structure(G, **ctx):
     ss_map = {}
 
     for chain in chains:
-        ss_map = ss_map | assign_ss_to_chain(chains[chain], chain, include_noncanonical_residues=include_noncanonical_residues)
+        ss_map = ss_map | assign_ss_to_chain(chains[chain], chain, include_noncanonical_residues=include_noncanonical_residues, max_gap_helix=max_gap_helix)
 
     for nid, data in G.nodes(data=True):
         if data.get("kind") == "water":

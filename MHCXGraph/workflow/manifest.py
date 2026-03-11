@@ -71,6 +71,7 @@ def build_association_config(settings: dict[str, Any], run_mode: str, tracker_re
 
     return {
         "run_mode":                 run_mode,
+        "node_granularity":         settings.get("node_granularity"),
         "edge_threshold":           settings.get("edge_threshold"),
         "local_distance_diff_threshold":  settings.get("local_distance_diff_threshold"),
         "global_distance_diff_threshold":  settings.get("global_distance_diff_threshold"),

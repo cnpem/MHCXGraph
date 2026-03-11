@@ -43,13 +43,6 @@ def parse_args():
         default=False,
     )
 
-    parser.add_argument(
-            "--dashboard",
-            help="Automatically open the interactive dashboard in the default web browser after execution.",
-            action="store_true",
-            default=False,
-        )
-
     subparsers = parser.add_subparsers(
         title="commands",
         dest="command",
@@ -68,6 +61,14 @@ def parse_args():
         metavar="<path>",
         help="Path to the JSON manifest with complete set of parameters and settings.",
     )
+
+    parser_run.add_argument(
+            "--dashboard",
+            help="Automatically open the interactive dashboard in the default web browser after execution.",
+            action="store_true",
+            default=False,
+        )
+
 
     parser_heatmap = subparsers.add_parser("heatmap")
     parser_heatmap.add_argument("-i", '--input-dir', required=True, nargs='?', default=os.getcwd())

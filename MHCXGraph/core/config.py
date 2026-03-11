@@ -96,6 +96,8 @@ class GraphConfig:
 
     make_virtual_cb_for_gly: bool = True
 
+    max_gap_helix: int = 0
+
 
 def make_default_config(
     *,
@@ -107,7 +109,8 @@ def make_default_config(
     include_noncanonical_residues: bool = True,
     include_ligands: bool = True,
     include_waters: bool = True,
-    verbose: bool = False
+    verbose: bool = False,
+    max_gap_helix: int = 0
 ) -> GraphConfig:
     """
     Helper for creating a ``GraphConfig`` with common defaults.
@@ -142,5 +145,6 @@ def make_default_config(
         verbose=verbose,
         make_virtual_cb_for_gly=make_virtual_cb_for_gly,
         include_noncanonical_residues=include_noncanonical_residues,
-        include_ligands=include_ligands
+        include_ligands=include_ligands,
+        max_gap_helix=max_gap_helix
     )
