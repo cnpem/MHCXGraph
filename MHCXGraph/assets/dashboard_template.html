@@ -3,72 +3,91 @@
 <head>
     <meta charset="UTF-8">
     <title>MHCXGraph Dashboard</title>
+    __FAVICON_INJECTION__
     __VIS_JS_INJECTION__
     __3DMOL_JS_INJECTION__
     
     <style>
-        /* CSS Variables for Dark/Light Mode */
         :root {
-            --bg-body: #f3f4f6;
-            --bg-panel: #ffffff;
-            --bg-control: #f9fafb;
-            --border: #d1d5db;
-            --border-light: #e5e7eb;
-            --text-main: #111827;
-            --text-muted: #4b5563;
-            --text-faint: #6b7280;
-            --hover-bg: #e5e7eb;
-            --btn-bg: #2563eb;
-            --btn-hover: #1d4ed8;
+            --bg-body: #f3f4f6; --bg-panel: #ffffff; --bg-control: #f9fafb;
+            --border: #d1d5db; --border-light: #e5e7eb; --text-main: #111827;
+            --text-muted: #4b5563; --text-faint: #6b7280; --hover-bg: #e5e7eb;
+            --btn-bg: #2563eb; --btn-hover: #1d4ed8;
         }
         [data-theme="dark"] {
-            --bg-body: #030712;
-            --bg-panel: #111827;
-            --bg-control: #1f2937;
-            --border: #374151;
-            --border-light: #1f2937;
-            --text-main: #f9fafb;
-            --text-muted: #9ca3af;
-            --text-faint: #6b7280;
-            --hover-bg: #374151;
-            --btn-bg: #3b82f6;
-            --btn-hover: #60a5fa;
+            --bg-body: #030712; --bg-panel: #111827; --bg-control: #1f2937;
+            --border: #374151; --border-light: #1f2937; --text-main: #f9fafb;
+            --text-muted: #9ca3af; --text-faint: #6b7280; --hover-bg: #374151;
+            --btn-bg: #3b82f6; --btn-hover: #60a5fa;
         }
 
         body { margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; font-family: ui-sans-serif, system-ui, sans-serif; overflow: hidden; background: var(--bg-body); color: var(--text-main); transition: background 0.3s, color 0.3s;}
         
         #app-container { display: flex; flex: 1; overflow: hidden; position: relative; }
         #sidebar-header { text-align: center; padding-bottom: 15px; border-bottom: 1px solid var(--border-light); margin-bottom: 5px; }  
-        #sidebar { width: 340px; background: var(--bg-panel); border-right: 1px solid var(--border); padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; box-shadow: 2px 0 5px rgba(0,0,0,0.05); z-index: 10; transition: all 0.3s ease; white-space: nowrap; box-sizing: border-box; }
+        #sidebar { width: 340px; background: var(--bg-panel); border-right: 1px solid var(--border); padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; box-shadow: 2px 0 5px rgba(0,0,0,0.05); z-index: 10; transition: all 0.3s ease; box-sizing: border-box; }
         #sidebar.collapsed { width: 0; padding: 0; border: none; overflow: hidden; }
         
-        #main-content { flex: 1; display: flex; flex-direction: column; position: relative; min-width: 0; }
-        #top-panel { flex: 1; min-height: 10%; position: relative; background: var(--bg-panel); }
+        #main-content { flex: 1; display: flex; flex-direction: column; position: relative; min-width: 0; overflow: hidden;}
+        
+        /* Unified Workspace Panels */
+        #top-panel { flex: 1; min-height: 10%; position: relative; background: var(--bg-panel); overflow: hidden; }
         #v-splitter { height: 8px; background: var(--border-light); cursor: row-resize; z-index: 50; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); display: flex; justify-content: center; align-items: center; transition: background 0.2s;}
         #v-splitter:hover { background: var(--border); }
         #v-splitter::after { content: "•••"; color: var(--text-faint); font-size: 10px; letter-spacing: 2px; }
-        #bottom-panel { flex: 1; min-height: 10%; position: relative; background: var(--bg-control); overflow-y: auto; overflow-x: hidden; display: flex; flex-wrap: wrap; align-content: flex-start;}
+        #bottom-panel { flex: 1; min-height: 10%; position: relative; background: var(--bg-control); overflow: hidden; display: flex; flex-direction: column; }
         
-        #sidebar-toggle { position: absolute; top: 10px; left: 10px; z-index: 100; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 4px; padding: 6px 10px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.1); font-size: 16px; color: var(--text-main);}
-        #sidebar-toggle:hover { background: var(--hover-bg); }
+        /* Layout Containers */
+        #single-network { width: 100%; height: 100%; position: absolute; top:0; left:0; display: none; background: var(--bg-panel); }
+        #single-mols { width: 100%; height: 100%; position: absolute; top:0; left:0; display: none; padding-top: 45px; box-sizing: border-box; align-content: flex-start; }
+        #analysis-wrapper { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 80; background: var(--bg-body); overflow-y: auto; padding: 60px 40px 40px 40px; box-sizing: border-box; }
+        
+        /* Modern Analysis Panel Styles */
+        .summary-cards { display: flex; gap: 20px; justify-content: center; margin-bottom: 30px; flex-wrap: wrap; }
+        .card { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px; padding: 20px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05); flex: 1; min-width: 180px; max-width: 250px; }
+        .card h4 { margin: 0 0 10px 0; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+        .card .value { font-size: 28px; font-weight: 800; color: var(--btn-bg); }
+        
+        .analysis-section { margin-bottom: 30px; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px; padding: 25px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .analysis-section h2 { margin-top: 0; font-size: 18px; border-bottom: 1px solid var(--border-light); padding-bottom: 12px; margin-bottom: 20px; color: var(--text-main); }
+        
+        .heatmap-wrapper { display: flex; justify-content: center; width: 100%; overflow-x: auto; padding: 10px 0; }
+        .heatmap-grid { display: grid; gap: 4px; font-size: 13px; width: max-content; margin: 0 auto; }
+        .heatmap-cell { width: 55px; height: 55px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #fff; text-shadow: 0px 1px 3px rgba(0,0,0,0.6); transition: transform 0.15s ease, box-shadow 0.15s ease; cursor: crosshair; position: relative; }
+        .heatmap-cell:hover { transform: scale(1.15); z-index: 10; box-shadow: 0 6px 12px rgba(0,0,0,0.3); }
+        .heatmap-header { font-weight: bold; color: var(--text-main); text-align: center; padding: 8px; display: flex; align-items: center; justify-content: center; font-size: 12px;}
+        
+        .hm-tooltip { visibility: hidden; position: absolute; bottom: 120%; left: 50%; transform: translateX(-50%); background: var(--text-main); color: var(--bg-panel); padding: 8px 12px; border-radius: 6px; font-size: 12px; font-weight: normal; text-shadow: none; white-space: nowrap; z-index: 100; opacity: 0; transition: opacity 0.2s; pointer-events: none; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
+        .heatmap-cell:hover .hm-tooltip { visibility: visible; opacity: 1; }
+        .hm-tooltip::after { content: ""; position: absolute; top: 100%; left: 50%; margin-left: -5px; border-width: 5px; border-style: solid; border-color: var(--text-main) transparent transparent transparent; }
 
-        #theme-toggle { position: absolute; top: 10px; right: 15px; z-index: 100; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 4px; padding: 6px 10px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.1); font-size: 16px; color: var(--text-main);}
-        #theme-toggle:hover { background: var(--hover-bg); }
+        .metrics-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; text-align: center; }
+        .metrics-table th, .metrics-table td { padding: 12px; border-bottom: 1px solid var(--border-light); }
+        .metrics-table th { background: var(--bg-control); font-weight: 600; color: var(--text-main); position: sticky; top: 0; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px;}
+        .metrics-table tbody tr { transition: background 0.2s; }
+        .metrics-table tbody tr:hover { background: var(--hover-bg); }
         
-        #viewer-toolbar { position: absolute; top: 10px; right: 15px; z-index: 100; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; align-items: center; gap: 10px; font-size: 13px;}
+        .class-badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin: 2px; color: #fff;}
+
+        /* Controls */
+        #sidebar-toggle { position: absolute; top: 10px; left: 10px; z-index: 100; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 4px; padding: 6px 10px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.1); font-size: 16px; color: var(--text-main);}
+        #theme-toggle { position: absolute; top: 10px; right: 15px; z-index: 100; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 4px; padding: 6px 10px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.1); font-size: 16px; color: var(--text-main);}
+        #sidebar-toggle:hover, #theme-toggle:hover { background: var(--hover-bg); }
+        
+        #view-controls { position: absolute; top: 15px; left: 50%; transform: translateX(-50%); z-index: 100; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; align-items: center; gap: 8px; }
+        #viewer-toolbar { position: absolute; top: 10px; left: 15px; z-index: 100; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; align-items: center; gap: 10px; font-size: 13px;}
         select, input[type="range"] { background: var(--bg-panel); color: var(--text-main); border: 1px solid var(--border); padding: 4px 8px; border-radius: 4px; outline: none; font-size: 13px;}
         
-        .mynetwork { width: 100%; height: 100%; position: absolute; top:0; left:0; }
-        
+        /* UI Elements */
         h3 { margin: 0 0 10px 0; font-size: 15px; color: var(--text-main); border-bottom: 1px solid var(--border-light); padding-bottom: 5px;}
-        .control-group { background: var(--bg-control); border: 1px solid var(--border-light); padding: 12px; border-radius: 6px; font-size: 13px; color: var(--text-muted); white-space: normal; flex-shrink: 0;}
-        .btn { padding: 8px; background: var(--btn-bg); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;}
+        .control-group { background: var(--bg-control); border: 1px solid var(--border-light); padding: 12px; border-radius: 6px; font-size: 13px; color: var(--text-muted); flex-shrink: 0;}
+        .btn { padding: 6px 12px; background: var(--btn-bg); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;}
         .btn:hover { background: var(--btn-hover); }
         
         .tree-level-1 { font-weight: bold; margin-top: 10px; padding: 4px; border-radius: 4px; display: flex; align-items: center; color: var(--text-main);}
         .tree-level-2 { margin-left: 15px; color: var(--text-muted); padding: 3px; border-radius: 4px; display: flex; align-items: center;}
         .tree-level-3 { margin-left: 30px; color: var(--text-faint); font-size: 13px; padding: 2px; border-radius: 4px; display: flex; align-items: center;}
-        .tree-item label { cursor: pointer; display: flex; align-items: center; gap: 6px; width: 100%;}
+        .tree-item label { cursor: pointer; display: flex; align-items: center; gap: 6px; width: 100%; white-space: nowrap;}
         .tree-item:hover { background: var(--hover-bg); color: var(--text-main); }
         .collapse-toggle { cursor: pointer; font-size: 10px; width: 16px; text-align: center; user-select: none; color: var(--text-faint);}
         .collapse-toggle:hover { color: var(--text-main); }
@@ -78,14 +97,10 @@
         .viewer-title { position: absolute; top: 10px; left: 10px; background: var(--bg-panel); color: var(--text-main); padding: 4px 10px; border-radius: 4px; font-size: 13px; font-weight: bold; pointer-events: none; z-index: 50; border: 1px solid var(--border); box-shadow: 0 1px 3px rgba(0,0,0,0.1);}
         .color-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
         
-        /* Full Bottom Footer */
         #app-footer { height: 65px; background: var(--bg-panel); border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 20px; font-size: 13px; color: var(--text-muted); flex-shrink: 0; box-shadow: 0 -2px 5px rgba(0,0,0,0.03); z-index: 100; }
         #app-footer a { color: var(--text-main); text-decoration: none; font-weight: 500; transition: color 0.2s;}
         #app-footer a:hover { color: var(--btn-bg); text-decoration: underline; }
-        .footer-left { display: flex; align-items: center; gap: 15px;}
-        .footer-right { display: flex; align-items: center;}
-        
-        /* Logo Theme Toggle */
+
         [data-theme="light"] .logo-dark { display: none; }
         [data-theme="dark"] .logo-light { display: none; }
     </style>
@@ -95,8 +110,17 @@
 <div id="app-container">
     <div id="sidebar">
        <div id="sidebar-header">
-            __MHCXGRAPH_LOGO_INJECTION__
+          <a href="https://github.com/cnpem/MHCXGraph" target="_blank">__MHCXGRAPH_LOGO_INJECTION__</a>
         </div> 
+        
+        <div class="control-group" id="pair-mode-panel" style="display: none; background: var(--hover-bg); border-color: var(--border);">
+            <h3 style="color: var(--text-main); border-bottom-color: var(--border-light);">Pairwise View Mode</h3>
+            <select id="pair-selector" onchange="switchPairView(this.value)" style="width: 100%; font-weight: bold; padding: 6px;">
+                <option value="GRID">🔲 Grid View (All Pairs)</option>
+                <option value="ANALYSIS">📊 Global Pair Analysis</option>
+            </select>
+        </div>
+
         <div class="control-group" id="metadata-panel"></div>
 
         <div class="control-group" style="max-height: 160px; overflow-y: auto;">
@@ -116,17 +140,22 @@
                     <option value="high_contrast">High Contrast</option>
                 </select><br>
 
+                <label style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; color: var(--text-main);">
+                    <span>Straight Edges:</span>
+                    <input type="checkbox" id="optStraightEdges">
+                </label>
+
                 <label style="display: flex; justify-content: space-between;">Node Size: <span id="valNodeSize">18</span></label>
-                <input type="range" id="optNodeSize" min="5" max="50" value="18" style="width:100%; margin-bottom: 10px;"><br>
+                <input type="range" id="optNodeSize" min="5" max="50" value="18" style="width:95%; margin-bottom: 10px;"><br>
 
                 <label style="display: flex; justify-content: space-between;">Label Size: <span id="valLabelSize">22</span></label>
-                <input type="range" id="optLabelSize" min="10" max="40" value="22" style="width:100%; margin-bottom: 10px;"><br>
+                <input type="range" id="optLabelSize" min="10" max="40" value="22" style="width:95%; margin-bottom: 10px;"><br>
 
                 <label style="display: flex; justify-content: space-between;">Base Edge Width: <span id="valEdgeWidth">1.0</span></label>
-                <input type="range" id="optEdgeWidth" min="0.1" max="10" step="0.1" value="1.0" style="width:100%; margin-bottom: 10px;"><br>
+                <input type="range" id="optEdgeWidth" min="0.1" max="10" step="0.1" value="1.0" style="width:95%; margin-bottom: 10px;"><br>
 
                 <label style="display: flex; justify-content: space-between;">Spring Length: <span id="valSpringLen">150</span></label>
-                <input type="range" id="optSpringLen" min="50" max="500" value="150" style="width:100%;">
+                <input type="range" id="optSpringLen" min="50" max="500" value="150" style="width:95%;">
             </div>
         </div>
 
@@ -150,9 +179,7 @@
 
         <div class="control-group" id="file-uploads">
             <h3>3D Structures & Export</h3>
-            
             <label style="margin-top: 4px; display: block; margin-bottom: 10px;"><input type="checkbox" id="showLabels" checked> Show 3D Residue Labels</label>
-            
             <div id="upload-inputs"></div>
             
             <h4 onclick="toggleComp('color-tree-container', this.querySelector('span'))" style="cursor: pointer; margin: 15px 0 5px 0; font-size: 13px; color: var(--text-main); border-bottom: 1px solid var(--border-light); padding-bottom: 5px;">
@@ -162,8 +189,8 @@
                 <div id="color-tree" style="max-height: 200px; overflow-y: auto;"></div>
                 <button class="btn" style="width: 100%; margin-top: 10px; font-size: 11px;" onclick="resetMolColors()">Reset to Theme Defaults</button>
             </div>
-
-            <button class="btn" style="width: 100%; margin-top: 15px;" onclick="loadStructures()">Render 3D</button>
+            
+            <button class="btn" style="width: 100%; margin-top: 15px;" onclick="loadStructures()">Load Uploaded 3D Models</button>
             
             <div style="margin-top: 15px; border-top: 1px solid var(--border-light); padding-top: 10px;">
                 <b style="font-size: 12px; color: var(--text-main);">Export Screenshot:</b>
@@ -180,35 +207,42 @@
             <div id="hierarchy-tree"></div>
             <div id="filtered-tree" style="display: none;"></div>
         </div>
-
     </div>
 
     <div id="main-content">
         <button id="sidebar-toggle" onclick="toggleSidebar()" title="Toggle Sidebar">☰</button>
         <button id="theme-toggle" onclick="toggleTheme()" title="Toggle Theme">☀️ / 🌙</button>
         
+        <div id="view-controls" style="display: none;">
+            <b style="font-size: 13px; color: var(--text-main);">Focus Graph View:</b>
+            <select id="main-graph-selector" onchange="switchGraphViewMode()">
+                <option value="associated">🌐 Associated Graph</option>
+                <option value="filtered">Filtered Graphs</option>
+                <option value="analysis" id="opt-analysis-tab">📊 Analysis & Metrics</option>
+            </select>
+        </div>
+        
         <div id="top-panel">
-            <div id="graph-view-selector" style="position: absolute; top: 15px; left: 50%; transform: translateX(-50%); z-index: 100; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; align-items: center; gap: 8px;">
-                <b style="font-size: 13px; color: var(--text-main);">Graph View:</b>
-                <select id="main-graph-selector" onchange="switchGraphViewMode()">
-                    <option value="associated">🌐 Associated Graph</option>
-                    <option value="filtered">Filtered Graphs (Individual)</option>
-                </select>
-            </div>
-            <div id="mynetwork" class="mynetwork"></div>
+            <div id="single-network"></div>
         </div>
         
         <div id="v-splitter"></div>
         
-        <div id="bottom-panel" id="mol-container">
+        <div id="bottom-panel">
             <div id="viewer-toolbar" style="display: none;">
                 <b style="color: var(--text-main);">3D View:</b>
-                <select id="view-selector" onchange="rebuildViewer()">
+                <select id="view-selector" onchange="triggerRebuild()">
                     <option value="aligned">Aligned (Single View)</option>
                     <option value="separate">Separate (Grid View)</option>
                 </select>
+                <label style="margin-left: 10px; font-size: 13px; color: var(--text-main); cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                    <input type="checkbox" id="syncViews" checked> Sync Cameras
+                </label>
             </div>
+            <div id="single-mols"></div>
         </div>
+        
+        <div id="analysis-wrapper"></div>
     </div>
 </div>
 
@@ -228,16 +262,47 @@
 <div id="mol-tooltip"></div>
 
 <script>
-    const graphData = __GRAPH_DATA_INJECTION__;
+    // --- ROBUST LOGGING SYSTEM ---
+    function logDebug(msg, data) {
+        let out = `[MHCX-DEBUG] ${msg}`;
+        if (data !== undefined) {
+            try { out += " | " + JSON.stringify(data); } catch(e) { out += " | [Complex Object]"; }
+        }
+        console.log(out);
+    }
+    function logError(msg, err) {
+        console.error(`[MHCX-ERROR] ${msg}`);
+        console.error(err);
+    }
+
+    logDebug("Initializing Dashboard Core...");
+    const masterData = __GRAPH_DATA_INJECTION__;
+    let graphData = masterData.mode === 'pair' ? null : masterData; 
     
-    // --- PALETTES FOR THE GRAPH ---
+    // --- AMINO ACID CLASSIFICATIONS ---
+    const RESIDUE_CLASSES = {
+        'ALA':'Hydrophobic', 'VAL':'Hydrophobic', 'ILE':'Hydrophobic', 'LEU':'Hydrophobic', 'MET':'Hydrophobic', 'PHE':'Hydrophobic', 'TYR':'Hydrophobic', 'TRP':'Hydrophobic',
+        'SER':'Polar', 'THR':'Polar', 'ASN':'Polar', 'GLN':'Polar', 'CYS':'Polar',
+        'ARG':'Charged (+)', 'HIS':'Charged (+)', 'LYS':'Charged (+)',
+        'ASP':'Charged (-)', 'GLU':'Charged (-)',
+        'GLY':'Special', 'PRO':'Special'
+    };
+
+    const CLASS_COLORS = {
+        'Hydrophobic': '#4CAF50', // Green
+        'Polar': '#2196F3',       // Blue
+        'Charged (+)': '#3F51B5', // Indigo
+        'Charged (-)': '#F44336', // Red
+        'Special': '#FF9800',     // Orange
+        'Unknown': '#9E9E9E'      // Grey
+    };
+
     const GRAPH_PALETTES = {
         standard: ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'],
         colorblind: ['#E69F00', '#56B4E9', '#009E73', '#0072B2', '#CC79A7', '#999999', '#D55E00', '#F0E442'], 
         high_contrast: ['#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe']
     };
     
-    // --- DEFAULTS FOR 3DMOL ---
     const MOL_DEFAULTS = {
         dark: ['#FFC107', '#4FC3F7', '#69F0AE', '#FF8A65', '#E040FB', '#CDDC39', '#448AFF', '#18FFFF'],
         light: ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#17becf']
@@ -250,14 +315,14 @@
     let currentGraphMode = 'associated';
     let activeFilteredProtIdx = 0;
 
-    let optNodeSize = 18;
-    let optLabelSize = 22;
-    let optEdgeWidth = 1.0;
-    let optSpringLen = 150;
-    let themeText = '#f9fafb';
-    let themeBorder = '#f9fafb';
+    let optNodeSize = 18, optLabelSize = 22, optEdgeWidth = 1.0, optSpringLen = 150;
+    let themeText = '#f9fafb', themeBorder = '#f9fafb';
 
     let network = null;
+    let gridNetworks = [];
+    let gridNodesDatasets = {};
+    let gridEdgesDatasets = {};
+
     let nodesDataset = new vis.DataSet([]);
     let edgesDataset = new vis.DataSet([]);
     let currentActiveNodes = new Set();
@@ -268,479 +333,1177 @@
     let pinnedNode = null;
 
     function init() {
+        logDebug("Mode Detected:", masterData.mode);
         updateThemeVars();
-        assignGraphColorsToData();
-        initMolColors();
-        initMetadata();
-        initNetwork();
-        initHierarchy();
-        initUploads();
         initSplitter();
-        initAdvancedOptions();
         
+        initMolColors();
+        initUploads();
+        initAdvancedOptions(); 
+
         document.querySelectorAll('input[name="viewMode"]').forEach(r => r.addEventListener('change', applyGraphFilters));
-        document.getElementById('showLabels').addEventListener('change', update3DViewer);
-        
+        document.getElementById('showLabels').addEventListener('change', update3DViewerOrGrid);
         document.getElementById('showStdEdges').addEventListener('change', function() {
             if (!this.checked) clearDynamicStdEdges();
             else if (pinnedNode && currentGraphMode === 'associated') drawDynamicStdEdges(pinnedNode);
         });
 
-        const togglePhysics = (e) => { if(network) network.setOptions({ physics: !e.target.checked }); };
+        const togglePhysics = (e) => { 
+            if(network) network.setOptions({ physics: !e.target.checked }); 
+            gridNetworks.forEach(n => n.network.setOptions({ physics: !e.target.checked }));
+        };
         document.getElementById('freezePhysics').addEventListener('change', togglePhysics);
         document.getElementById('freezePhysicsFiltered').addEventListener('change', togglePhysics);
+        
+        if (masterData.mode === 'pair') {
+            document.getElementById('pair-mode-panel').style.display = 'block';
+            let sel = document.getElementById('pair-selector');
+            Object.keys(masterData.pairs).forEach(k => { sel.innerHTML += `<option value="${k}">🔍 Focus: ${k.replace('_vs_', ' vs ')}</option>`; });
+            
+            assignAllPairGraphColors(); 
+            autoLoadStructures().then(() => { switchPairView('GRID'); });
+        } else {
+            // --- ALL MODE INIT ---
+            document.getElementById('pair-mode-panel').style.display = 'none';
+            graphData = masterData;
+            assignGraphColorsToData();
+            initMetadata();
+            initHierarchy();
+            
+            setTimeout(() => {
+                const sn = document.getElementById('single-network');
+                if(sn) sn.style.display = 'block';
+                const sm = document.getElementById('single-mols');
+                if(sm) sm.style.display = 'block';
+                const vc = document.getElementById('view-controls');
+                if(vc) vc.style.display = 'flex';
+                const tb = document.getElementById('viewer-toolbar');
+                if(tb) tb.style.display = 'flex';
+                
+                initNetwork();
+                handleTreeChange();
+                autoLoadStructures();
+                switchGraphViewMode();
+            }, 100);
+        }
+    }
+    
+    function initMetadataGlobalFallback() {
+        try {
+            if (masterData.mode !== 'pair') return;
+            const firstPair = Object.keys(masterData.pairs)[0];
+            const c = masterData.pairs[firstPair].metadata || {};
+            document.getElementById('metadata-panel').innerHTML = `
+                <h3>Execution Metadata</h3>
+                <div style="margin-bottom: 10px;"><b>Run Name:</b> ${masterData.run_name || 'N/A'}</div>
+                <div style="margin-bottom: 12px; font-size: 12px; font-style: italic;">Select a specific pair focus or view colors in the grid to see node mappings.</div>
+                <div><b>Parameters:</b>
+                    <ul style="margin: 5px 0 0 0; padding-left: 20px; line-height: 1.5;">
+                        <li><b>Mode:</b> ${c.run_mode || 'pair'}</li>
+                        <li><b>Granularity:</b> ${c.node_granularity || 'all_atoms'}</li>
+                        <li><b>Edge Thresh:</b> ${c.edge_threshold || 'N/A'} Å</li>
+                        <li><b>Global Diff:</b> ${c.global_distance_diff_threshold || 'N/A'} Å</li>
+                    </ul>
+                </div>
+            `;
+        } catch(e) { logError("initMetadataGlobalFallback failed", e); }
+    }
 
-        handleTreeChange();
+    function assignAllPairGraphColors() {
+        logDebug("Assigning global graph palettes for all pairs");
+        try {
+            const pal = GRAPH_PALETTES[activePaletteName];
+            Object.values(masterData.pairs).forEach(pData => {
+                let uniqueGroups = [...new Set(pData.nodes.map(n => n.group))].sort();
+                let cMap = {}; uniqueGroups.forEach((g, i) => cMap[g] = pal[i % pal.length]);
+                pData.nodes.forEach(n => n.originalColor = cMap[n.group]);
+            });
+        } catch(e) { logError("assignAllPairGraphColors failed", e); }
+    }
+
+    function focusOnPair(pairKey) {
+        logDebug(`Direct focus button clicked for: ${pairKey}`);
+        document.getElementById('pair-selector').value = pairKey;
+        switchPairView(pairKey);
+    }
+
+    function switchPairView(val) {
+        try {
+            if (!val || val instanceof Event) val = document.getElementById('pair-selector').value;
+            logDebug(`Routing View To: ${val}`);
+
+            document.getElementById('analysis-wrapper').style.display = 'none';
+            document.getElementById('top-panel').style.display = 'none';
+            document.getElementById('bottom-panel').style.display = 'none';
+            document.getElementById('v-splitter').style.display = 'none';
+            document.getElementById('view-controls').style.display = 'none';
+            
+            const singleNet = document.getElementById('single-network');
+            if (singleNet) singleNet.style.display = 'block';
+            const singleMols = document.getElementById('single-mols');
+            if (singleMols) singleMols.style.display = 'block';
+
+            const dynGridNet = document.getElementById('dynamic-grid-networks');
+            if (dynGridNet) dynGridNet.style.display = 'none';
+            const dynGridMols = document.getElementById('dynamic-grid-mols');
+            if (dynGridMols) dynGridMols.style.display = 'none';
+            
+            if (network) { network.destroy(); network = null; }
+            gridNetworks.forEach(n => n.network.destroy());
+            gridNetworks = []; gridNodesDatasets = {}; gridEdgesDatasets = {}; viewers = [];
+            nodesDataset.clear(); edgesDataset.clear();
+            
+            if (val === 'GRID') {
+                document.getElementById('main-graph-selector').value = 'associated';
+                document.getElementById('nav-title').parentElement.style.display = 'block';
+                document.getElementById('top-panel').style.display = 'block';
+                document.getElementById('bottom-panel').style.display = 'flex';
+                document.getElementById('v-splitter').style.display = 'flex';
+                
+                initMetadataGlobalFallback();
+                initHierarchyGrid(); 
+                
+                setTimeout(() => { buildGridTop(); buildGridBottom(); }, 50);
+                
+            } else if (val === 'ANALYSIS') {
+                document.getElementById('main-graph-selector').value = 'associated';
+                document.getElementById('nav-title').parentElement.style.display = 'none';
+                document.getElementById('analysis-wrapper').style.display = 'block';
+                renderAnalysis(true); 
+                
+            } else {
+                document.getElementById('main-graph-selector').value = 'associated';
+                document.getElementById('nav-title').parentElement.style.display = 'block';
+                document.getElementById('top-panel').style.display = 'block';
+                document.getElementById('bottom-panel').style.display = 'flex';
+                document.getElementById('v-splitter').style.display = 'flex';
+                document.getElementById('view-controls').style.display = 'flex';
+                
+                graphData = masterData.pairs[val];
+                
+                assignGraphColorsToData();
+                initMetadata();
+                initHierarchy(); 
+                
+                const select = document.getElementById('view-selector');
+                if (select) {
+                    select.innerHTML = '<option value="aligned">Aligned (Single View)</option><option value="separate">Separate (Grid View)</option>';
+                    loadedModels.forEach((m, idx) => {
+                        if (m && graphData.proteins.includes(m.name)) select.innerHTML += `<option value="prot_${idx}">Prot ${graphData.proteins.indexOf(m.name)}: ${m.name}</option>`;
+                    });
+                }
+                
+                setTimeout(() => {
+                    document.getElementById('viewer-toolbar').style.display = 'flex';
+                    initNetwork(); 
+                    handleTreeChange();
+                    rebuildViewer();
+                    switchGraphViewMode(); 
+                }, 50);
+            }
+        } catch(e) { logError("switchPairView crashed", e); }
+    }
+
+    function buildGridTop() {
+        try {
+            const topPanel = document.getElementById('top-panel');
+            const singleNet = document.getElementById('single-network'); 
+            if (singleNet) singleNet.style.display = 'none'; 
+
+            let gridWrapper = document.getElementById('dynamic-grid-networks');
+            if (!gridWrapper) {
+                gridWrapper = document.createElement('div');
+                gridWrapper.id = 'dynamic-grid-networks';
+                gridWrapper.style.width = '100%'; gridWrapper.style.height = '100%';
+                gridWrapper.style.padding = '15px'; gridWrapper.style.boxSizing = 'border-box';
+                gridWrapper.style.overflowY = 'auto'; gridWrapper.style.background = 'var(--bg-body)';
+                topPanel.appendChild(gridWrapper);
+            }
+            
+            gridWrapper.innerHTML = ''; 
+            gridWrapper.style.display = 'grid';
+            
+            let numPairs = Object.keys(masterData.pairs).length;
+            let cols = numPairs > 4 ? 3 : (numPairs > 1 ? 2 : 1);
+            gridWrapper.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+            gridWrapper.style.gridAutoRows = '350px';
+            gridWrapper.style.gap = '15px';
+
+            Object.keys(masterData.pairs).forEach(pairKey => {
+                let pData = masterData.pairs[pairKey];
+                
+                let card = document.createElement('div');
+                card.style.border = '1px solid var(--border)'; card.style.borderRadius = '8px';
+                card.style.display = 'flex'; card.style.flexDirection = 'column';
+                card.style.background = 'var(--bg-panel)'; card.style.overflow = 'hidden';
+                
+                let header = document.createElement('div');
+                header.style.padding = '8px 12px'; header.style.fontWeight = 'bold'; header.style.background = 'var(--bg-control)';
+                header.style.borderBottom = '1px solid var(--border)'; header.style.color = 'var(--text-main)';
+                header.innerHTML = `<div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span>${pairKey.replace('_vs_', ' vs ')}</span>
+                    <button class="btn" style="padding: 4px 10px; font-size: 11px;" onclick="focusOnPair('${pairKey}')">🔍 Focus</button>
+                </div>`;
+                card.appendChild(header);
+                
+                let netDiv = document.createElement('div');
+                netDiv.style.flex = '1'; netDiv.style.position = 'relative'; netDiv.style.minHeight = '0';
+                card.appendChild(netDiv);
+                gridWrapper.appendChild(card); 
+                
+                setTimeout(() => {
+                    let dsNodes = new vis.DataSet(pData.nodes.map(n => ({...n, label: '<b>'+n.label+'</b>', color: {background: n.originalColor || '#9ca3af', border: themeBorder}, font: {color: themeText}})));
+                    let dsEdges = new vis.DataSet(pData.edges.map(e => ({...e, color: {color: '#9ca3af', opacity: 0.8}, width: optEdgeWidth})));
+                    gridNodesDatasets[pairKey] = dsNodes; gridEdgesDatasets[pairKey] = dsEdges;
+                    
+                    let net = new vis.Network(netDiv, {nodes: dsNodes, edges: dsEdges}, {
+                        nodes: { shape: 'dot', size: optNodeSize, font: { size: optLabelSize-4, multi: 'html', face: 'ui-sans-serif' }, borderWidth: 2 },
+                        edges: { smooth: !document.getElementById('optStraightEdges').checked },
+                        physics: { solver: 'repulsion', repulsion: { nodeDistance: 100, springLength: 90 }, stabilization: { iterations: 40, fit: true } }, 
+                        interaction: {zoomView: true, dragView: true}
+                    });
+                    
+                    net.once("stabilizationIterationsDone", function () { 
+                        if (document.getElementById('freezePhysics').checked) net.setOptions({ physics: false }); 
+                    });
+                    gridNetworks.push({ pair: pairKey, network: net });
+                    handleGridTreeChange(pairKey); 
+                }, 10);
+            });
+        } catch(e) { logError("buildGridTop crashed", e); }
+    }
+
+    function buildGridBottom() {
+        try {
+            viewers = []; 
+            window.activeMolViewer = null;
+
+            const bottomPanel = document.getElementById('bottom-panel');
+            const singleMols = document.getElementById('single-mols'); 
+            if (singleMols) singleMols.style.display = 'none'; 
+
+            let gridWrapper = document.getElementById('dynamic-grid-mols');
+            if (!gridWrapper) {
+                gridWrapper = document.createElement('div');
+                gridWrapper.id = 'dynamic-grid-mols';
+                gridWrapper.style.width = '100%'; 
+                gridWrapper.style.flex = '1'; 
+                gridWrapper.style.padding = '15px'; 
+                gridWrapper.style.boxSizing = 'border-box';
+                gridWrapper.style.overflowY = 'auto'; 
+                gridWrapper.style.background = 'var(--bg-body)';
+                bottomPanel.appendChild(gridWrapper);
+            }
+            
+            gridWrapper.innerHTML = ''; 
+            gridWrapper.style.display = 'grid';
+            
+            const layoutMode = document.getElementById('view-selector').value;
+            const isDark = document.body.getAttribute('data-theme') === 'dark';
+            const bgMol = isDark ? "#1f2937" : "#ffffff";
+            
+            let numPairs = Object.keys(masterData.pairs).length;
+            let cols = numPairs > 4 ? 3 : (numPairs > 1 ? 2 : 1);
+            gridWrapper.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+            gridWrapper.style.gridAutoRows = '350px';
+            gridWrapper.style.gap = '15px';
+
+            Object.keys(masterData.pairs).forEach(pairKey => {
+                let pData = masterData.pairs[pairKey];
+                let p1_idx = masterData.proteins.indexOf(pData.proteins[0]);
+                let p2_idx = masterData.proteins.indexOf(pData.proteins[1]);
+                
+                let card = document.createElement('div');
+                card.style.border = '1px solid var(--border)'; card.style.borderRadius = '8px';
+                card.style.display = 'flex'; card.style.flexDirection = 'column';
+                card.style.background = 'var(--bg-panel)'; card.style.overflow = 'hidden';
+                
+                let header = document.createElement('div');
+                header.style.padding = '8px 12px'; header.style.fontWeight = 'bold'; header.style.background = 'var(--bg-control)';
+                header.style.borderBottom = '1px solid var(--border)'; header.style.textAlign = 'center'; header.style.color = 'var(--text-main)';
+                header.innerText = pairKey.replace('_vs_', ' vs ');
+                card.appendChild(header);
+
+                let body = document.createElement('div');
+                body.style.flex = '1'; body.style.display = 'flex'; body.style.position = 'relative'; body.style.minHeight = '0';
+                card.appendChild(body);
+                gridWrapper.appendChild(card);
+
+                if (layoutMode === 'separate') {
+                    [p1_idx, p2_idx].forEach(idx => {
+                        let molDiv = document.createElement('div');
+                        molDiv.style.flex = '1'; molDiv.style.height = '100%'; molDiv.style.position = 'relative';
+                        if (idx === p1_idx) molDiv.style.borderRight = '1px solid var(--border-light)';
+                        body.appendChild(molDiv);
+                        
+                        let titleDiv = document.createElement('div');
+                        titleDiv.className = 'viewer-title';
+                        titleDiv.style.fontSize = '11px';
+                        titleDiv.style.padding = '2px 6px';
+                        let pName = masterData.proteins[idx];
+                        let baseCol = get3DColor('A', idx);
+                        titleDiv.innerHTML = `<span class="color-dot" style="background-color: ${baseCol}; width: 8px; height: 8px;"></span>${pName}`;
+                        molDiv.appendChild(titleDiv);
+
+                        let canvasWrapper = document.createElement('div');
+                        canvasWrapper.style.width = '100%'; canvasWrapper.style.height = '100%'; canvasWrapper.style.position = 'absolute';
+                        molDiv.appendChild(canvasWrapper);
+
+                        const initViewer = () => {
+                            if (canvasWrapper.clientWidth === 0 || canvasWrapper.clientHeight === 0) {
+                                setTimeout(initViewer, 20);
+                                return;
+                            }
+                            let v = $3Dmol.createViewer(canvasWrapper, { backgroundColor: bgMol });
+                            canvasWrapper.addEventListener('mousedown', () => { window.activeMolViewer = v; });
+                            canvasWrapper.addEventListener('wheel', () => { window.activeMolViewer = v; }, {passive: true});
+                            
+                            if (loadedModels[idx]) {
+                                v.addModel(loadedModels[idx].text, loadedModels[idx].format);
+                                v.setStyle({}, {cartoon: {colorfunc: (atom) => get3DColor(atom.chain, idx)}});
+                                v.zoomTo();
+                            }
+                            v.pairKey = pairKey; v.protIdxs = [idx]; viewers.push(v);
+                            update3DViewerGridForPair(pairKey);
+                        };
+                        initViewer();
+                    });
+                } else {
+                    let molDiv = document.createElement('div');
+                    molDiv.style.width = '100%'; molDiv.style.height = '100%'; molDiv.style.position = 'absolute';
+                    body.appendChild(molDiv);
+                    
+                    const initViewer = () => {
+                        if (molDiv.clientWidth === 0 || molDiv.clientHeight === 0) {
+                            setTimeout(initViewer, 20);
+                            return;
+                        }
+                        let v = $3Dmol.createViewer(molDiv, { backgroundColor: bgMol });
+                        molDiv.addEventListener('mousedown', () => { window.activeMolViewer = v; });
+                        molDiv.addEventListener('wheel', () => { window.activeMolViewer = v; }, {passive: true});
+                        
+                        let hasMol = false;
+                        [p1_idx, p2_idx].forEach(idx => {
+                            if (loadedModels[idx]) {
+                                let mObj = v.addModel(loadedModels[idx].text, loadedModels[idx].format);
+                                v.setStyle({model: mObj.getID()}, {cartoon: {colorfunc: (atom) => get3DColor(atom.chain, idx)}});
+                                hasMol = true;
+                            }
+                        });
+                        v.pairKey = pairKey; v.protIdxs = [p1_idx, p2_idx]; 
+                        if(hasMol) v.zoomTo(); viewers.push(v);
+                        update3DViewerGridForPair(pairKey);
+                    };
+                    initViewer();
+                }
+            });
+        } catch(e) { logError("buildGridBottom crashed", e); }
+    }
+
+    function triggerRebuild() {
+        if (masterData.mode === 'pair' && document.getElementById('pair-selector').value === 'GRID') buildGridBottom();
+        else rebuildViewer();
     }
 
     function toggleTheme() {
         const body = document.body;
-        const currentlyDark = body.getAttribute('data-theme') === 'dark';
-        const newIsDark = !currentlyDark;
-        
+        const newIsDark = !(body.getAttribute('data-theme') === 'dark');
         body.setAttribute('data-theme', newIsDark ? 'dark' : 'light');
         updateThemeVars();
         
-        if(network) {
-            network.setOptions({ nodes: { font: { color: themeText } } });
-        }
+        if(network) network.setOptions({ nodes: { font: { color: themeText } } });
+        gridNetworks.forEach(n => n.network.setOptions({ nodes: { font: { color: themeText } } }));
         
-        if (currentGraphMode === 'associated') {
-            applyGraphFilters();
+        if (masterData.mode === 'pair' && document.getElementById('pair-selector').value === 'GRID') {
+            Object.keys(masterData.pairs).forEach(k => applyGraphFiltersGrid(k));
         } else {
-            handleFilteredChange();
+            if (currentGraphMode === 'associated') applyGraphFilters();
+            else if (currentGraphMode === 'filtered') handleFilteredChange();
         }
 
         const bgMol = newIsDark ? "#1f2937" : "#ffffff"; 
-        viewers.forEach(v => {
-            v.setBackgroundColor(bgMol);
-        });
-
+        viewers.forEach(v => { v.setBackgroundColor(bgMol); v.render(); });
         resetMolColors();
     }
 
     function updateThemeVars() {
         const isDark = document.body.getAttribute('data-theme') === 'dark';
-        themeText = isDark ? '#f9fafb' : '#111827';
-        themeBorder = isDark ? '#f9fafb' : '#111827';
+        themeText = isDark ? '#f9fafb' : '#111827'; themeBorder = isDark ? '#f9fafb' : '#111827';
     }
 
     function assignGraphColorsToData() {
-        const pal = GRAPH_PALETTES[activePaletteName];
-        let uniqueGroups = [...new Set(graphData.nodes.map(n => n.group))].sort();
-        uniqueGroups.forEach((g, i) => {
-            graphNodeColors[g] = pal[i % pal.length];
-        });
-        graphData.nodes.forEach(n => n.originalColor = graphNodeColors[n.group]);
-        
-        graphData.filtered_graphs.forEach(fg => {
-            let fgGroups = [...new Set(fg.nodes.map(n => n.group))].sort();
-            let fgColors = {};
-            fgGroups.forEach((g, i) => {
-                fgColors[g] = pal[i % pal.length];
+        try {
+            if (!graphData) return;
+            const pal = GRAPH_PALETTES[activePaletteName];
+            let uniqueGroups = [...new Set(graphData.nodes.map(n => n.group))].sort();
+            uniqueGroups.forEach((g, i) => graphNodeColors[g] = pal[i % pal.length]);
+            graphData.nodes.forEach(n => n.originalColor = graphNodeColors[n.group]);
+            
+            graphData.filtered_graphs.forEach(fg => {
+                let fgGroups = [...new Set(fg.nodes.map(n => n.group))].sort();
+                let fgColors = {};
+                fgGroups.forEach((g, i) => fgColors[g] = pal[i % pal.length]);
+                fg.nodes.forEach(n => n.originalColor = fgColors[n.group]);
             });
-            fg.nodes.forEach(n => n.originalColor = fgColors[n.group]);
-        });
+        } catch(e) { logError("assignGraphColorsToData crashed", e); }
     }
     
     function initMolColors(forceReset = false) {
         if (Object.keys(molChainColors).length > 0 && !forceReset) return;
-        
         const isDark = document.body.getAttribute('data-theme') === 'dark';
         const pal = isDark ? MOL_DEFAULTS.dark : MOL_DEFAULTS.light;
         let i = 0;
-
-        graphData.proteins.forEach((protName, pIdx) => {
+        masterData.proteins.forEach((protName, pIdx) => {
             let chains = new Set();
-            graphData.nodes.forEach(n => {
-                n.mapping.forEach(m => {
-                    if (m.model_idx === pIdx) chains.add(m.chain);
-                });
-            });
-            
-            Array.from(chains).sort().forEach(c => {
-                const key = `${pIdx}_${c}`;
-                molChainColors[key] = pal[i % pal.length]; 
-                i++;
-            });
+            if (masterData.mode === 'pair') Object.values(masterData.pairs).forEach(pd => pd.nodes.forEach(n => n.mapping.forEach(m => { if (m.model_idx === pIdx) chains.add(m.chain); })));
+            else masterData.nodes.forEach(n => n.mapping.forEach(m => { if (m.model_idx === pIdx) chains.add(m.chain); }));
+            Array.from(chains).sort().forEach(c => { molChainColors[`${pIdx}_${c}`] = pal[i % pal.length]; i++; });
         });
-        
         renderMolColorTree();
     }
 
     function renderMolColorTree() {
         const container = document.getElementById('color-tree');
         let html = '';
-        
-        graphData.proteins.forEach((protName, pIdx) => {
-            html += `
-            <div class="tree-item tree-level-1" style="justify-content: space-between;">
-                <div style="display: flex; align-items: center; gap: 6px;">
-                    <span class="collapse-toggle" onclick="toggleComp('colors_prot_${pIdx}', this)">▼</span>
-                    <label>Prot ${pIdx}: ${protName}</label>
-                </div>
-            </div>
-            <div id="colors_prot_${pIdx}" style="display:block; padding-left: 10px;">
-            `;
-
+        masterData.proteins.forEach((protName, pIdx) => {
+            if (masterData.mode === 'pair' && document.getElementById('pair-selector').value !== 'GRID' && document.getElementById('pair-selector').value !== 'ANALYSIS' && graphData && !graphData.proteins.includes(protName)) return;
+            html += `<div class="tree-item tree-level-1" style="justify-content: space-between;"><div style="display: flex; align-items: center; gap: 6px;"><span class="collapse-toggle" onclick="toggleComp('colors_prot_${pIdx}', this)">▼</span><label>Prot ${pIdx}: ${protName}</label></div></div><div id="colors_prot_${pIdx}" style="display:block; padding-left: 10px;">`;
             let chains = new Set();
-            graphData.nodes.forEach(n => n.mapping.forEach(m => { if(m.model_idx === pIdx) chains.add(m.chain); }));
-
+            if (masterData.mode === 'pair') Object.values(masterData.pairs).forEach(pd => pd.nodes.forEach(n => n.mapping.forEach(m => { if (m.model_idx === pIdx) chains.add(m.chain); })));
+            else masterData.nodes.forEach(n => n.mapping.forEach(m => { if(m.model_idx === pIdx) chains.add(m.chain); }));
             Array.from(chains).sort().forEach(c => {
                 const key = `${pIdx}_${c}`;
-                html += `
-                <div class="tree-item tree-level-2" style="justify-content: space-between; padding-right: 15px;">
-                    <label>Chain ${c}</label>
-                    <input type="color" value="${molChainColors[key]}" onchange="updateMolChainColor(${pIdx}, '${c}', this.value)" style="width: 25px; height: 25px; padding: 0; border: none; background: none; cursor: pointer; border-radius: 4px;">
-                </div>
-                `;
+                html += `<div class="tree-item tree-level-2" style="justify-content: space-between; padding-right: 15px;"><label>Chain ${c}</label><input type="color" value="${molChainColors[key]}" onchange="updateMolChainColor(${pIdx}, '${c}', this.value)" style="width: 25px; height: 25px; padding: 0; border: none; background: none; cursor: pointer; border-radius: 4px;"></div>`;
             });
             html += `</div>`;
         });
         container.innerHTML = html;
     }
 
+    function update3DViewerOrGrid() {
+        if (masterData.mode === 'pair' && document.getElementById('pair-selector').value === 'GRID') {
+            Object.keys(masterData.pairs).forEach(k => update3DViewerGridForPair(k));
+        } else update3DViewer();
+    }
+
+function renderAnalysis(isGlobalPairMode = false) {
+        logDebug(`Rendering Analysis Tab. Global: ${isGlobalPairMode}`);
+        try {
+            const mData = isGlobalPairMode ? masterData : graphData;
+            if (!mData) {
+                logDebug("renderAnalysis aborted: Data is null.");
+                return;
+            }
+
+            // Determine if we are rendering for the global run or a local subset
+            const displayProts = isGlobalPairMode ? masterData.proteins : mData.proteins;
+            const numDisplay = displayProts.length; 
+            logDebug(`Number of proteins to display: ${numDisplay}`, displayProts);
+            
+            let matrix = Array(numDisplay).fill(null).map(() => Array(numDisplay).fill(null));
+
+            // --- 1. PRE-CALCULATE ORIGINAL SIZES ---
+            let origSizes = [];
+            if (isGlobalPairMode) {
+                 origSizes = Array(numDisplay).fill(0);
+                 Object.values(mData.pairs).forEach(pData => {
+                     let p1 = displayProts.indexOf(pData.proteins[0]);
+                     let p2 = displayProts.indexOf(pData.proteins[1]);
+                     origSizes[p1] = pData.filtered_graphs[0].nodes.length;
+                     origSizes[p2] = pData.filtered_graphs[1].nodes.length;
+                 });
+            } else {
+                 origSizes = mData.filtered_graphs.map(fg => fg.nodes.length);
+            }
+            logDebug("Original sizes calculated:", origSizes);
+
+            // --- 2. POPULATE MATRICES WITH UNIFIED LOGIC ---
+            let largestPatch = 0;
+
+            if (isGlobalPairMode) {
+                Object.keys(mData.pairs).forEach(pairKey => {
+                    let pData = mData.pairs[pairKey];
+                    let p1 = displayProts.indexOf(pData.proteins[0]);
+                    let p2 = displayProts.indexOf(pData.proteins[1]);
+                    
+                    let unique0 = new Set(); let unique1 = new Set();
+                    pData.components.forEach(comp => {
+                        if (comp.id === 0) return;
+                        comp.frames.forEach(frame => {
+                            if (frame.id === 0) return;
+                            if (frame.node_ids.length > largestPatch) largestPatch = frame.node_ids.length;
+                            frame.node_ids.forEach(nId => {
+                                let n = pData.nodes.find(node => node.id === nId);
+                                if (n) {
+                                    n.mapping.forEach(m => {
+                                        let localIdx = pData.proteins.indexOf(masterData.proteins[m.model_idx]);
+                                        if (localIdx === 0) unique0.add(`${m.chain}:${m.resn}:${m.resi}`);
+                                        if (localIdx === 1) unique1.add(`${m.chain}:${m.resn}:${m.resi}`);
+                                    });
+                                }
+                            });
+                        });
+                    });
+                    
+                    let assocNodesCount = unique0.size + unique1.size; 
+                    let origSum = pData.filtered_graphs[0].nodes.length + pData.filtered_graphs[1].nodes.length;
+                    let ratio = origSum > 0 ? (assocNodesCount / origSum) : 0;
+                    let val = parseFloat((ratio * 100).toFixed(1));
+                    
+                    let cellObj = { pct: val, shared: assocNodesCount, total: origSum, u1: unique0.size, u2: unique1.size };
+                    matrix[p1][p2] = cellObj; matrix[p2][p1] = cellObj; 
+                });
+            } else {
+                // PROJECT N-TUPLES TO UNIQUE 2-TUPLES FOR LOCAL "ALL" OR FOCUSED PAIRS
+                mData.components.forEach(c => {
+                    if (c.id !== 0) {
+                        c.frames.forEach(f => {
+                            if (f.id !== 0 && f.node_ids.length > largestPatch) largestPatch = f.node_ids.length;
+                        });
+                    }
+                });
+
+                for (let i = 0; i < numDisplay; i++) {
+                    for (let j = 0; j < numDisplay; j++) {
+                        let unique_i = new Set();
+                        let unique_j = new Set();
+                        
+                        let global_i = masterData.proteins.indexOf(displayProts[i]);
+                        let global_j = masterData.proteins.indexOf(displayProts[j]);
+                        
+                        mData.components.forEach(comp => {
+                            if (comp.id === 0) return;
+                            comp.frames.forEach(frame => {
+                                if (frame.id === 0) return;
+                                frame.node_ids.forEach(nId => {
+                                    let n = mData.nodes.find(node => node.id === nId);
+                                    if (n) {
+                                        n.mapping.forEach(m => {
+                                            if (m.model_idx === global_i) unique_i.add(`${m.chain}:${m.resn}:${m.resi}`);
+                                            if (m.model_idx === global_j) unique_j.add(`${m.chain}:${m.resn}:${m.resi}`);
+                                        });
+                                    }
+                                });
+                            });
+                        });
+
+                        if (i === j) {
+                            let origSize = origSizes[i];
+                            let ratio = origSize > 0 ? (unique_i.size / origSize) : 0;
+                            let val = parseFloat((ratio * 100).toFixed(1));
+                            matrix[i][j] = { pct: val, shared: unique_i.size, total: origSize, u1: unique_i.size, u2: unique_i.size };
+                        } else {
+                            let assocNodesCount = unique_i.size + unique_j.size; 
+                            let origSum = origSizes[i] + origSizes[j];
+                            let ratio = origSum > 0 ? (assocNodesCount / origSum) : 0;
+                            let val = parseFloat((ratio * 100).toFixed(1));
+                            matrix[i][j] = { pct: val, shared: assocNodesCount, total: origSum, u1: unique_i.size, u2: unique_j.size };
+                        }
+                    }
+                }
+            }
+            logDebug("Matrix populated successfully.");
+
+            // --- 3. SUMMARY CARDS RESTORATION ---
+            const wrapper = document.getElementById('analysis-wrapper');
+            let framesCount = 0;
+            let compsCount = isGlobalPairMode ? Object.keys(mData.pairs).length : (mData.components.length - 1);
+
+            if (!isGlobalPairMode) {
+                mData.components.forEach(c => { if(c.id !== 0) framesCount += c.frames.length - 1; });
+            } else {
+                Object.values(mData.pairs).forEach(pData => {
+                    pData.components.forEach(c => { if(c.id !== 0) framesCount += c.frames.length - 1; });
+                });
+            }
+
+            // CRITICAL FIX: Safe fallback to global metadata if the pair's local payload doesn't contain it.
+            const safeMetadata = mData.metadata || masterData.metadata || {};
+            const granularity = safeMetadata.node_granularity || 'N/A';
+
+            logDebug("Injecting wrapper HTML...");
+            wrapper.innerHTML = `
+                <div class="summary-cards">
+                    <div class="card"><h4>Proteins Analyzed</h4><div class="value">${numDisplay}</div></div>
+                    <div class="card"><h4>Conserved Components</h4><div class="value">${compsCount}</div></div>
+                    <div class="card"><h4>Structural Frames</h4><div class="value">${framesCount}</div></div>
+                    <div class="card"><h4>Largest Patch</h4><div class="value">${largestPatch} <span style="font-size:12px; color:var(--text-muted)">nodes</span></div></div>
+                    <div class="card"><h4>Granularity</h4><div class="value" style="font-size:18px; margin-top:10px; color:var(--text-main);">${granularity}</div></div>
+                </div>
+
+                <div class="analysis-section" id="hm-section">
+                    <h2 id="analysis-title-1">
+                        ${isGlobalPairMode ? 'Pairwise Coverage Heatmap (%)' : 'Protein Co-occurrence Heatmap'}
+                    </h2>
+                    <div class="heatmap-wrapper" id="heatmap-container"></div>
+                </div>
+
+                <div class="analysis-section">
+                    <h2>${isGlobalPairMode ? 'Pairwise Association Metrics' : 'Per-Frame Coverage & Properties'}</h2>
+                    <div style="max-height: 500px; overflow-y: auto; border: 1px solid var(--border-light); border-radius: 6px;">
+                        <table class="metrics-table">
+                            <thead><tr id="metrics-table-head"></tr></thead>
+                            <tbody id="metrics-table-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+
+            // --- 4. BUILD HEATMAP UI ---
+            logDebug("Building Heatmap...");
+            const hmContainer = document.getElementById('heatmap-container');
+            const grid = document.createElement('div');
+            grid.className = 'heatmap-grid';
+            grid.style.gridTemplateColumns = `auto repeat(${numDisplay}, 1fr)`;
+            
+            grid.appendChild(document.createElement('div')); 
+            
+            for (let i = 0; i < numDisplay; i++) {
+                let h = document.createElement('div'); h.className = 'heatmap-header';
+                h.innerHTML = `${displayProts[i]}<br><span style="font-size:10px; color:var(--text-muted); font-weight:normal;">(${origSizes[i]} nodes)</span>`;
+                grid.appendChild(h);
+            }
+            
+            for (let i = 0; i < numDisplay; i++) {
+                let rh = document.createElement('div'); rh.className = 'heatmap-header';
+                rh.style.justifyContent = "flex-end";
+                rh.style.paddingRight = "15px";
+                rh.innerHTML = `${displayProts[i]} <span style="font-size:10px; color:var(--text-muted); font-weight:normal; margin-left:5px;">(${origSizes[i]})</span>`;
+                grid.appendChild(rh);
+                
+                for (let j = 0; j < numDisplay; j++) {
+                    let cell = document.createElement('div'); 
+                    let cellData = matrix[i][j];
+                    cell.className = 'heatmap-cell'; 
+                    
+                    let isDark = document.body.getAttribute('data-theme') === 'dark';
+                    
+                    if (!cellData || cellData.pct === 0) {
+                        cell.innerText = cellData ? '0%' : '-';
+                        cell.style.background = isDark ? '#1f2937' : '#e5e7eb';
+                        cell.style.color = isDark ? '#4b5563' : '#9ca3af';
+                        cell.style.textShadow = 'none';
+                        cell.style.cursor = 'default';
+                    } else {
+                        let val = cellData.pct;
+                        cell.innerText = `${val}%`;
+                        
+                        let intensity = val / 100.0;
+                        let hue = 280 - (intensity * 230); 
+                        let light = isDark ? 25 + (intensity * 35) : 35 + (intensity * 35);
+                        cell.style.background = `hsl(${hue}, 85%, ${light}%)`;
+                        
+                        const tt = document.createElement('div');
+                        tt.className = 'hm-tooltip';
+                        let pName_i = displayProts[i];
+                        let pName_j = displayProts[j];
+                        
+                        if (i === j) {
+                            tt.innerHTML = `
+                                <div style="border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 4px; margin-bottom: 4px; font-weight: bold;">
+                                    ${pName_i} (Self)
+                                </div>
+                                Conserved Nodes: <b>${cellData.shared}</b> / ${origSizes[i]}<br>
+                                Self-Coverage: <b style="color: #FFD54F;">${val}%</b>
+                            `;
+                        } else {
+                            tt.innerHTML = `
+                                <div style="border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 4px; margin-bottom: 4px; font-weight: bold;">
+                                    ${pName_i} vs ${pName_j}
+                                </div>
+                                ${pName_i} Match: <b>${cellData.u1}</b> / ${origSizes[i]}<br>
+                                ${pName_j} Match: <b>${cellData.u2}</b> / ${origSizes[j]}<br>
+                                Total Combined Coverage: <b style="color: #FFD54F;">${val}%</b>
+                            `;
+                        }
+                        cell.appendChild(tt);
+                    }
+                    grid.appendChild(cell);
+                }
+            }
+            hmContainer.appendChild(grid);
+
+            // --- 5. BUILD METRICS TABLE WITH NEW ANALYTICS ---
+            logDebug("Building Metrics Table...");
+            const tHead = document.getElementById('metrics-table-head');
+            const tBody = document.getElementById('metrics-table-body');
+            
+            if (isGlobalPairMode) {
+                tHead.innerHTML = `<th>Pair Name</th><th>Original Nodes (P1 + P2)</th><th>Unique Associated Residues</th><th>Total Coverage</th>`;
+                let bodyHtml = '';
+                Object.keys(mData.pairs).forEach(pairKey => {
+                    let pData = mData.pairs[pairKey];
+                    let unique0 = new Set(); let unique1 = new Set();
+                    pData.components.forEach(comp => {
+                        if (comp.id === 0) return;
+                        comp.frames.forEach(frame => {
+                            if (frame.id === 0) return;
+                            frame.node_ids.forEach(nId => {
+                                let n = pData.nodes.find(node => node.id === nId);
+                                if (n) {
+                                    n.mapping.forEach(m => {
+                                        let localIdx = pData.proteins.indexOf(masterData.proteins[m.model_idx]);
+                                        if (localIdx === 0) unique0.add(`${m.chain}:${m.resn}:${m.resi}`);
+                                        if (localIdx === 1) unique1.add(`${m.chain}:${m.resn}:${m.resi}`);
+                                    });
+                                }
+                            });
+                        });
+                    });
+                    
+                    let assocNodesCount = unique0.size + unique1.size; 
+                    let origSum = pData.filtered_graphs[0].nodes.length + pData.filtered_graphs[1].nodes.length;
+                    let ratio = origSum > 0 ? ((assocNodesCount / origSum)*100).toFixed(1) : 0;
+                    bodyHtml += `<tr><td><b>${pairKey.replace('_vs_', ' vs ')}</b></td><td>${origSum}</td><td>${assocNodesCount}</td><td><span style="color:var(--btn-bg); font-weight:bold;">${ratio}%</span></td></tr>`;
+                });
+                tBody.innerHTML = bodyHtml || `<tr><td colspan="4" style="text-align:center;">No pairs found.</td></tr>`;
+            } else {
+                let headHtml = `<th>Comp</th><th>Frame</th><th>Residues</th><th>Edge Density</th><th>Residue Composition</th>`;
+                
+                let hasRmsd = false;
+                if(mData.components.length > 1 && mData.components[1].frames.length > 1) {
+                    if (mData.components[1].frames[1].rmsds && Object.keys(mData.components[1].frames[1].rmsds).length > 0) hasRmsd = true;
+                }
+                if (hasRmsd) headHtml += `<th>Align RMSD</th>`;
+                
+                for (let i = 0; i < numDisplay; i++) {
+                    let pName = displayProts[i];
+                    headHtml += `<th>${pName} Cov.<br><span style="font-size:10px; color:var(--text-muted); text-transform:none;">(of ${origSizes[i]})</span></th>`;
+                }
+                tHead.innerHTML = headHtml;
+                
+                let bodyHtml = '';
+                mData.components.forEach(comp => {
+                    if (comp.id === 0) return; 
+                    comp.frames.forEach(frame => {
+                        if (frame.id === 0) return; 
+                        
+                        let frameNodes = frame.node_ids.length; 
+                        let protUniqueResidues = Array(numDisplay).fill(null).map(() => new Set());
+                        let classCounts = { 'Hydrophobic':0, 'Polar':0, 'Charged (+)':0, 'Charged (-)':0, 'Special':0, 'Unknown':0 };
+                        
+                        frame.node_ids.forEach(nId => {
+                            let n = mData.nodes.find(node => node.id === nId);
+                            if (n) {
+                                n.mapping.forEach(m => {
+                                    let localIdx = displayProts.indexOf(masterData.proteins[m.model_idx]);
+                                    if (localIdx !== -1) {
+                                        let resKey = `${m.chain}:${m.resn}:${m.resi}`;
+                                        if(!protUniqueResidues[localIdx].has(resKey)){
+                                            protUniqueResidues[localIdx].add(resKey);
+                                            let resClass = RESIDUE_CLASSES[m.resn] || 'Unknown';
+                                            classCounts[resClass]++;
+                                        }
+                                    }
+                                });
+                            }
+                        });
+                        
+                        let protCounts = protUniqueResidues.map(s => s.size);
+                        let totalUniqueResidues = protCounts.reduce((a, b) => a + b, 0);
+                        
+                        let activeNodeSet = new Set(frame.node_ids);
+                        let internalEdges = 0;
+                        mData.edges.forEach(e => {
+                            if (activeNodeSet.has(e.from) && activeNodeSet.has(e.to)) internalEdges++;
+                        });
+                        let maxEdges = (frameNodes * (frameNodes - 1)) / 2;
+                        let edgeDensity = maxEdges > 0 ? ((internalEdges / maxEdges) * 100).toFixed(1) : 0;
+
+                        let classHtml = '';
+                        Object.keys(classCounts).forEach(cls => {
+                            if (classCounts[cls] > 0) {
+                                let pct = Math.round((classCounts[cls] / totalUniqueResidues) * 100);
+                                classHtml += `<span class="class-badge" style="background-color:${CLASS_COLORS[cls]};" title="${classCounts[cls]} residues">${cls} ${pct}%</span>`;
+                            }
+                        });
+                        
+                        let row = `<tr>
+                            <td><b>C${comp.id}</b></td>
+                            <td>F${frame.id}</td>
+                            <td>${frameNodes}</td>
+                            <td>${edgeDensity}%</td>
+                            <td style="max-width: 200px; line-height: 1.8;">${classHtml}</td>`;
+                        
+                        if (hasRmsd) {
+                            let rmsdHtml = '';
+                            if (frame.rmsds) {
+                                Object.entries(frame.rmsds).forEach(([k, v]) => {
+                                    rmsdHtml += `<div style="font-size:11px;">${k}: <b>${v}Å</b></div>`;
+                                });
+                            }
+                            row += `<td>${rmsdHtml || '-'}</td>`;
+                        }
+
+                        for (let i = 0; i < numDisplay; i++) {
+                            let origSize = origSizes[i];
+                            let coverage = origSize > 0 ? ((protCounts[i] / origSize) * 100).toFixed(1) : 0;
+                            row += `<td><span style="color:var(--btn-bg); font-weight:bold;">${coverage}%</span><br><span style="font-size:10px; color:var(--text-muted);">${protCounts[i]} nodes</span></td>`;
+                        }
+                        row += `</tr>`; bodyHtml += row;
+                    });
+                });
+                tBody.innerHTML = bodyHtml || `<tr><td colspan="${5 + (hasRmsd?1:0) + numDisplay}" style="text-align:center; padding: 20px;">No component frames found.</td></tr>`;
+            }
+            logDebug("Analysis Tab rendering complete.");
+        } catch (e) { logError("renderAnalysis crashed", e); }
+    }
+
     function updateMolChainColor(pIdx, chain, color) {
         molChainColors[`${pIdx}_${chain}`] = color;
-        update3DViewer();
-        initUploads(); 
+        update3DViewerOrGrid(); initUploads(); 
     }
 
     function resetMolColors() {
-        initMolColors(true);
-        update3DViewer();
-        initUploads(); 
+        initMolColors(true); update3DViewerOrGrid(); initUploads(); 
     }
 
     function initAdvancedOptions() {
         document.getElementById('optPalette').addEventListener('change', function(e) {
             activePaletteName = e.target.value;
-            assignGraphColorsToData();
-            initMetadata(); 
-            if (currentGraphMode === 'associated') handleTreeChange();
-            else handleFilteredChange();
+            if (masterData.mode === 'pair' && document.getElementById('pair-selector').value === 'GRID') {
+                assignAllPairGraphColors(); Object.keys(masterData.pairs).forEach(k => applyGraphFiltersGrid(k)); 
+            } else {
+                assignGraphColorsToData(); initMetadata(); 
+                if (currentGraphMode === 'associated') handleTreeChange(); else handleFilteredChange();
+            }
         });
 
         document.getElementById('optNodeSize').addEventListener('input', function(e) {
-            optNodeSize = parseInt(e.target.value);
-            document.getElementById('valNodeSize').innerText = optNodeSize;
+            optNodeSize = parseInt(e.target.value); document.getElementById('valNodeSize').innerText = optNodeSize;
             if(network) network.setOptions({ nodes: { size: optNodeSize } });
+            gridNetworks.forEach(n => n.network.setOptions({ nodes: { size: optNodeSize } }));
         });
         
         document.getElementById('optLabelSize').addEventListener('input', function(e) {
-            optLabelSize = parseInt(e.target.value);
-            document.getElementById('valLabelSize').innerText = optLabelSize;
+            optLabelSize = parseInt(e.target.value); document.getElementById('valLabelSize').innerText = optLabelSize;
             if(network) network.setOptions({ nodes: { font: { size: optLabelSize } } });
+            gridNetworks.forEach(n => n.network.setOptions({ nodes: { font: { size: optLabelSize-4 } } }));
         });
 
         document.getElementById('optEdgeWidth').addEventListener('input', function(e) {
-            optEdgeWidth = parseFloat(e.target.value);
-            document.getElementById('valEdgeWidth').innerText = optEdgeWidth.toFixed(1);
-            if (currentGraphMode === 'associated') applyGraphFilters(); 
-            else handleFilteredChange();
+            optEdgeWidth = parseFloat(e.target.value); document.getElementById('valEdgeWidth').innerText = optEdgeWidth.toFixed(1);
+            if (masterData.mode === 'pair' && document.getElementById('pair-selector').value === 'GRID') {
+                Object.keys(masterData.pairs).forEach(k => applyGraphFiltersGrid(k));
+            } else {
+                if (currentGraphMode === 'associated') applyGraphFilters(); else handleFilteredChange();
+            }
         });
 
         document.getElementById('optSpringLen').addEventListener('input', function(e) {
-            optSpringLen = parseInt(e.target.value);
-            document.getElementById('valSpringLen').innerText = optSpringLen;
+            optSpringLen = parseInt(e.target.value); document.getElementById('valSpringLen').innerText = optSpringLen;
             if(network) network.setOptions({ physics: { barnesHut: { springLength: optSpringLen } } });
+            gridNetworks.forEach(n => n.network.setOptions({ physics: { barnesHut: { springLength: optSpringLen } } }));
+        });
+
+        document.getElementById('optStraightEdges').addEventListener('change', function(e) {
+            if(network) network.setOptions({ edges: { smooth: !e.target.checked } });
+            gridNetworks.forEach(n => n.network.setOptions({ edges: { smooth: !e.target.checked } }));
         });
     }
     
-    function toggleSidebar() {
-        document.getElementById('sidebar').classList.toggle('collapsed');
-        setTimeout(() => { if (network) network.fit(); }, 350);
-    }
-
-    function toggleComp(targetId, el) {
-        const target = document.getElementById(targetId);
-        if (target.style.display === 'none') {
-            target.style.display = 'block';
-            el.innerText = '▼';
-        } else {
-            target.style.display = 'none';
-            el.innerText = '▶';
-        }
-    }
+    function toggleSidebar() { document.getElementById('sidebar').classList.toggle('collapsed'); setTimeout(() => { if (network) network.fit(); }, 350); }
+    function toggleComp(targetId, el) { const t = document.getElementById(targetId); if (t.style.display === 'none') { t.style.display = 'block'; el.innerText = '▼'; } else { t.style.display = 'none'; el.innerText = '▶'; } }
 
     function initSplitter() {
         let isDragging = false;
         const splitter = document.getElementById('v-splitter');
         const topPanel = document.getElementById('top-panel');
         const bottomPanel = document.getElementById('bottom-panel');
-        const mainContent = document.getElementById('main-content');
 
-        splitter.addEventListener('mousedown', function(e) {
-            isDragging = true;
-            document.body.style.cursor = 'row-resize';
-            e.preventDefault();
-        });
-
+        splitter.addEventListener('mousedown', function(e) { isDragging = true; document.body.style.cursor = 'row-resize'; e.preventDefault(); });
         document.addEventListener('mousemove', function(e) {
             if (!isDragging) return;
-            const containerRect = mainContent.getBoundingClientRect();
+            const containerRect = document.getElementById('main-content').getBoundingClientRect();
             let newTopHeight = e.clientY - containerRect.top;
             if (newTopHeight < containerRect.height * 0.1) newTopHeight = containerRect.height * 0.1;
             if (newTopHeight > containerRect.height * 0.9) newTopHeight = containerRect.height * 0.9;
-            
-            topPanel.style.flex = `0 0 ${newTopHeight}px`;
-            bottomPanel.style.flex = `1 1 0%`;
+            topPanel.style.flex = `0 0 ${newTopHeight}px`; bottomPanel.style.flex = `1 1 0%`;
         });
-
-        document.addEventListener('mouseup', function(e) {
-            if (isDragging) {
-                isDragging = false;
-                document.body.style.cursor = 'default';
-            }
-        });
+        document.addEventListener('mouseup', function(e) { if (isDragging) { isDragging = false; document.body.style.cursor = 'default'; } });
     }
 
     function initMetadata() {
-        const c = graphData.metadata;
-        const pal = GRAPH_PALETTES[activePaletteName];
-        
-        let p_html = graphData.proteins.map((p, i) => {
-            const color = pal[i % pal.length];
-            return `<div style="margin-bottom: 3px;">
-                        <span class="color-dot" style="background-color: ${color};"></span><b>Prot ${i}:</b> ${p}
-                    </div>`;
-        }).join('');
+        try {
+            if (!graphData) return;
+            const c = graphData.metadata || masterData.metadata || {};
+            const pal = GRAPH_PALETTES[activePaletteName];
+            
+            let p_html = graphData.proteins.map((p, localIdx) => {
+                let globalIdx = masterData.proteins.indexOf(p);
+                const color = pal[globalIdx % pal.length];
+                return `<div style="margin-bottom: 3px;"><span class="color-dot" style="background-color: ${color};"></span><b>Prot ${localIdx}:</b> ${p}</div>`;
+            }).join('');
 
-        document.getElementById('metadata-panel').innerHTML = `
-            <h3>Execution Metadata</h3>
-            <div style="margin-bottom: 10px;"><b>Run Name:</b> ${graphData.run_name || 'N/A'}</div>
-            
-            <div style="margin-bottom: 12px;">
-                <b>Protein Order (Tuple Layout):</b>
-                <div style="margin-top: 5px;">${p_html}</div>
-            </div>
-            
-            <div>
-                <b>Parameters:</b>
-                <ul style="margin: 5px 0 0 0; padding-left: 20px; line-height: 1.5;">
-                    <li><b>Mode:</b> ${c.run_mode || 'all'}</li>
-                    <li><b>Granularity:</b> ${c.node_granularity || 'all_atoms'}</li>
-                    <li><b>Edge Thresh:</b> ${c.edge_threshold} Å</li>
-                    <li><b>Global Diff:</b> ${c.global_distance_diff_threshold} Å</li>
-                    <li><b>Local Diff:</b> ${c.local_distance_diff_threshold} Å</li>
-                </ul>
-            </div>
-        `;
+            document.getElementById('metadata-panel').innerHTML = `
+                <h3>Execution Metadata</h3>
+                <div style="margin-bottom: 10px;"><b>Run Name:</b> ${graphData.run_name || masterData.run_name || 'N/A'}</div>
+                <div style="margin-bottom: 12px;"><b>Protein Order (Tuple Layout):</b><div style="margin-top: 5px;">${p_html}</div></div>
+                <div>
+                    <b>Parameters:</b>
+                    <ul style="margin: 5px 0 0 0; padding-left: 20px; line-height: 1.5;">
+                        <li><b>Mode:</b> ${c.run_mode || 'all'}</li>
+                        <li><b>Granularity:</b> ${c.node_granularity || 'all_atoms'}</li>
+                        <li><b>Edge Thresh:</b> ${c.edge_threshold || 'N/A'} Å</li>
+                        <li><b>Global Diff:</b> ${c.global_distance_diff_threshold || 'N/A'} Å</li>
+                    </ul>
+                </div>
+            `;
+        } catch(e) { logError("initMetadata crashed", e); }
     }
 
     function initNetwork() {
-        const container = document.getElementById('mynetwork');
-        network = new vis.Network(container, { nodes: nodesDataset, edges: edgesDataset }, {
-            nodes: { 
-                shape: 'dot', size: optNodeSize, 
-                font: { size: optLabelSize, multi: 'html', color: themeText, face: 'ui-sans-serif' }, borderWidth: 2
-            },
-            physics: { 
-                solver: 'barnesHut', 
-                barnesHut: { 
-                    gravitationalConstant: -10000, 
-                    centralGravity: 0.3, 
-                    springLength: optSpringLen, 
-                    avoidOverlap: 1 
-                } 
-            },
-            interaction: { hover: true, tooltipDelay: 150, dragNodes: true }
-        });
-        
-        network.on("hoverNode", function (params) {
-            if (currentGraphMode !== 'associated' || pinnedNode !== null || !document.getElementById('showStdEdges').checked) return;
-            drawDynamicStdEdges(params.node);
-        });
-
-        network.on("blurNode", function () {
-            if (currentGraphMode !== 'associated' || pinnedNode !== null) return;
-            clearDynamicStdEdges();
-        });
-
-        network.on("click", function (params) {
-            if (currentGraphMode !== 'associated') return;
-            const clickedNode = (params.nodes && params.nodes.length) ? params.nodes[0] : null;
-            if (!clickedNode) {
-                pinnedNode = null;
-                clearDynamicStdEdges();
-                return;
-            }
-
-            if (pinnedNode === clickedNode) {
-                pinnedNode = null;
-                clearDynamicStdEdges();
-            } else {
-                pinnedNode = clickedNode;
-                if (document.getElementById('showStdEdges').checked) {
-                    drawDynamicStdEdges(clickedNode);
-                }
-            }
-        });
+        logDebug("Initializing Single Network");
+        try {
+            const container = document.getElementById('single-network');
+            if (!container) return;
+            if (network) { network.destroy(); network = null; }
+            
+            network = new vis.Network(container, { nodes: nodesDataset, edges: edgesDataset }, {
+                nodes: { shape: 'dot', size: optNodeSize, font: { size: optLabelSize, multi: 'html', color: themeText, face: 'ui-sans-serif' }, borderWidth: 2 },
+                edges: { smooth: !document.getElementById('optStraightEdges').checked },
+                physics: { solver: 'repulsion', repulsion: { nodeDistance: 100, springLength: 100 }, stabilization: { iterations: 20 } },
+                interaction: { hover: true, tooltipDelay: 150, dragNodes: true }
+            });
+            
+            network.once("stabilizationIterationsDone", function () { if(document.getElementById('freezePhysics').checked) network.setOptions({ physics: false }); network.fit(); });
+            network.on("hoverNode", function (params) { if (currentGraphMode !== 'associated' || pinnedNode !== null || !document.getElementById('showStdEdges').checked) return; drawDynamicStdEdges(params.node); });
+            network.on("blurNode", function () { if (currentGraphMode !== 'associated' || pinnedNode !== null) return; clearDynamicStdEdges(); });
+            network.on("click", function (params) {
+                if (currentGraphMode !== 'associated') return;
+                const clickedNode = (params.nodes && params.nodes.length) ? params.nodes[0] : null;
+                if (!clickedNode) { pinnedNode = null; clearDynamicStdEdges(); return; }
+                if (pinnedNode === clickedNode) { pinnedNode = null; clearDynamicStdEdges(); } 
+                else { pinnedNode = clickedNode; if (document.getElementById('showStdEdges').checked) drawDynamicStdEdges(clickedNode); }
+            });
+        } catch(e) { logError("initNetwork crashed", e); }
     }
 
     function initUploads() {
+        logDebug("Initializing Manual Upload Inputs globally.");
         const container = document.getElementById('upload-inputs');
+        if (!container) return;
         container.innerHTML = '';
-        graphData.proteins.forEach((protName, idx) => {
+        masterData.proteins.forEach((protName, idx) => {
             let firstChainColor = '#999999';
-            for (let key in molChainColors) {
-                if (key.startsWith(`${idx}_`)) {
-                    firstChainColor = molChainColors[key];
-                    break;
-                }
-            }
-            container.innerHTML += `<div style="margin-bottom:8px; font-size:12px;">
-                <span class="color-dot" style="background-color: ${firstChainColor};"></span><b>${protName}:</b><br>
-                <input type="file" id="file-prot-${idx}" accept=".pdb,.cif" style="width:100%; margin-top: 4px; color: var(--text-main);">
-            </div>`;
+            for (let key in molChainColors) { if (key.startsWith(`${idx}_`)) { firstChainColor = molChainColors[key]; break; } }
+            let div = document.createElement('div');
+            div.style.marginBottom = '8px'; div.style.fontSize = '12px';
+            div.innerHTML = `<span class="color-dot" style="background-color: ${firstChainColor};"></span><b>${protName}:</b><br>
+                <input type="file" id="file-prot-${idx}" accept=".pdb,.cif" style="width:100%; margin-top: 4px; color: var(--text-main);">`;
+            container.appendChild(div);
         });
     }
 
     function initHierarchy() {
-        const tree = document.getElementById('hierarchy-tree');
-        let html = '';
+        const tree = document.getElementById('hierarchy-tree'); let html = '';
+        if(!graphData || !graphData.components) return;
         graphData.components.forEach(comp => {
             if (comp.id === 0) {
                 html += `<div class="tree-item tree-level-1"><span class="collapse-toggle" style="visibility:hidden;"></span><label><input type="checkbox" class="tree-cb" value="global" checked onchange="handleTreeChange()"> 🌐 Global Associated Graph</label></div>`;
             } else {
                 const hasFrames = comp.frames.some(f => f.id !== 0);
                 const toggleBtn = hasFrames ? `<span class="collapse-toggle" onclick="toggleComp('comp_${comp.id}_frames', this)">▼</span>` : `<span class="collapse-toggle" style="visibility:hidden;"></span>`;
-                
                 html += `<div class="tree-item tree-level-2">${toggleBtn}<label><input type="checkbox" class="tree-cb" value="comp_${comp.id}" onchange="handleTreeChange()"> 📦 Component ${comp.id}</label></div>`;
-                
                 if (hasFrames) {
                     html += `<div id="comp_${comp.id}_frames" style="display:block;">`;
-                    comp.frames.forEach(frame => {
-                        if (frame.id !== 0) {
-                            html += `<div class="tree-item tree-level-3"><span class="collapse-toggle" style="visibility:hidden;"></span><label><input type="checkbox" class="tree-cb" value="frame_${comp.id}_${frame.id}" onchange="handleTreeChange()"> ↳ Frame ${frame.id}</label></div>`;
-                        }
-                    });
+                    comp.frames.forEach(frame => { if (frame.id !== 0) html += `<div class="tree-item tree-level-3"><span class="collapse-toggle" style="visibility:hidden;"></span><label><input type="checkbox" class="tree-cb" value="frame_${comp.id}_${frame.id}" onchange="handleTreeChange()"> ↳ Frame ${frame.id}</label></div>`; });
                     html += `</div>`;
                 }
             }
         });
         tree.innerHTML = html;
 
-        const fTree = document.getElementById('filtered-tree');
-        let fHtml = '';
+        const fTree = document.getElementById('filtered-tree'); let fHtml = '';
         graphData.filtered_graphs.forEach((fg, idx) => {
             fHtml += `<div class="tree-item tree-level-1"><span class="collapse-toggle" style="visibility:hidden;"></span><label><input type="radio" name="filtered_prot" value="${idx}" ${idx===0 ? 'checked' : ''} onchange="handleFilteredChange()"> Prot ${idx}: ${fg.name}</label></div>`;
         });
         fTree.innerHTML = fHtml;
     }
+    
+    function initHierarchyGrid() {
+        const tree = document.getElementById('hierarchy-tree'); let html = '';
+        if (!masterData.pairs) return;
+        Object.keys(masterData.pairs).forEach(pairKey => {
+            let pData = masterData.pairs[pairKey]; let pkSafe = pairKey.replace(/[^a-zA-Z0-9]/g, '_');
+            html += `<div class="tree-item tree-level-1" style="background: var(--bg-control); border: 1px solid var(--border); margin-top: 10px;"><span class="collapse-toggle" onclick="toggleComp('grid_${pkSafe}', this)">▼</span><label style="color: var(--btn-bg);"><b>${pairKey.replace('_vs_', ' vs ')}</b></label></div>`;
+            html += `<div id="grid_${pkSafe}" style="display:block; padding-left: 10px; border-left: 2px solid var(--border-light); margin-left: 5px;">`;
+            
+            pData.components.forEach(comp => {
+                if (comp.id === 0) html += `<div class="tree-item tree-level-1"><span class="collapse-toggle" style="visibility:hidden;"></span><label><input type="checkbox" class="tree-cb-grid" data-pair="${pairKey}" value="global" checked onchange="handleGridTreeChange('${pairKey}')"> 🌐 Global Associated Graph</label></div>`;
+                else {
+                    const hasFrames = comp.frames.some(f => f.id !== 0);
+                    const toggleBtn = hasFrames ? `<span class="collapse-toggle" onclick="toggleComp('grid_${pkSafe}_comp_${comp.id}_frames', this)">▼</span>` : `<span class="collapse-toggle" style="visibility:hidden;"></span>`;
+                    html += `<div class="tree-item tree-level-2">${toggleBtn}<label><input type="checkbox" class="tree-cb-grid" data-pair="${pairKey}" value="comp_${comp.id}" onchange="handleGridTreeChange('${pairKey}')"> 📦 Component ${comp.id}</label></div>`;
+                    if (hasFrames) {
+                        html += `<div id="grid_${pkSafe}_comp_${comp.id}_frames" style="display:block;">`;
+                        comp.frames.forEach(frame => { if (frame.id !== 0) html += `<div class="tree-item tree-level-3"><span class="collapse-toggle" style="visibility:hidden;"></span><label><input type="checkbox" class="tree-cb-grid" data-pair="${pairKey}" value="frame_${comp.id}_${frame.id}" onchange="handleGridTreeChange('${pairKey}')"> ↳ Frame ${frame.id}</label></div>`; });
+                        html += `</div>`;
+                    }
+                }
+            });
+            html += `</div>`;
+        });
+        tree.innerHTML = html;
+        document.getElementById('filtered-tree').style.display = 'none';
+        document.getElementById('edge-interactions-panel').style.display = 'block';
+    }
 
     function switchGraphViewMode() {
         currentGraphMode = document.getElementById('main-graph-selector').value;
+        const singleNet = document.getElementById('single-network');
+        const analysisWrapper = document.getElementById('analysis-wrapper');
+        const bottomPanel = document.getElementById('bottom-panel');
+        const vSplitter = document.getElementById('v-splitter');
         
         if (currentGraphMode === 'associated') {
-            document.getElementById('hierarchy-tree').style.display = 'block';
-            document.getElementById('filtered-tree').style.display = 'none';
-            document.getElementById('edge-interactions-panel').style.display = 'block';
-            document.getElementById('filtered-options-panel').style.display = 'none';
+            if(singleNet) singleNet.style.display = 'block'; 
+            if(bottomPanel) bottomPanel.style.display = 'flex';
+            if(vSplitter) vSplitter.style.display = 'flex';
+            if(analysisWrapper) analysisWrapper.style.display = 'none';
+            document.getElementById('hierarchy-tree').style.display = 'block'; document.getElementById('filtered-tree').style.display = 'none';
+            document.getElementById('edge-interactions-panel').style.display = 'block'; document.getElementById('filtered-options-panel').style.display = 'none';
+            document.getElementById('nav-title').parentElement.style.display = 'block';
             document.getElementById('nav-title').innerText = "Navigation (Multi-Select)";
             handleTreeChange();
-        } else {
-            document.getElementById('hierarchy-tree').style.display = 'none';
-            document.getElementById('filtered-tree').style.display = 'block';
-            document.getElementById('edge-interactions-panel').style.display = 'none';
-            document.getElementById('filtered-options-panel').style.display = 'block';
+        } else if (currentGraphMode === 'filtered') {
+            if(singleNet) singleNet.style.display = 'block'; 
+            if(bottomPanel) bottomPanel.style.display = 'flex';
+            if(vSplitter) vSplitter.style.display = 'flex';
+            if(analysisWrapper) analysisWrapper.style.display = 'none';
+            document.getElementById('hierarchy-tree').style.display = 'none'; document.getElementById('filtered-tree').style.display = 'block';
+            document.getElementById('edge-interactions-panel').style.display = 'none'; document.getElementById('filtered-options-panel').style.display = 'block';
+            document.getElementById('nav-title').parentElement.style.display = 'block';
             document.getElementById('nav-title').innerText = "Select Protein";
             handleFilteredChange();
+        } else if (currentGraphMode === 'analysis') {
+            if(singleNet) singleNet.style.display = 'none'; 
+            if(bottomPanel) bottomPanel.style.display = 'none'; // HIDES 3D VIEWER
+            if(vSplitter) vSplitter.style.display = 'none';     // HIDES SPLITTER
+            if(analysisWrapper) analysisWrapper.style.display = 'block';
+            
+            document.getElementById('nav-title').parentElement.style.display = 'none';
+            document.getElementById('edge-interactions-panel').style.display = 'none'; document.getElementById('filtered-options-panel').style.display = 'none';
+            
+            let isGlobal = (masterData.mode === 'pair' && document.getElementById('pair-selector') && document.getElementById('pair-selector').value === 'GRID');
+            renderAnalysis(isGlobal); 
         }
     }
 
     function handleFilteredChange() {
         activeFilteredProtIdx = parseInt(document.querySelector('input[name="filtered_prot"]:checked').value);
         const thicknessMode = document.querySelector('input[name="edgeThickness"]:checked').value;
-        const maxDist = graphData.metadata.edge_threshold || 10.0;
+        const maxDist = (graphData.metadata && graphData.metadata.edge_threshold) || (masterData.metadata && masterData.metadata.edge_threshold) || 10.0;
         const fg = graphData.filtered_graphs[activeFilteredProtIdx];
         
-        nodesDataset.clear();
-        edgesDataset.clear();
-        clearDynamicStdEdges();
+        nodesDataset.clear(); edgesDataset.clear(); clearDynamicStdEdges();
         
-        const coloredNodes = fg.nodes.map(n => ({
-            ...n, 
-            label: '<b>' + n.label + '</b>',
-            color: { background: n.originalColor, border: themeBorder },
-            font: { color: themeText } 
-        }));
-        
+        const coloredNodes = fg.nodes.map(n => ({...n, label: '<b>' + n.label + '</b>', color: { background: n.originalColor, border: themeBorder }, font: { color: themeText } }));
         const styledEdges = fg.edges.map(e => {
             let edgeWidth = optEdgeWidth;
             if (thicknessMode === 'distance' && e.raw_dist !== undefined && e.raw_dist !== null) {
                 let dist = parseFloat(e.raw_dist);
-                if (!isNaN(dist)) {
-                    let safeDist = Math.max(0, Math.min(dist, maxDist));
-                    let scale = 4.0 - ((safeDist / maxDist) * 3.8); 
-                    edgeWidth = optEdgeWidth * scale;
-                }
+                if (!isNaN(dist)) edgeWidth = optEdgeWidth * (4.0 - ((Math.max(0, Math.min(dist, maxDist))) / maxDist) * 3.8); 
             }
             return { ...e, color: { color: '#9ca3af', opacity: 1.0 }, width: Math.max(0.1, edgeWidth) };
         });
 
-        nodesDataset.add(coloredNodes);
-        edgesDataset.add(styledEdges);
-        
+        nodesDataset.add(coloredNodes); edgesDataset.add(styledEdges);
         currentActiveNodes = new Set(fg.nodes.map(n => n.id));
-        update3DViewer();
-        updateNodeListText();
+        update3DViewer(); updateNodeListText();
         if (network) network.fit();
     }
 
     function handleTreeChange() {
         if (currentGraphMode !== 'associated') return;
+        try {
+            if (nodesDataset.length !== graphData.nodes.length) {
+                nodesDataset.clear(); edgesDataset.clear();
+                nodesDataset.add(graphData.nodes.map(n => ({...n, label: '<b>' + n.label + '</b>', font: { color: themeText } })));
+                edgesDataset.add(graphData.edges);
+            }
 
-        if (nodesDataset.length !== graphData.nodes.length) {
-            nodesDataset.clear();
-            edgesDataset.clear();
-            nodesDataset.add(graphData.nodes.map(n => ({
-                ...n, 
-                label: '<b>' + n.label + '</b>',
-                font: { color: themeText } 
-            })));
-            edgesDataset.add(graphData.edges);
+            let activeIds = new Set();
+            document.querySelectorAll('.tree-cb:checked').forEach(cb => {
+                let parts = cb.value.split('_');
+                if (parts[0] === 'global') graphData.nodes.forEach(n => activeIds.add(n.id));
+                else if (parts[0] === 'comp') { let c = graphData.components.find(c => c.id === parseInt(parts[1])); if(c) c.node_ids.forEach(id => activeIds.add(id)); } 
+                else if (parts[0] === 'frame') { let c = graphData.components.find(c => c.id === parseInt(parts[1])); if(c) { let f = c.frames.find(f => f.id === parseInt(parts[2])); if(f) f.node_ids.forEach(id => activeIds.add(id)); } }
+            });
+            currentActiveNodes = activeIds;
+            clearDynamicStdEdges(); applyGraphFilters(); update3DViewer(); updateNodeListText();
+        } catch(e) { logError("handleTreeChange crashed", e); }
+    }
+    
+    function handleGridTreeChange(pairKey) {
+        let pData = masterData.pairs[pairKey];
+        let dsNodes = gridNodesDatasets[pairKey]; let dsEdges = gridEdgesDatasets[pairKey];
+        if (!dsNodes || !dsEdges) return;
+
+        if (dsNodes.length !== pData.nodes.length) {
+            dsNodes.clear(); dsEdges.clear();
+            dsNodes.add(pData.nodes.map(n => ({...n, label: '<b>'+n.label+'</b>', font: { color: themeText }})));
+            dsEdges.add(pData.edges.map(e => ({...e, color: {color: '#9ca3af', opacity: 0.8}, width: optEdgeWidth})));
         }
 
         let activeIds = new Set();
-        document.querySelectorAll('.tree-cb:checked').forEach(cb => {
+        let checkboxes = document.querySelectorAll(`.tree-cb-grid[data-pair="${pairKey}"]:checked`);
+        checkboxes.forEach(cb => {
             let parts = cb.value.split('_');
-            if (parts[0] === 'global') {
-                graphData.nodes.forEach(n => activeIds.add(n.id));
-            } else if (parts[0] === 'comp') {
-                let comp = graphData.components.find(c => c.id === parseInt(parts[1]));
-                comp.node_ids.forEach(id => activeIds.add(id));
-            } else if (parts[0] === 'frame') {
-                let comp = graphData.components.find(c => c.id === parseInt(parts[1]));
-                let frame = comp.frames.find(f => f.id === parseInt(parts[2]));
-                frame.node_ids.forEach(id => activeIds.add(id));
-            }
+            if (parts[0] === 'global') pData.nodes.forEach(n => activeIds.add(n.id));
+            else if (parts[0] === 'comp') { let c = pData.components.find(c => c.id === parseInt(parts[1])); if(c) c.node_ids.forEach(id => activeIds.add(id)); } 
+            else if (parts[0] === 'frame') { let c = pData.components.find(c => c.id === parseInt(parts[1])); if(c) { let f = c.frames.find(f => f.id === parseInt(parts[2])); if(f) f.node_ids.forEach(id => activeIds.add(id)); } }
         });
-        currentActiveNodes = activeIds;
-        clearDynamicStdEdges();
-        applyGraphFilters();
-        update3DViewer();
-        updateNodeListText();
+        
+        if (!window.gridActiveNodes) window.gridActiveNodes = {};
+        window.gridActiveNodes[pairKey] = activeIds;
+
+        applyGraphFiltersGrid(pairKey, activeIds, dsNodes, dsEdges, pData);
+        update3DViewerGridForPair(pairKey);
+        document.getElementById('active-nodes-text').innerHTML = "<i>Active nodes highlighted in Grid.</i>";
+    }
+
+    function applyGraphFiltersGrid(pairKey, activeIds, dsNodes, dsEdges, pData) {
+        if(!pData) pData = masterData.pairs[pairKey];
+        if(!activeIds) activeIds = (window.gridActiveNodes && window.gridActiveNodes[pairKey]) ? window.gridActiveNodes[pairKey] : new Set(pData.nodes.map(n=>n.id));
+        if(!dsNodes) dsNodes = gridNodesDatasets[pairKey];
+        if(!dsEdges) dsEdges = gridEdgesDatasets[pairKey];
+        
+        const mode = document.querySelector('input[name="viewMode"]:checked').value;
+        const isDark = document.body.getAttribute('data-theme') === 'dark';
+        const dimBg = isDark ? 'rgba(55,65,81,0.3)' : 'rgba(229,231,235,0.3)';
+        const dimBorder = isDark ? 'rgba(75,85,99,0.3)' : 'rgba(209,213,219,0.3)';
+        const dimText = isDark ? 'rgba(156,163,175,0.5)' : 'rgba(107,114,128,0.5)';
+
+        const nodeUpdates = [], edgeUpdates = [];
+        pData.nodes.forEach(n => {
+            const isActive = activeIds.has(n.id);
+            if (mode === 'hide') nodeUpdates.push({ id: n.id, hidden: !isActive, color: { background: n.originalColor, border: themeBorder }, font: { color: themeText } });
+            else nodeUpdates.push({ id: n.id, hidden: false, color: isActive ? { background: n.originalColor, border: themeBorder } : { background: dimBg, border: dimBorder }, font: { color: isActive ? themeText : dimText } });
+        });
+
+        pData.edges.forEach(e => {
+            const isEdgeActive = activeIds.has(e.from) && activeIds.has(e.to);
+            if (mode === 'hide') edgeUpdates.push({ id: e.id, hidden: !isEdgeActive, color: {color: '#9ca3af'}, width: optEdgeWidth });
+            else edgeUpdates.push({ id: e.id, hidden: false, color: isEdgeActive ? { color: '#9ca3af', opacity: 1.0 } : { color: '#6b7280', opacity: 0.15 }, width: isEdgeActive ? optEdgeWidth : Math.max(0.1, optEdgeWidth * 0.5) });
+        });
+
+        dsNodes.update(nodeUpdates); dsEdges.update(edgeUpdates);
     }
 
     function updateNodeListText() {
         const container = document.getElementById('active-nodes-text');
-        if (currentActiveNodes.size === 0) {
-            container.innerHTML = "<i>No nodes selected.</i>";
-            return;
-        }
+        if (currentActiveNodes.size === 0) { container.innerHTML = "<i>No nodes selected.</i>"; return; }
 
         let protNodes = {};
         graphData.proteins.forEach((p, i) => protNodes[i] = []);
-
         let nodesToIterate = currentGraphMode === 'associated' ? graphData.nodes : graphData.filtered_graphs[activeFilteredProtIdx].nodes;
 
         nodesToIterate.forEach(n => {
             if (currentActiveNodes.has(n.id)) {
                 n.mapping.forEach(m => {
-                    if (protNodes[m.model_idx]) {
-                        protNodes[m.model_idx].push(`${m.chain}:${m.resn}:${m.resi}`);
-                    }
+                    let localIdx = graphData.proteins.indexOf(masterData.proteins[m.model_idx]);
+                    if (protNodes[localIdx]) protNodes[localIdx].push(`${m.chain}:${m.resn}:${m.resi}`);
                 });
             }
         });
@@ -748,12 +1511,11 @@
         let html = "";
         const pal = GRAPH_PALETTES[activePaletteName];
         for (let i = 0; i < graphData.proteins.length; i++) {
-            if (protNodes[i].length > 0) {
+            if (protNodes[i] && protNodes[i].length > 0) {
                 let uniqueNodes = [...new Set(protNodes[i])];
-                const color = pal[i % pal.length];
-                html += `<div style="margin-bottom: 6px;">
-                    <b style="color:${color}">Prot ${i}:</b> ${uniqueNodes.join(', ')}
-                </div>`;
+                let globalIdx = masterData.proteins.indexOf(graphData.proteins[i]);
+                const color = pal[globalIdx % pal.length];
+                html += `<div style="margin-bottom: 6px;"><b style="color:${color}">Prot ${i}:</b> ${uniqueNodes.join(', ')}</div>`;
             }
         }
         container.innerHTML = html;
@@ -762,17 +1524,12 @@
     function getStdColor(std, threshold) {
         if (std === null || std === undefined || isNaN(std)) return '#d1d5db'; 
         let ratio = std / (threshold + 0.0001);
-        if (ratio > 1) ratio = 1;
-        if (ratio < 0) ratio = 0;
-        const hue = 120 * (1 - ratio); 
-        return `hsl(${hue}, 100%, 45%)`;
+        if (ratio > 1) ratio = 1; if (ratio < 0) ratio = 0;
+        return `hsl(${120 * (1 - ratio)}, 100%, 45%)`;
     }
 
     function clearDynamicStdEdges() {
-        if (tempEdgeIds.length) {
-            edgesDataset.remove(tempEdgeIds);
-            tempEdgeIds = [];
-        }
+        if (tempEdgeIds.length) { edgesDataset.remove(tempEdgeIds); tempEdgeIds = []; }
         if (currentGraphMode === 'associated') applyGraphFilters();
     }
 
@@ -780,47 +1537,37 @@
         if (currentGraphMode !== 'associated') return;
         clearDynamicStdEdges();
         
-        const globalThresh = graphData.metadata.global_distance_diff_threshold || 2.0;
+        const globalThresh = (graphData.metadata && graphData.metadata.global_distance_diff_threshold) || (masterData.metadata && masterData.metadata.global_distance_diff_threshold) || 2.0;
         let activeComp = null;
-        for (let c of graphData.components) {
-            if (c.id !== 0 && c.node_index_map && c.node_index_map[nodeId] !== undefined) {
-                activeComp = c; break;
-            }
-        }
+        for (let c of graphData.components) { if (c.id !== 0 && c.node_index_map && c.node_index_map[nodeId] !== undefined) { activeComp = c; break; } }
         if (!activeComp || !activeComp.std_matrix) return;
 
         const i = activeComp.node_index_map[nodeId];
-        const newEdges = [];
-        const nodeUpdates = [];
-
+        const newEdges = [], nodeUpdates = [];
         const isDark = document.body.getAttribute('data-theme') === 'dark';
         const dimBg = isDark ? 'rgba(55,65,81,0.3)' : 'rgba(229,231,235,0.3)';
         const dimBorder = isDark ? 'rgba(75,85,99,0.3)' : 'rgba(209,213,219,0.3)';
 
         graphData.nodes.forEach(n => {
-            if (n.id === nodeId) {
-                nodeUpdates.push({ id: n.id, color: { background: n.originalColor, border: themeBorder } });
-            } else {
-                nodeUpdates.push({ id: n.id, color: { background: dimBg, border: dimBorder } });
-            }
+            if (n.id === nodeId) nodeUpdates.push({ id: n.id, color: { background: n.originalColor, border: themeBorder } });
+            else nodeUpdates.push({ id: n.id, color: { background: dimBg, border: dimBorder } });
         });
 
         currentActiveNodes.forEach(targetId => {
             if (targetId === nodeId) return;
             const j = activeComp.node_index_map[targetId];
-            if (j === undefined) return;
+            if (j === undefined || activeComp.std_matrix[i][j] === null) return;
             
             const std = activeComp.std_matrix[i][j];
-            if (std === null) return;
-
             const color = getStdColor(std, globalThresh);
             const targetNode = graphData.nodes.find(n => n.id === targetId);
             
             nodeUpdates.push({ id: targetId, color: { background: targetNode.originalColor, border: color } });
             newEdges.push({
-                from: nodeId, to: targetId,
-                color: { color: color, opacity: 0.9 }, width: optEdgeWidth * 2.5, physics: false, smooth: false,
-                label: std.toFixed(3), font: { align: "top", size: optLabelSize-4, strokeWidth: 3, strokeColor: (isDark ? '#1f2937' : '#ffffff'), face: "sans-serif" },
+                from: nodeId, to: targetId, color: { color: color, opacity: 0.9 }, width: optEdgeWidth * 2.5, physics: false, smooth: false,
+                label: std.toFixed(3), 
+                // HIGH CONTRAST STD EDGE FIX
+                font: { align: "top", size: optLabelSize-2, color: isDark ? '#ffffff' : '#000000', strokeWidth: 4, strokeColor: isDark ? '#111827' : '#ffffff', face: "sans-serif" },
                 title: "STD: " + std.toFixed(4)
             });
         });
@@ -832,237 +1579,280 @@
 
     function applyGraphFilters() {
         if (currentGraphMode !== 'associated' || tempEdgeIds.length > 0) return;
-
         const mode = document.querySelector('input[name="viewMode"]:checked').value;
         const isDark = document.body.getAttribute('data-theme') === 'dark';
         const dimBg = isDark ? 'rgba(55,65,81,0.3)' : 'rgba(229,231,235,0.3)';
         const dimBorder = isDark ? 'rgba(75,85,99,0.3)' : 'rgba(209,213,219,0.3)';
         const dimText = isDark ? 'rgba(156,163,175,0.5)' : 'rgba(107,114,128,0.5)';
 
-        const nodeUpdates = [];
-        const edgeUpdates = [];
-
+        const nodeUpdates = [], edgeUpdates = [];
         graphData.nodes.forEach(n => {
             const isActive = currentActiveNodes.has(n.id);
-            if (mode === 'hide') {
-                nodeUpdates.push({ 
-                    id: n.id, 
-                    hidden: !isActive, 
-                    color: { background: n.originalColor, border: themeBorder },
-                    font: { color: themeText } 
-                });
-            } else {
-                nodeUpdates.push({ 
-                    id: n.id, 
-                    hidden: false, 
-                    color: isActive ? { background: n.originalColor, border: themeBorder } : { background: dimBg, border: dimBorder },
-                    font: { color: isActive ? themeText : dimText }
-                });
-            }
+            if (mode === 'hide') nodeUpdates.push({ id: n.id, hidden: !isActive, color: { background: n.originalColor, border: themeBorder }, font: { color: themeText } });
+            else nodeUpdates.push({ id: n.id, hidden: false, color: isActive ? { background: n.originalColor, border: themeBorder } : { background: dimBg, border: dimBorder }, font: { color: isActive ? themeText : dimText } });
         });
 
         graphData.edges.forEach(e => {
             const isEdgeActive = currentActiveNodes.has(e.from) && currentActiveNodes.has(e.to);
-            if (mode === 'hide') {
-                edgeUpdates.push({ id: e.id, hidden: !isEdgeActive, color: {color: '#9ca3af'}, width: optEdgeWidth });
-            } else {
-                edgeUpdates.push({ 
-                    id: e.id, hidden: false, 
-                    color: isEdgeActive ? { color: '#9ca3af', opacity: 1.0 } : { color: '#6b7280', opacity: 0.15 },
-                    width: isEdgeActive ? optEdgeWidth : Math.max(0.1, optEdgeWidth * 0.5)
-                });
-            }
+            if (mode === 'hide') edgeUpdates.push({ id: e.id, hidden: !isEdgeActive, color: {color: '#9ca3af'}, width: optEdgeWidth });
+            else edgeUpdates.push({ id: e.id, hidden: false, color: isEdgeActive ? { color: '#9ca3af', opacity: 1.0 } : { color: '#6b7280', opacity: 0.15 }, width: isEdgeActive ? optEdgeWidth : Math.max(0.1, optEdgeWidth * 0.5) });
         });
 
-        nodesDataset.update(nodeUpdates);
-        edgesDataset.update(edgeUpdates);
+        nodesDataset.update(nodeUpdates); edgesDataset.update(edgeUpdates);
     }
 
-    // --- SCREENSHOT EXPORT LOGIC ---
     async function exportScreenshot(target) {
-        const c = document.createElement('canvas');
-        const ctx = c.getContext('2d');
-        let parts = [];
-        let totalW = 0, totalH = 0;
-
-        const graphCanvas = document.querySelector('#mynetwork canvas');
+        const isDark = document.body.getAttribute('data-theme') === 'dark';
+        const bgColor = isDark ? '#111827' : '#ffffff';
+        const textColor = isDark ? '#f9fafb' : '#111827';
         
+        const graphCanvas = document.querySelector('#single-network canvas');
+        let graphImg = null;
         if ((target === 'graph' || target === 'both') && graphCanvas) {
-            parts.push({ img: graphCanvas, type: 'graph' });
-            totalW = Math.max(totalW, graphCanvas.width);
-            totalH += graphCanvas.height;
+            graphImg = new Image(); graphImg.src = graphCanvas.toDataURL('image/png'); await new Promise(r => graphImg.onload = r);
         }
 
+        let molImgs = [];
         if ((target === 'protein' || target === 'both') && viewers.length > 0) {
             for (let v of viewers) {
-                const dataUrl = v.pngURI();
-                const img = new Image();
-                img.src = dataUrl;
-                await new Promise(r => img.onload = r);
-                parts.push({ img: img, type: 'mol' });
-                totalW = Math.max(totalW, img.width);
-                totalH += img.height;
+                const img = new Image(); img.src = v.pngURI(); await new Promise(r => img.onload = r);
+                molImgs.push({ img: img, name: v.protName || "Structure" });
             }
         }
+        if (!graphImg && molImgs.length === 0) return;
 
-        if (parts.length === 0) return;
-
-        c.width = totalW;
-        c.height = totalH;
+        const padding = 50, gap = 30;
+        let gWidth = graphImg ? graphImg.width : 0; let gHeight = graphImg ? graphImg.height : 0;
+        let mWidth = 0, mHeight = 0;
+        if (molImgs.length > 0) {
+            mWidth = molImgs.reduce((sum, m) => sum + m.img.width, 0) + gap * (molImgs.length - 1);
+            mHeight = Math.max(...molImgs.map(m => m.img.height));
+        }
         
-        ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--bg-panel').trim() || '#ffffff';
-        ctx.fillRect(0, 0, totalW, totalH);
+        const contentWidth = Math.max(gWidth, mWidth);
+        const canvasWidth = contentWidth + padding * 2;
+        let canvasHeight = padding * 2 + 60; 
+        if (graphImg) canvasHeight += gHeight + gap + 20; 
+        if (molImgs.length > 0) canvasHeight += mHeight + 40; 
 
-        let currentY = 0;
-        for (let part of parts) {
-            let xOffset = (totalW - part.img.width) / 2;
-            ctx.drawImage(part.img, xOffset, currentY);
-            currentY += part.img.height;
+        const c = document.createElement('canvas'); c.width = canvasWidth; c.height = canvasHeight;
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = bgColor; ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+        ctx.fillStyle = textColor; ctx.font = "bold 28px sans-serif"; ctx.textAlign = "center";
+        ctx.fillText(`MHCXGraph Analysis: ${graphData ? graphData.run_name : 'Output'}`, canvasWidth / 2, padding + 20);
+
+        let currentY = padding + 80;
+        if (graphImg) {
+            ctx.font = "bold 20px sans-serif"; ctx.textAlign = "left";
+            ctx.fillText(target === 'both' ? "A. Interaction Graph" : "Interaction Graph", padding, currentY - 10);
+            ctx.drawImage(graphImg, padding + (contentWidth - gWidth) / 2, currentY); currentY += gHeight + gap + 30;
         }
 
-        const link = document.createElement('a');
-        link.download = `MHCXGraph_Export_${target}.png`;
-        link.href = c.toDataURL('image/png');
-        link.click();
+        if (molImgs.length > 0) {
+            ctx.font = "bold 20px sans-serif"; ctx.textAlign = "left";
+            ctx.fillText(target === 'both' ? "B. 3D Structures" : "3D Structures", padding, currentY - 10); currentY += 20;
+            let startX = padding + (contentWidth - mWidth) / 2; ctx.font = "16px sans-serif"; ctx.textAlign = "center";
+            
+            for (let m of molImgs) {
+                ctx.drawImage(m.img, startX, currentY);
+                ctx.fillText(m.name, startX + m.img.width / 2, currentY + m.img.height + 25); startX += m.img.width + gap;
+            }
+        }
+        const link = document.createElement('a'); link.download = `MHCXGraph_Figure_${target}.png`; link.href = c.toDataURL('image/png'); link.click();
     }
 
-    // --- 3DMOL JS LOGIC ---
-    
-    function get3DColor(chain, protIdx) {
-        return molChainColors[`${protIdx}_${chain}`] || '#cccccc';
+    function get3DColor(chain, globalIdx) {
+        return molChainColors[`${globalIdx}_${chain}`] || '#cccccc';
+    }
+
+    async function autoLoadStructures() {
+        let loadedAny = false;
+        loadedModels = new Array(masterData.proteins.length).fill(null);
+        for (let i = 0; i < masterData.proteins.length; i++) {
+            const path = masterData.protein_paths ? masterData.protein_paths[i] : null;
+            if (!path) continue;
+            try {
+                const filename = path.split(/[/\\]/).pop();
+                let response = await fetch(path).catch(() => null);
+                if (!response || !response.ok) response = await fetch(filename).catch(() => null);
+                if (response && response.ok) {
+                    const text = await response.text();
+                    const format = path.toLowerCase().endsWith('.cif') ? 'cif' : 'pdb';
+                    loadedModels[i] = { text, format, name: masterData.proteins[i], protIdx: i };
+                    loadedAny = true;
+                }
+            } catch (e) {}
+        }
+
+        if (loadedAny) {
+            const select = document.getElementById('view-selector');
+            if (select && graphData) {
+                select.innerHTML = '<option value="aligned">Aligned (Single View)</option><option value="separate">Separate (Grid View)</option>';
+                loadedModels.forEach((m, idx) => {
+                    if (m && graphData.proteins.includes(m.name)) select.innerHTML += `<option value="prot_${idx}">Prot ${graphData.proteins.indexOf(m.name)}: ${m.name}</option>`;
+                });
+            }
+            if (masterData.mode !== 'pair' || (document.getElementById('pair-selector').value !== 'GRID' && document.getElementById('pair-selector').value !== 'ANALYSIS')) {
+                rebuildViewer();
+            } else if (masterData.mode === 'pair' && document.getElementById('pair-selector').value === 'GRID') {
+                document.getElementById('viewer-toolbar').style.display = 'flex';
+                buildGridBottom(); 
+            }
+        }
     }
 
     async function loadStructures() {
-        loadedModels = [];
-        for (let i = 0; i < graphData.proteins.length; i++) {
+        if (!loadedModels || loadedModels.length === 0) loadedModels = new Array(masterData.proteins.length).fill(null);
+        for (let i = 0; i < masterData.proteins.length; i++) {
             const fileInput = document.getElementById(`file-prot-${i}`);
-            if (fileInput.files.length > 0) {
-                const file = fileInput.files[0];
-                const text = await file.text();
-                const format = file.name.endsWith('.cif') ? 'cif' : 'pdb';
-                loadedModels.push({ text, format, name: graphData.proteins[i], protIdx: i });
-            } else {
-                loadedModels.push(null);
+            if (fileInput && fileInput.files.length > 0) {
+                const text = await fileInput.files[0].text();
+                loadedModels[i] = { text, format: fileInput.files[0].name.endsWith('.cif') ? 'cif' : 'pdb', name: masterData.proteins[i], protIdx: i };
             }
         }
         
-        const select = document.getElementById('view-selector');
-        select.innerHTML = '<option value="aligned">Aligned (Single View)</option><option value="separate">Separate (Grid View)</option>';
-        loadedModels.forEach(m => {
-            if (m) select.innerHTML += `<option value="prot_${m.protIdx}">Prot ${m.protIdx}: ${m.name}</option>`;
-        });
-        
-        document.getElementById('viewer-toolbar').style.display = 'flex';
-        rebuildViewer();
+        if (masterData.mode === 'pair' && document.getElementById('pair-selector').value === 'GRID') {
+            document.getElementById('viewer-toolbar').style.display = 'flex';
+            buildGridBottom(); 
+        } else {
+            rebuildViewer();
+            handleTreeChange();
+        }
     }
 
     function hoverCallback(atom, viewer, event) {
         if (!atom.resn) return;
         const tt = document.getElementById("mol-tooltip");
         let pName = viewer.protName || "Unknown";
-        
         if (viewer.layoutMode === 'aligned') {
             const loaded = loadedModels.find(lm => lm && lm.internalModel === atom.model);
             if (loaded) pName = loaded.name;
         }
-
         tt.innerHTML = `<b>Protein:</b> ${pName}<br><b>Residue:</b> ${atom.resn} ${atom.resi} (Chain ${atom.chain})`;
-        tt.style.display = "block";
-        tt.style.left = (event.clientX + 15) + "px";
-        tt.style.top = (event.clientY + 15) + "px";
+        tt.style.display = "block"; tt.style.left = (event.clientX + 15) + "px"; tt.style.top = (event.clientY + 15) + "px";
     }
 
-    function unhoverCallback() {
-        document.getElementById("mol-tooltip").style.display = "none";
-    }
+    function unhoverCallback() { document.getElementById("mol-tooltip").style.display = "none"; }
 
     function rebuildViewer() {
-        const container = document.getElementById('bottom-panel');
-        const toolbar = document.getElementById('viewer-toolbar');
-        container.innerHTML = ''; 
-        container.appendChild(toolbar);
-        viewers = [];
-        
-        const layoutMode = document.getElementById('view-selector').value;
-        const validModels = loadedModels.filter(m => m !== null);
-        if (validModels.length === 0) return;
-
-        const isDark = document.body.getAttribute('data-theme') === 'dark';
-        const bgMol = isDark ? "#1f2937" : "#ffffff";
-
-        if (layoutMode === 'separate') {
-            container.style.display = 'grid';
-            container.style.gridTemplateColumns = 'repeat(auto-fit, minmax(300px, 1fr))';
-            container.style.gridAutoRows = '85%'; 
-            container.style.gap = '15px';
-            container.style.padding = '15px';
-            container.style.alignContent = 'start';
-
-            validModels.forEach((m) => {
-                const subDiv = document.createElement('div');
-                subDiv.className = 'mol-subviewer';
-                
-                const titleDiv = document.createElement('div');
-                titleDiv.className = 'viewer-title';
-                const baseCol = get3DColor('A', m.protIdx);
-                titleDiv.innerHTML = `<span class="color-dot" style="background-color: ${baseCol};"></span>Prot ${m.protIdx}: ${m.name}`;
-                subDiv.appendChild(titleDiv);
-                
-                const molDiv = document.createElement('div');
-                molDiv.style.width = '100%';
-                molDiv.style.height = '100%';
-                subDiv.appendChild(molDiv);
-                container.appendChild(subDiv);
-                
-                let v = $3Dmol.createViewer(molDiv, { backgroundColor: bgMol, preserveDrawingBuffer: true });
-                let mObj = v.addModel(m.text, m.format);
-                m.internalModel = mObj.getID();
-                
-                v.setStyle({}, { cartoon: { colorfunc: function(atom) { return get3DColor(atom.chain, m.protIdx); } } });
-                
-                v.protIdx = m.protIdx;
-                v.protName = m.name;
-                v.layoutMode = 'separate';
-                v.setHoverable({}, true, hoverCallback, unhoverCallback);
-                v.zoomTo();
-                viewers.push(v);
-            });
-        } else if (layoutMode.startsWith('prot_')) {
-            container.style.display = 'block';
-            container.style.padding = '0';
+        try {
+            const container = document.getElementById('single-mols');
+            container.innerHTML = ''; viewers = []; window.activeMolViewer = null; 
             
-            const targetIdx = parseInt(layoutMode.split('_')[1]);
-            const targetModel = validModels.find(m => m.protIdx === targetIdx);
+            const layoutMode = document.getElementById('view-selector').value;
+            const isDark = document.body.getAttribute('data-theme') === 'dark';
+            const bgMol = isDark ? "#1f2937" : "#ffffff";
             
-            if (targetModel) {
-                let v = $3Dmol.createViewer(container, { backgroundColor: bgMol, preserveDrawingBuffer: true });
-                let mObj = v.addModel(targetModel.text, targetModel.format);
-                targetModel.internalModel = mObj.getID();
-                v.setStyle({}, { cartoon: { colorfunc: function(atom) { return get3DColor(atom.chain, targetModel.protIdx); } } });
+            const validModels = loadedModels.filter(m => m !== null && graphData.proteins.includes(m.name));
+            if (validModels.length === 0) return;
+
+            if (layoutMode === 'separate') {
+                container.style.display = 'flex';
+                container.style.flexDirection = 'row';
+
+                validModels.forEach((m, i) => {
+                    const subDiv = document.createElement('div'); subDiv.className = 'mol-subviewer';
+                    subDiv.style.flex = '1';
+                    if (i === 0) subDiv.style.borderRight = '1px solid var(--border-light)';
+                    
+                    const titleDiv = document.createElement('div'); titleDiv.className = 'viewer-title';
+                    const baseCol = get3DColor('A', m.protIdx);
+                    titleDiv.innerHTML = `<span class="color-dot" style="background-color: ${baseCol};"></span>Prot ${graphData.proteins.indexOf(m.name)}: ${m.name}`;
+                    subDiv.appendChild(titleDiv);
+                    
+                    const molDiv = document.createElement('div'); molDiv.style.width = '100%'; molDiv.style.height = '100%';
+                    subDiv.appendChild(molDiv); container.appendChild(subDiv);
+                    
+                    const initViewer = () => {
+                        if (molDiv.clientWidth === 0 || molDiv.clientHeight === 0) {
+                            setTimeout(initViewer, 20); return;
+                        }
+                        let v = $3Dmol.createViewer(molDiv, { backgroundColor: bgMol });
+                        let mObj = v.addModel(m.text, m.format); m.internalModel = mObj.getID();
+                        v.setStyle({}, { cartoon: { colorfunc: function(atom) { return get3DColor(atom.chain, m.protIdx); } } });
+                        
+                        molDiv.addEventListener('mousedown', () => { window.activeMolViewer = v; });
+                        molDiv.addEventListener('wheel', () => { window.activeMolViewer = v; }, {passive: true});
+                        
+                        v.protIdx = m.protIdx; v.protName = m.name; v.layoutMode = 'separate';
+                        v.setHoverable({}, true, hoverCallback, unhoverCallback); v.zoomTo(); viewers.push(v);
+                        update3DViewer();
+                    };
+                    initViewer();
+                });
+            } else if (layoutMode.startsWith('prot_')) {
+                container.style.display = 'block';
+                const targetIdx = parseInt(layoutMode.split('_')[1]);
+                const targetModel = validModels.find(m => m.protIdx === targetIdx);
                 
-                v.protIdx = targetModel.protIdx;
-                v.protName = targetModel.name;
-                v.layoutMode = 'single';
-                v.setHoverable({}, true, hoverCallback, unhoverCallback);
-                v.zoomTo();
-                viewers.push(v);
+                if (targetModel) {
+                    let molDiv = document.createElement('div'); molDiv.style.width = '100%'; molDiv.style.height = '100%';
+                    container.appendChild(molDiv);
+
+                    const initViewer = () => {
+                        if (molDiv.clientWidth === 0 || molDiv.clientHeight === 0) {
+                            setTimeout(initViewer, 20); return;
+                        }
+                        let v = $3Dmol.createViewer(molDiv, { backgroundColor: bgMol });
+                        let mObj = v.addModel(targetModel.text, targetModel.format); targetModel.internalModel = mObj.getID();
+                        v.setStyle({}, { cartoon: { colorfunc: function(atom) { return get3DColor(atom.chain, targetModel.protIdx); } } });
+                        v.protIdx = targetModel.protIdx; v.protName = targetModel.name; v.layoutMode = 'single';
+                        v.setHoverable({}, true, hoverCallback, unhoverCallback); v.zoomTo(); viewers.push(v);
+                        update3DViewer();
+                    };
+                    initViewer();
+                }
+            } else {
+                container.style.display = 'block';
+                let molDiv = document.createElement('div'); molDiv.style.width = '100%'; molDiv.style.height = '100%';
+                container.appendChild(molDiv);
+                
+                const initViewer = () => {
+                    if (molDiv.clientWidth === 0 || molDiv.clientHeight === 0) {
+                        setTimeout(initViewer, 20); return;
+                    }
+                    let v = $3Dmol.createViewer(molDiv, { backgroundColor: bgMol });
+                    validModels.forEach(m => {
+                        let mObj = v.addModel(m.text, m.format); m.internalModel = mObj.getID();
+                        v.setStyle({model: m.internalModel}, { cartoon: { colorfunc: function(atom) { return get3DColor(atom.chain, m.protIdx); } } });
+                    });
+                    v.layoutMode = 'aligned'; v.setHoverable({}, true, hoverCallback, unhoverCallback); v.zoomTo(); viewers.push(v);
+                    update3DViewer();
+                };
+                initViewer();
             }
-        } else {
-            container.style.display = 'block';
-            container.style.padding = '0';
-            
-            let v = $3Dmol.createViewer(container, { backgroundColor: bgMol, preserveDrawingBuffer: true });
-            validModels.forEach(m => {
-                let mObj = v.addModel(m.text, m.format);
-                m.internalModel = mObj.getID();
-                v.setStyle({model: m.internalModel}, { cartoon: { colorfunc: function(atom) { return get3DColor(atom.chain, m.protIdx); } } });
+        } catch(e) { logError("rebuildViewer crashed", e); }
+    }
+
+    function update3DViewerGridForPair(pairKey) {
+        if (viewers.length === 0 || loadedModels.length === 0) return;
+        const showLabels = document.getElementById('showLabels').checked;
+        const isDark = document.body.getAttribute('data-theme') === 'dark';
+        
+        viewers.forEach(v => {
+            if (v.pairKey !== pairKey) return;
+            v.removeAllLabels();
+            v.protIdxs.forEach(idx => {
+                if(loadedModels[idx]) v.setStyle({}, { cartoon: { colorfunc: function(atom) { return get3DColor(atom.chain, idx); }, opacity: 0.5 } });
             });
-            v.layoutMode = 'aligned';
-            v.setHoverable({}, true, hoverCallback, unhoverCallback);
-            v.zoomTo();
-            viewers.push(v);
-        }
-        update3DViewer();
+
+            if(!window.gridActiveNodes || !window.gridActiveNodes[pairKey]) { v.render(); return; }
+            
+            let activeIds = window.gridActiveNodes[pairKey];
+            let pData = masterData.pairs[pairKey];
+            
+            pData.nodes.forEach(n => {
+                if (activeIds.has(n.id)) {
+                    n.mapping.forEach(m => {
+                        let sel = { chain: m.chain, resi: parseInt(m.resi) }; 
+                        const drawColor = get3DColor(m.chain, m.model_idx);
+                        v.setStyle(sel, { cartoon: { color: drawColor }, stick: { colorscheme: 'whiteCarbon', radius: 0.25 } }, true);
+                        if (showLabels) v.addLabel(`${m.resn}:${m.resi}`, { font: "sans-serif", fontSize: 13, fontColor: isDark ? "white" : "black", showBackground: false, alignment: "center", position: sel }, sel, true);
+                    });
+                }
+            });
+            v.render();
+        });
     }
 
     function update3DViewer() {
@@ -1074,9 +1864,7 @@
         viewers.forEach(v => {
             v.removeAllLabels();
             if (layoutMode === 'aligned') {
-                loadedModels.forEach(m => {
-                    if (m) v.setStyle({model: m.internalModel}, { cartoon: { colorfunc: function(atom) { return get3DColor(atom.chain, m.protIdx); }, opacity: 0.5 } });
-                });
+                loadedModels.forEach(m => { if (m && graphData.proteins.includes(m.name)) v.setStyle({model: m.internalModel}, { cartoon: { colorfunc: function(atom) { return get3DColor(atom.chain, m.protIdx); }, opacity: 0.5 } }); });
             } else if (layoutMode === 'separate' || layoutMode.startsWith('prot_')) {
                 v.setStyle({}, { cartoon: { colorfunc: function(atom) { return get3DColor(atom.chain, v.protIdx); }, opacity: 0.5 } });
             }
@@ -1087,45 +1875,36 @@
         nodesToIterate.forEach(n => {
             if (currentActiveNodes.has(n.id)) {
                 n.mapping.forEach(m => {
-                    const protIdx = m.model_idx;
-                    const loaded = loadedModels.find(lm => lm && lm.protIdx === protIdx);
+                    const globalIdx = m.model_idx;
+                    const loaded = loadedModels.find(lm => lm && lm.protIdx === globalIdx);
                     if (!loaded) return;
 
-                    let v = null;
-                    let targetModel = 0;
-                    
-                    if (layoutMode === 'aligned') {
-                        v = viewers[0]; targetModel = loaded.internalModel;
-                    } else if (layoutMode === 'separate') {
-                        v = viewers.find(vo => vo.protIdx === protIdx); targetModel = 0;
-                    } else if (layoutMode.startsWith('prot_')) {
-                        const activeProtIdx = parseInt(layoutMode.split('_')[1]);
-                        if (protIdx !== activeProtIdx) return; 
-                        v = viewers[0]; targetModel = 0;
-                    }
+                    let v = null, targetModel = 0;
+                    if (layoutMode === 'aligned') { v = viewers[0]; targetModel = loaded.internalModel; } 
+                    else if (layoutMode === 'separate') { v = viewers.find(vo => vo.protIdx === globalIdx); targetModel = 0; } 
+                    else if (layoutMode.startsWith('prot_')) { if (globalIdx !== parseInt(layoutMode.split('_')[1])) return; v = viewers[0]; targetModel = 0; }
 
                     if (!v) return;
 
                     let sel = { model: targetModel, chain: m.chain, resi: parseInt(m.resi) };
-                    const drawColor = get3DColor(m.chain, protIdx);
-                    
+                    const drawColor = get3DColor(m.chain, globalIdx);
                     v.setStyle(sel, { cartoon: { color: drawColor }, stick: { colorscheme: 'whiteCarbon', radius: 0.25 } }, true);
                     
-                    if (showLabels) {
-                        const labelText = `${m.resn}:${m.resi}`;
-                        v.addLabel(labelText, {
-                            font: "sans-serif", fontSize: 13, fontColor: isDark ? "white" : "black", 
-                            showBackground: false, alignment: "center", position: sel
-                        }, sel, true);
-                    }
+                    if (showLabels) v.addLabel(`${m.resn}:${m.resi}`, { font: "sans-serif", fontSize: 13, fontColor: isDark ? "white" : "black", showBackground: false, alignment: "center", position: sel }, sel, true);
                 });
             }
         });
-        
         viewers.forEach(v => v.render());
     }
 
     window.onload = init;
+    setInterval(() => {
+        const syncCheckbox = document.getElementById('syncViews');
+        if (syncCheckbox && syncCheckbox.checked && window.activeMolViewer && viewers.length > 1) {
+            const currentView = window.activeMolViewer.getView();
+            viewers.forEach(v => { if (v !== window.activeMolViewer) v.setView(currentView); });
+        }
+    }, 1000 / 30);
 </script>
 </body>
 </html>
