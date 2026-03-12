@@ -15,6 +15,73 @@ from MHCXGraph.utils.preprocessing import create_graphs
 from MHCXGraph.workflow.association import run_association_task
 from MHCXGraph.workflow.manifest import build_association_config, load_manifest
 
+def create_master_dashboard(export_data, output_dir, log):
+    """Helper to inject the master aggregated JSON into the dashboard template."""
+    import base64
+    import json
+    
+    assets_dir = Path(__file__).resolve().parent / "assets"
+    
+    # Safely load local Frameworks or fallback to CDNs
+    vis_local = assets_dir / "vis-network.min.js"
+    if vis_local.exists():
+        vis_injection = f'<script>\n{vis_local.read_text(encoding="utf-8")}\n</script>'
+    else:
+        vis_injection = '<script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>'
+
+    mol3d_local = assets_dir / "3Dmol-min.js"
+    if mol3d_local.exists():
+        mol3d_injection = f'<script>\n{mol3d_local.read_text(encoding="utf-8")}\n</script>'
+    else:
+        mol3d_injection = '<script src="https://3Dmol.csb.pitt.edu/build/3Dmol-min.js"></script>'
+
+    mhcx_logo_path = assets_dir / "MHCXGraph logo.png"
+    mhcx_logo_injection = "<h2>MHCXGraph</h2>"
+    favicon_injection = ""
+    if mhcx_logo_path.exists():
+        with open(mhcx_logo_path, "rb") as image_file:
+            encoded = base64.b64encode(image_file.read()).decode("utf-8")
+            mhcx_logo_injection = f'<img src="data:image/png;base64,{encoded}" alt="MHCXGraph Logo" style="max-width: 80%; height: auto;">'
+            favicon_injection = f'<link rel="icon" type="image/png" href="data:image/png;base64,{encoded}">'
+
+    logo_dark_path = assets_dir / "LNBio white.png"
+    logo_light_path = assets_dir / "LNBio.png"
+    logo_injection = ""
+    if logo_light_path.exists():
+        with open(logo_light_path, "rb") as image_file:
+            encoded = base64.b64encode(image_file.read()).decode("utf-8")
+            logo_injection += f'<img src="data:image/png;base64,{encoded}" alt="LNBio Logo" class="logo-light" style="height: 7rem; width: auto;">'
+    if logo_dark_path.exists():
+        with open(logo_dark_path, "rb") as image_file:
+            encoded = base64.b64encode(image_file.read()).decode("utf-8")
+            logo_injection += f'<img src="data:image/png;base64,{encoded}" alt="LNBio Logo" class="logo-dark" style="height: 7rem; width: auto;">'
+    if not logo_injection:
+        log.debug("LNBio logos not found in assets/. Skipping logo injection.")
+
+
+    template_path = assets_dir / "dashboard_template.html"
+    try:
+        with open(template_path, "r", encoding="utf-8") as f:
+            html_template = f.read()
+    except FileNotFoundError:
+        log.error(f"Template not found at {template_path}.")
+        return
+
+    final_html = html_template.replace("__GRAPH_DATA_INJECTION__", json.dumps(export_data))
+    final_html = final_html.replace("__FAVICON_INJECTION__", favicon_injection)
+    final_html = final_html.replace("__VIS_JS_INJECTION__", vis_injection)
+    final_html = final_html.replace("__3DMOL_JS_INJECTION__", mol3d_injection)
+    final_html = final_html.replace("__MHCXGRAPH_LOGO_INJECTION__", mhcx_logo_injection)
+    final_html = final_html.replace("__LNBIO_LOGO_INJECTION__", logo_injection)
+
+    # Dynamically name the output file based on the mode
+    mode = export_data.get("mode", "all")
+    file_name = "Dashboard_Pairs.html" if mode == "pair" else "Dashboard_All.html"
+    
+    full_path = output_dir / file_name
+    with open(str(full_path), "w+", encoding="utf-8") as out:
+        out.write(final_html)
+    log.info(f"Interactive Dashboard saved to {full_path}")
 
 def setup_trackers(output_dir, settings):
     """
@@ -85,13 +152,26 @@ def run_all_mode(graphs, base_output, run_name, config, log):
     """
     target_dir = base_output / "ALL"
 
-    run_association_task(
+    G = run_association_task(
         graphs=graphs,
         output_path=target_dir,
         run_name=run_name,
         association_config=config,
         log=log,
     )
+
+    if G and G.associated_graphs is not None:
+        global_proteins = [clean_graph_name(g) for g in graphs]
+        
+        # G.get_dashboard_data correctly formats nodes, edges, components & filtered_graphs
+        master_export = G.get_dashboard_data(global_proteins)
+        
+        # Append the top-level parameters required by the JS frontend
+        master_export["mode"] = "all"
+        master_export["run_name"] = run_name
+        master_export["metadata"] = config
+        
+        create_master_dashboard(master_export, target_dir, log)
 
 
 def clean_graph_name(graph):
@@ -131,21 +211,36 @@ def run_pair_mode(graphs, base_output, run_name, config, log):
     """
     pair_base_dir = base_output / "PAIR"
 
+    global_proteins = [clean_graph_name(g) for g in graphs]
+
+    master_export = {
+        "mode": "pair",
+        "run_name": run_name,
+        "metadata": config,
+        "proteins": global_proteins,
+        "protein_paths": [str(Path(g[1]).resolve()) for g in graphs],
+        "pairs": {}
+    }
+
     for g1, g2 in combinations(graphs, 2):
         name1 = clean_graph_name(g1)
         name2 = clean_graph_name(g2)
 
         pair_folder = f"{name1}_vs_{name2}"
+        pair_key = f"{name1}_vs_{name2}"
         pair_run_name = f"{run_name}_{name1}_{name2}"
 
-        run_association_task(
+        G = run_association_task(
             graphs=[g1, g2],
             output_path=pair_base_dir / pair_folder,
             run_name=pair_run_name,
             association_config=config,
             log=log,
         )
+        if G and G.associated_graphs is not None:
+            master_export["pairs"][pair_key] = G.get_dashboard_data(global_proteins)
 
+    create_master_dashboard(master_export, pair_base_dir, log)
 
 def run(args):
     manifest = load_manifest(args.manifest)
@@ -183,13 +278,13 @@ def run(args):
     if args.dashboard:
         log.info("Opening dashboard in the default web browser...")
         if run_mode == "all":
-            dash_path = base_output / "ALL" / "Dashboard.html"
+            dash_path = base_output / "ALL" / "Dashboard_All.html"
             if dash_path.exists():
                 webbrowser.open(f"file://{dash_path.resolve()}")
         else:
-            for dash_path in (base_output / "PAIR").rglob("Dashboard.html"):
+            dash_path = base_output / "PAIR" / "Dashboard_Pairs.html"
+            if dash_path.exists():
                 webbrowser.open(f"file://{dash_path.resolve()}")
-
 
 def renumber(args):
     if args.mhc_class.upper() == "MHCI":

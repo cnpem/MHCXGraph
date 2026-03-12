@@ -11,6 +11,8 @@ from pathlib import Path
 from scipy.cluster.hierarchy import linkage
 from scipy.spatial.distance import squareform
 
+plt.switch_backend('agg')
+
 
 def extract_unique_aminoacids(file_path):
     """Extrai resíduos únicos por componente e consolida o global por proteína."""
@@ -322,4 +324,4 @@ def create_heatmap(args):
 
     plt.tight_layout()
     plt.savefig(args.output_dir / args.name, dpi=300, bbox_inches='tight')
-    plt.show()
+    # plt.show()

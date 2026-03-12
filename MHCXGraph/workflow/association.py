@@ -38,7 +38,7 @@ def run_association_task(graphs, output_path, run_name, association_config, log)
 
     log.info("Making graph views.")
 
-    G.draw_graph_interactive(show=False, save=True)
+    # G.draw_graph_interactive(show=False, save=True)
     G.create_pdb_per_protein()
     G.align_all_frames()
 
@@ -83,3 +83,5 @@ def run_association_task(graphs, output_path, run_name, association_config, log)
         log.info(f"Evaluation tables saved in {output_path}")
     except Exception as e:
         log.error(f"Failed to compute evaluation tables: {e}")
+
+    return G
