@@ -1,7 +1,7 @@
 {
   "settings": {
     "run_name": "minimal",
-    "run_mode": "all",
+    "run_mode": "pair",
     "max_chunks": 5,
     "output_path": "results/minimal",
     "debug_logs": false,

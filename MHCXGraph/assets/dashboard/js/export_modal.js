@@ -792,6 +792,11 @@ function setupGlobalKeyboardShortcuts() {
 function setupFabricInteractions() {
     const previewArea = document.getElementById('export-preview-area');
 
+    let moveStartX = 0;
+    let moveStartY = 0;
+    let alignLines = [];
+    const snapZone = 12;
+
     if (!window.hasExportWheelBound) {
         previewArea.addEventListener('wheel', (e) => {
             if (document.getElementById('export-modal').style.display === 'none') return;
@@ -822,7 +827,11 @@ function setupFabricInteractions() {
     fabCanvas.on('mouse:down', function(opt) {
         var evt = opt.e;
 
-        
+        if (opt.target) {
+            moveStartX = opt.target.left;
+            moveStartY = opt.target.top;
+        }        
+
         if (isSpaceDown) {
             isPreviewPanning = true;
             lastPreviewPanX = evt.clientX;
@@ -834,20 +843,19 @@ function setupFabricInteractions() {
             return;
         }
 
-        // 🔴 FIX: Allow normal selection boxes! If clicking blank canvas, do nothing and let Fabric handle it.
         if (currentDrawMode === 'none' && !opt.target) {
             return; 
         }
 
-        if (currentDrawMode === 'none' && !opt.target) {
-            isPreviewPanning = true;
-            lastPreviewPanX = evt.clientX;
-            lastPreviewPanY = evt.clientY;
-            previewArea.style.cursor = 'grabbing';
-            fabCanvas.defaultCursor = 'grabbing';
-            fabCanvas.hoverCursor = 'grabbing';
-            return;
-        }
+        // if (currentDrawMode === 'none' && !opt.target) {
+        //     isPreviewPanning = true;
+        //     lastPreviewPanX = evt.clientX;
+        //     lastPreviewPanY = evt.clientY;
+        //     previewArea.style.cursor = 'grabbing';
+        //     fabCanvas.defaultCursor = 'grabbing';
+        //     fabCanvas.hoverCursor = 'grabbing';
+        //     return;
+        // }
 
         if (currentDrawMode === 'rect' || currentDrawMode === 'circle') {
             var pointer = fabCanvas.getPointer(evt);
@@ -881,6 +889,84 @@ function setupFabricInteractions() {
             }
 
             fabCanvas.add(tempShape);
+        }
+    });
+
+      fabCanvas.on('object:moving', function(opt) {
+        const obj = opt.target;
+        const e = opt.e;
+        alignLines = []; // Reset lines every frame
+
+        // 1. Shift Key Axis Locking
+        if (e.shiftKey) {
+            const dx = Math.abs(obj.left - moveStartX);
+            const dy = Math.abs(obj.top - moveStartY);
+            if (dx > dy) {
+                obj.top = moveStartY; // Lock Horizontal
+            } else {
+                obj.left = moveStartX; // Lock Vertical
+            }
+        }
+
+        // 2. Smart Guides (Canva-style snapping)
+        if (!e.shiftKey) {
+            const objCenter = obj.getCenterPoint();
+            const canvasCenterX = canvasW / 2;
+            const canvasCenterY = canvasH / 2;
+            let snappedX = false;
+            let snappedY = false;
+
+            // Snap to Canvas Centers
+            if (Math.abs(objCenter.x - canvasCenterX) < snapZone) {
+                obj.setPositionByOrigin(new fabric.Point(canvasCenterX, obj.getCenterPoint().y), 'center', 'center');
+                alignLines.push({ x1: canvasCenterX, y1: 0, x2: canvasCenterX, y2: canvasH });
+                snappedX = true;
+            }
+            if (Math.abs(objCenter.y - canvasCenterY) < snapZone) {
+                obj.setPositionByOrigin(new fabric.Point(obj.getCenterPoint().x, canvasCenterY), 'center', 'center');
+                alignLines.push({ x1: 0, y1: canvasCenterY, x2: canvasW, y2: canvasCenterY });
+                snappedY = true;
+            }
+
+            // Snap to Other Objects' Centers
+            const objects = fabCanvas.getObjects().filter(o => o !== obj && o.visible);
+            for (let i = 0; i < objects.length; i++) {
+                const targetCenter = objects[i].getCenterPoint();
+                
+                if (!snappedX && Math.abs(objCenter.x - targetCenter.x) < snapZone) {
+                    obj.setPositionByOrigin(new fabric.Point(targetCenter.x, obj.getCenterPoint().y), 'center', 'center');
+                    alignLines.push({ x1: targetCenter.x, y1: 0, x2: targetCenter.x, y2: canvasH });
+                    snappedX = true;
+                }
+                if (!snappedY && Math.abs(objCenter.y - targetCenter.y) < snapZone) {
+                    obj.setPositionByOrigin(new fabric.Point(obj.getCenterPoint().x, targetCenter.y), 'center', 'center');
+                    alignLines.push({ x1: 0, y1: targetCenter.y, x2: canvasW, y2: targetCenter.y });
+                    snappedY = true;
+                }
+            }
+        }
+    });
+
+
+    fabCanvas.on('after:render', function() {
+        if (alignLines.length > 0) {
+            const ctx = fabCanvas.contextContainer;
+            ctx.save();
+            ctx.strokeStyle = '#eab308'; // Amber/Yellow guide line
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([5, 5]);
+
+            // Apply zoom/pan transforms so the line sticks to the canvas properly
+            const v = fabCanvas.viewportTransform;
+            ctx.transform(v[0], v[1], v[2], v[3], v[4], v[5]);
+
+            ctx.beginPath();
+            alignLines.forEach(line => {
+                ctx.moveTo(line.x1, line.y1);
+                ctx.lineTo(line.x2, line.y2);
+            });
+            ctx.stroke();
+            ctx.restore();
         }
     });
 
@@ -920,6 +1006,9 @@ function setupFabricInteractions() {
     });
 
     fabCanvas.on('mouse:up', function() {
+        alignLines = [];
+        fabCanvas.renderAll();
+
         if (isPreviewPanning) {
             stopPreviewPan();
             return;
@@ -1555,7 +1644,7 @@ async function changeExportPalette() {
         if (graphLabel) {
             let pairSel = document.getElementById('pair-selector');
             let labelText = pairSel ? pairSel.value : 'Associated Graph';
-            graphLabel.text = `Graph: ${labelText}`;
+            graphLabel.text = `Associated Graph: ${labelText}`;
             graphLabel.setCoords();
         }
 
