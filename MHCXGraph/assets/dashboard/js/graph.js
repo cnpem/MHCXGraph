@@ -228,7 +228,8 @@ function applyGraphFiltersGrid(pairKey, activeIds, dsNodes, dsEdges, pData) {
         else edgeUpdates.push({ id: e.id, hidden: false, color: isEdgeActive ? { color: '#9ca3af', opacity: 1.0 } : { color: '#6b7280', opacity: 0.15 }, width: isEdgeActive ? optEdgeWidth : Math.max(0.1, optEdgeWidth * 0.5) });
     });
 
-    dsNodes.update(nodeUpdates); dsEdges.update(edgeUpdates);
+    dsNodes.update(nodeUpdates);
+    dsEdges.update(edgeUpdates);
 }
 
 function updateNodeListText() {
@@ -324,15 +325,6 @@ function applyGraphFilters(force = false) {
             color: n.color
         }))
     });
-
-    nodesDataset.update(
-        nodeUpdates.map(n => ({
-            id: n.id,
-            color: {
-                background: n.color.background,
-                border: n.color.border
-            }
-        }))
-    )
+    nodesDataset.update(nodeUpdates);
     edgesDataset.update(edgeUpdates);
 }
