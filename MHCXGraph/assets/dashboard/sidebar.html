@@ -1,0 +1,114 @@
+<style>
+    #sidebar-header { text-align: center; padding-bottom: 15px; border-bottom: 1px solid var(--border-light); margin-bottom: 5px; }  
+    #sidebar { width: 340px; background: var(--bg-panel); border-right: 1px solid var(--border); padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; box-shadow: 2px 0 5px rgba(0,0,0,0.05); z-index: 10; transition: all 0.3s ease; box-sizing: border-box; }
+    #sidebar.collapsed { width: 0; padding: 0; border: none; overflow: hidden; }
+    h3 { margin: 0 0 10px 0; font-size: 15px; color: var(--text-main); border-bottom: 1px solid var(--border-light); padding-bottom: 5px;}
+    .control-group { background: var(--bg-control); border: 1px solid var(--border-light); padding: 12px; border-radius: 6px; font-size: 13px; color: var(--text-muted); white-space: normal; flex-shrink: 0;}
+    .btn { padding: 6px 12px; background: var(--btn-bg); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;}
+    .btn:hover { background: var(--btn-hover); }
+    .tree-level-1 { font-weight: bold; margin-top: 10px; padding: 4px; border-radius: 4px; display: flex; align-items: center; color: var(--text-main);}
+    .tree-level-2 { margin-left: 15px; color: var(--text-muted); padding: 3px; border-radius: 4px; display: flex; align-items: center;}
+    .tree-level-3 { margin-left: 30px; color: var(--text-faint); font-size: 13px; padding: 2px; border-radius: 4px; display: flex; align-items: center;}
+    .tree-item label { cursor: pointer; display: flex; align-items: center; gap: 6px; width: 100%; white-space: nowrap;}
+    .tree-item:hover { background: var(--hover-bg); color: var(--text-main); }
+    .collapse-toggle { cursor: pointer; font-size: 10px; width: 16px; text-align: center; user-select: none; color: var(--text-faint);}
+    .collapse-toggle:hover { color: var(--text-main); }
+</style>
+
+<div id="sidebar">
+    <div id="sidebar-header">
+       <a href="https://github.com/cnpem/MHCXGraph" target="_blank">__MHCXGRAPH_LOGO_INJECTION__</a>
+    </div> 
+    
+    <div class="control-group" id="pair-mode-panel" style="display: none; background: var(--hover-bg); border-color: var(--border);">
+        <h3 style="color: var(--text-main); border-bottom-color: var(--border-light);">Pairwise View Mode</h3>
+        <select id="pair-selector" onchange="switchPairView(this.value)" style="width: 100%; font-weight: bold; padding: 6px;">
+            <option value="GRID">🔲 Grid View (All Pairs)</option>
+            <option value="ANALYSIS">📊 Global Pair Analysis</option>
+        </select>
+    </div>
+
+    <div class="control-group" id="metadata-panel"></div>
+
+    <div class="control-group" style="max-height: 160px; overflow-y: auto;">
+        <h3>Active Node List</h3>
+        <div id="active-nodes-text" style="font-size: 12px; line-height: 1.5;"><i>Select nodes to view.</i></div>
+    </div>
+
+    <div class="control-group">
+        <h3 onclick="toggleComp('advanced-options', this.querySelector('span'))" style="cursor: pointer; margin-bottom: 0;">
+            <span class="collapse-toggle">▼</span> Advanced Graph Options
+        </h3>
+        <div id="advanced-options" style="display: block; margin-top: 15px;">
+            <label style="display: flex; justify-content: space-between;">Graph Palette:</label>
+            <select id="optPalette" style="width: 100%; margin-bottom: 10px;">
+                <option value="colorblind">Colorblind Safe (Okabe-Ito)</option>
+                <option value="standard">Standard (Category10)</option>
+                <option value="high_contrast">High Contrast</option>
+            </select><br>
+
+            <label style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; color: var(--text-main);">
+                <span>Straight Edges:</span>
+                <input type="checkbox" id="optStraightEdges">
+            </label>
+
+            <label style="display: flex; justify-content: space-between;">Node Size: <span id="valNodeSize">18</span></label>
+            <input type="range" id="optNodeSize" min="5" max="50" value="18" style="width:95%; margin-bottom: 10px;"><br>
+
+            <label style="display: flex; justify-content: space-between;">Label Size: <span id="valLabelSize">22</span></label>
+            <input type="range" id="optLabelSize" min="10" max="40" value="22" style="width:95%; margin-bottom: 10px;"><br>
+
+            <label style="display: flex; justify-content: space-between;">Base Edge Width: <span id="valEdgeWidth">1.0</span></label>
+            <input type="range" id="optEdgeWidth" min="0.1" max="10" step="0.1" value="1.0" style="width:95%; margin-bottom: 10px;"><br>
+
+            <label style="display: flex; justify-content: space-between;">Spring Length: <span id="valSpringLen">150</span></label>
+            <input type="range" id="optSpringLen" min="50" max="500" value="150" style="width:95%;">
+        </div>
+    </div>
+
+    <div class="control-group" id="edge-interactions-panel">
+        <h3>Graph Controls</h3>
+        <label><input type="checkbox" id="freezePhysics"> Freeze Physics</label><br><br>
+        <b>Node Visibility:</b><br>
+        <label><input type="radio" name="viewMode" value="hide"> Hide inactive</label><br>
+        <label><input type="radio" name="viewMode" value="fade" checked> Fade inactive</label><br><br>
+        <b>Edge Interactions:</b><br>
+        <label><input type="checkbox" id="showStdEdges" checked> Show STD edges on hover/click</label>
+    </div>
+
+    <div class="control-group" id="filtered-options-panel" style="display: none;">
+        <h3>Graph Controls</h3>
+        <label><input type="checkbox" id="freezePhysicsFiltered"> Freeze Physics</label><br><br>
+        <b>Edge Thickness:</b><br>
+        <label><input type="radio" name="edgeThickness" value="uniform" checked onchange="handleFilteredChange()"> Uniform Width</label><br>
+        <label style="margin-top: 4px; display: block;"><input type="radio" name="edgeThickness" value="distance" onchange="handleFilteredChange()"> Distance (Closer = Thicker)</label>
+    </div>
+
+    <div class="control-group" id="file-uploads">
+        <h3>3D Structures & Export</h3>
+        <label style="margin-top: 4px; display: block; margin-bottom: 10px;"><input type="checkbox" id="showLabels" checked> Show 3D Residue Labels</label>
+        <div id="upload-inputs"></div>
+        
+        <h4 onclick="toggleComp('color-tree-container', this.querySelector('span'))" style="cursor: pointer; margin: 15px 0 5px 0; font-size: 13px; color: var(--text-main); border-bottom: 1px solid var(--border-light); padding-bottom: 5px;">
+            <span class="collapse-toggle">▶</span> 3D Color Management
+        </h4>
+        <div id="color-tree-container" style="display: none;">
+            <div id="color-tree" style="max-height: 200px; overflow-y: auto;"></div>
+            <button class="btn" style="width: 100%; margin-top: 10px; font-size: 11px;" onclick="resetMolColors()">Reset to Theme Defaults</button>
+        </div>
+        
+        <button class="btn" style="width: 100%; margin-top: 15px;" onclick="loadStructures()">Load Uploaded 3D Models</button>
+        
+        <div style="margin-top: 15px; border-top: 1px solid var(--border-light); padding-top: 10px;">
+            <button class="btn" style="width: 100%; display: flex; justify-content: center; align-items: center; gap: 8px;" onclick="openExportStudio()">
+                📸 Open Export Studio
+            </button>
+        </div>
+    </div>
+
+    <div class="control-group" style="flex:1; overflow-y:auto; min-height: 200px;">
+        <h3 id="nav-title">Navigation (Multi-Select)</h3>
+        <div id="hierarchy-tree"></div>
+        <div id="filtered-tree" style="display: none;"></div>
+    </div>
+</div>

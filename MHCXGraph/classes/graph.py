@@ -1046,13 +1046,45 @@ class AssociatedGraph:
                             idx_u, idx_v = node_index_map.get(u), node_index_map.get(v)
                             if idx_u is not None and idx_v is not None: std_val = comp_data["std_matrix"][idx_u][idx_v]
 
-                        title = f"Weight: {data.get('weight', 'N/A')}\n"
-                        if std_val is not None: title += f"STD: {std_val:.3f}"
+                        dist_tuple = []
+
+                        for prot_idx, gd in enumerate(self.graphs_data):
+                            try:
+                                u_res = u[prot_idx] if isinstance(u, tuple) else str(u)
+                                v_res = v[prot_idx] if isinstance(v, tuple) else str(v)
+
+                                u_parts = u_res.split(":")
+                                v_parts = v_res.split(":")
+
+                                u_tup = (u_parts[0], u_parts[2], u_parts[1])
+                                v_tup = (v_parts[0], v_parts[2], v_parts[1])
+
+                                distance = gd["contact_map"][
+                                    gd["residue_map_all"][u_tup],
+                                    gd["residue_map_all"][v_tup]
+                                ]
+
+                                dist_tuple.append(distance)
+
+                            except Exception:
+                                dist_tuple.append(None)
+
+                        dist_str = "(" + ", ".join(
+                            f"{d:.2f}" if d is not None else "N/A"
+                            for d in dist_tuple
+                        ) + ")"
+
+                        title = f"Distances: {dist_str}\n"
 
                         global_edges[edge_key] = {
-                            "id": edge_id_counter, "from": u_id, "to": v_id, "std": std_val, "title": title,
-                            "raw_dist": float(data.get('weight')) if isinstance(data.get('weight'), (int, float)) else None
+                            "id": edge_id_counter,
+                            "from": u_id,
+                            "to": v_id,
+                            "std": std_val,
+                            "title": title,
+                            "raw_dist": dist_tuple[0] if dist_tuple and isinstance(dist_tuple[0], (int, float)) else None
                         }
+
                         edge_id_counter += 1
                 comp_data["frames"].append(frame_data)
             export_data["components"].append(comp_data)
@@ -1067,7 +1099,7 @@ class AssociatedGraph:
                 mapping = [{"model_idx": global_idx[prot_idx], "chain": parts[0], "resn": parts[1], "resi": parts[2]}] if len(parts) >= 3 else []
                 f_nodes.append({"id": str(n), "label": str(n), "title": f"Chain: {parts[0] if len(parts)>=1 else '?'}\n{n}", "group": parts[0] if len(parts)>=1 else "?", "mapping": mapping})
             for u, v, data in g.edges(data=True):
-                dist_val = data.get('distance', data.get('weight'))
+                dist_val = data.get('distance')
                 f_edges.append({"id": f"{u}-{v}", "from": str(u), "to": str(v), "title": f"Distance: {float(dist_val):.2f} Å" if dist_val is not None else "", "raw_dist": float(dist_val) if isinstance(dist_val, (int, float)) else None})
             export_data["filtered_graphs"].append({"id": global_idx[prot_idx], "name": name, "nodes": f_nodes, "edges": f_edges})
 

@@ -19,60 +19,123 @@ def create_master_dashboard(export_data, output_dir, log):
     """Helper to inject the master aggregated JSON into the dashboard template."""
     import base64
     import json
+    import re
+    from pathlib import Path
     
     assets_dir = Path(__file__).resolve().parent / "assets"
+    html_files = assets_dir / "dashboard"
+    js_files = html_files / "js"
+
+    def _load_asset(folder, filename, default=""):
+        p = folder / filename
+        return p.read_text(encoding="utf-8") if p.exists() else default
     
     # Safely load local Frameworks or fallback to CDNs
-    vis_local = assets_dir / "vis-network.min.js"
+    vis_local = js_files / "vis-network.min.js"
     if vis_local.exists():
         vis_injection = f'<script>\n{vis_local.read_text(encoding="utf-8")}\n</script>'
     else:
         vis_injection = '<script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>'
 
-    mol3d_local = assets_dir / "3Dmol-min.js"
+    mol3d_local = js_files / "3Dmol-min.js"
     if mol3d_local.exists():
         mol3d_injection = f'<script>\n{mol3d_local.read_text(encoding="utf-8")}\n</script>'
     else:
         mol3d_injection = '<script src="https://3Dmol.csb.pitt.edu/build/3Dmol-min.js"></script>'
 
-    mhcx_logo_path = assets_dir / "MHCXGraph logo.png"
-    mhcx_logo_injection = "<h2>MHCXGraph</h2>"
+    fabric_local = js_files / "fabric.min.js"
+    if fabric_local.exists():
+        fabric_injection = f'<script>\n{fabric_local.read_text(encoding="utf-8")}\n</script>'
+    else:
+        fabric_injection = '<script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>'
+
+    plotly_local = js_files / "plotly.min.js"
+    if plotly_local.exists():
+        plotly_injection = f'<script>\n{plotly_local.read_text(encoding="utf-8")}\n</script>'
+    else:
+        plotly_injection = '<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.32.0/plotly.min.js"></script>'
+
+    mhcx_logo_path = assets_dir / "images/MHCXGraph logo.png"
+    mhcx_logo_injection = "<b>MHCXGraph</b>\n"
     favicon_injection = ""
     if mhcx_logo_path.exists():
         with open(mhcx_logo_path, "rb") as image_file:
             encoded = base64.b64encode(image_file.read()).decode("utf-8")
-            mhcx_logo_injection = f'<img src="data:image/png;base64,{encoded}" alt="MHCXGraph Logo" style="max-width: 80%; height: auto;">'
+            mhcx_logo_injection = f'<img src="data:image/png;base64,{encoded}" alt="MHCXGraph Logo" style="width: 100%; height: 100%; margin-bottom: -10px;">'
             favicon_injection = f'<link rel="icon" type="image/png" href="data:image/png;base64,{encoded}">'
 
-    logo_dark_path = assets_dir / "LNBio white.png"
-    logo_light_path = assets_dir / "LNBio.png"
+    logo_dark_path = assets_dir / "images/LNBio white.png"
+    logo_light_path = assets_dir / "images/LNBio.png"
     logo_injection = ""
     if logo_light_path.exists():
         with open(logo_light_path, "rb") as image_file:
             encoded = base64.b64encode(image_file.read()).decode("utf-8")
-            logo_injection += f'<img src="data:image/png;base64,{encoded}" alt="LNBio Logo" class="logo-light" style="height: 7rem; width: auto;">'
+            logo_injection += f'<img src="data:image/png;base64,{encoded}" alt="LNBio Logo" class="logo-light" style="height: 8rem; width: auto;">'
     if logo_dark_path.exists():
         with open(logo_dark_path, "rb") as image_file:
             encoded = base64.b64encode(image_file.read()).decode("utf-8")
-            logo_injection += f'<img src="data:image/png;base64,{encoded}" alt="LNBio Logo" class="logo-dark" style="height: 7rem; width: auto;">'
+            logo_injection += f'<img src="data:image/png;base64,{encoded}" alt="LNBio Logo" class="logo-dark" style="height: 8rem; width: auto;">'
     if not logo_injection:
-        log.debug("LNBio logos not found in assets/. Skipping logo injection.")
+        log.debug("LNBio logos not found in assets/images. Skipping logo injection.")
 
-
-    template_path = assets_dir / "dashboard_template.html"
-    try:
-        with open(template_path, "r", encoding="utf-8") as f:
-            html_template = f.read()
-    except FileNotFoundError:
-        log.error(f"Template not found at {template_path}.")
+    # --- NEW MODULAR LOADING LOGIC ---
+    html_template = _load_asset(html_files, "base.html")
+    if not html_template:
+        log.error(f"Template base.html not found at {html_files}.")
         return
 
-    final_html = html_template.replace("__GRAPH_DATA_INJECTION__", json.dumps(export_data))
-    final_html = final_html.replace("__FAVICON_INJECTION__", favicon_injection)
-    final_html = final_html.replace("__VIS_JS_INJECTION__", vis_injection)
-    final_html = final_html.replace("__3DMOL_JS_INJECTION__", mol3d_injection)
+    sidebar_html = _load_asset(html_files, "sidebar.html")
+    modal_html = _load_asset(html_files, "export_modal.html")
+    main_js = _load_asset(js_files, "main.js")
+    modal_js = _load_asset(js_files, "export_modal.js")
+    grid_js = _load_asset(js_files, "grid.js")
+    data_js = _load_asset(js_files, "data.js")
+    theme_js = _load_asset(js_files, "theme.js")
+    viewer_js = _load_asset(js_files, "viewer.js")
+    structures_js = _load_asset(js_files, "structures.js")
+    init_js = _load_asset(js_files, "init_functions.js")
+    analysis_js = _load_asset(js_files, "analysis.js")
+    graph_js = _load_asset(js_files, "graph.js")
+
+    def split_html(raw_html):
+        css_match = re.search(r'<style>(.*?)</style>', raw_html, re.DOTALL)
+        css = css_match.group(1) if css_match else ""
+        clean_html = re.sub(r'<style>.*?</style>', '', raw_html, flags=re.DOTALL).strip()
+        return css, clean_html
+    
+    def inject_js(html, name, code):
+        placeholder = f"__{name.upper()}_JS_INJECTION__"
+        return html.replace(placeholder, code)
+
+    sidebar_css, sidebar_dom = split_html(sidebar_html)
+    modal_css, modal_dom = split_html(modal_html)
+
+    # Inject everything
+    final_html = html_template.replace("__FAVICON_INJECTION__", favicon_injection)
+    final_html = inject_js(final_html, "vis", vis_injection)
+    final_html = inject_js(final_html, "3Dmol", mol3d_injection)
+    final_html = inject_js(final_html, "fabric", fabric_injection) # ADD THIS
+    final_html = inject_js(final_html, "plotly", plotly_injection)
+    final_html = final_html.replace("__SIDEBAR_CSS_INJECTION__", sidebar_css)
+    final_html = final_html.replace("__MODAL_CSS_INJECTION__", modal_css)
+    final_html = final_html.replace("__SIDEBAR_HTML_INJECTION__", sidebar_dom)
     final_html = final_html.replace("__MHCXGRAPH_LOGO_INJECTION__", mhcx_logo_injection)
     final_html = final_html.replace("__LNBIO_LOGO_INJECTION__", logo_injection)
+
+    final_html = final_html.replace("__MODAL_HTML_INJECTION__", modal_dom)
+
+    # Javascript injection
+    final_html = inject_js(final_html, "main", main_js)
+    final_html = inject_js(final_html, "data", data_js)
+    final_html = inject_js(final_html, "graph_data", json.dumps(export_data))
+    final_html = inject_js(final_html, "init", init_js)
+    final_html = inject_js(final_html, "viewer", viewer_js)
+    final_html = inject_js(final_html, "theme", theme_js)
+    final_html = inject_js(final_html, "grid", grid_js)
+    final_html = inject_js(final_html, "analysis", analysis_js)
+    final_html = inject_js(final_html, "graph", graph_js)
+    final_html = inject_js(final_html, "structures", structures_js)
+    final_html = inject_js(final_html, "modal", modal_js)
 
     # Dynamically name the output file based on the mode
     mode = export_data.get("mode", "all")

@@ -39,8 +39,8 @@ def run_association_task(graphs, output_path, run_name, association_config, log)
     log.info("Making graph views.")
 
     # G.draw_graph_interactive(show=False, save=True)
-    G.create_pdb_per_protein()
-    G.align_all_frames()
+    # G.create_pdb_per_protein()
+    # G.align_all_frames()
 
     graph_data = {}
     for j, comps in enumerate(G.associated_graphs):

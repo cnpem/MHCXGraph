@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>MHCXGraph Dashboard</title>
+    __FAVICON_INJECTION__
+    __VIS_JS_INJECTION__
+    __3DMOL_JS_INJECTION__
+    __FABRIC_JS_INJECTION__
+    __PLOTLY_JS_INJECTION__
+
+    <style>
+        :root {
+            --bg-body: #f3f4f6; --bg-panel: #ffffff; --bg-control: #f9fafb;
+            --border: #d1d5db; --border-light: #e5e7eb; --text-main: #111827;
+            --text-muted: #4b5563; --text-faint: #6b7280; --hover-bg: #e5e7eb;
+            --btn-bg: #2563eb; --btn-hover: #1d4ed8;
+        }
+        [data-theme="dark"] {
+            --bg-body: #030712; --bg-panel: #111827; --bg-control: #1f2937;
+            --border: #374151; --border-light: #1f2937; --text-main: #f9fafb;
+            --text-muted: #9ca3af; --text-faint: #6b7280; --hover-bg: #374151;
+            --btn-bg: #3b82f6; --btn-hover: #60a5fa;
+        }
+
+        body { margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; font-family: ui-sans-serif, system-ui, sans-serif; overflow: hidden; background: var(--bg-body); color: var(--text-main); transition: background 0.3s, color 0.3s;}
+        
+        #app-container { display: flex; flex: 1; overflow: hidden; position: relative; }
+        #main-content { flex: 1; display: flex; flex-direction: column; position: relative; min-width: 0; overflow: hidden;}
+        
+        #top-panel { flex: 1; min-height: 10%; position: relative; background: var(--bg-panel); overflow: hidden; }
+        #v-splitter { height: 8px; background: var(--border-light); cursor: row-resize; z-index: 50; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); display: flex; justify-content: center; align-items: center; transition: background 0.2s;}
+        #v-splitter:hover { background: var(--border); }
+        #v-splitter::after { content: "•••"; color: var(--text-faint); font-size: 10px; letter-spacing: 2px; }
+        #bottom-panel { flex: 1; min-height: 10%; position: relative; background: var(--bg-control); overflow: hidden; display: flex; flex-direction: column; }
+        
+        #single-network { width: 100%; height: 100%; position: absolute; top:0; left:0; display: none; background: var(--bg-panel); }
+        #single-mols { width: 100%; height: 100%; position: absolute; top:0; left:0; display: none; padding-top: 45px; box-sizing: border-box; align-content: flex-start; }
+        #analysis-wrapper { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 80; background: var(--bg-body); overflow-y: auto; padding: 60px 40px 40px 40px; box-sizing: border-box; }
+        
+        .summary-cards { display: flex; gap: 20px; justify-content: center; margin-bottom: 30px; flex-wrap: wrap; }
+        .card { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px; padding: 20px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05); flex: 1; min-width: 180px; max-width: 250px; }
+        .card h4 { margin: 0 0 10px 0; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+        .card .value { font-size: 28px; font-weight: 800; color: var(--btn-bg); }
+        
+        .analysis-section { margin-bottom: 30px; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px; padding: 25px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .analysis-section h2 { margin-top: 0; font-size: 18px; border-bottom: 1px solid var(--border-light); padding-bottom: 12px; margin-bottom: 20px; color: var(--text-main); }
+        
+        .heatmap-wrapper { display: flex; justify-content: center; width: 100%; overflow-x: auto; padding: 10px 0; }
+        .heatmap-grid { display: grid; gap: 4px; font-size: 13px; width: max-content; margin: 0 auto; }
+        .heatmap-cell { width: 55px; height: 55px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #fff; text-shadow: 0px 1px 3px rgba(0,0,0,0.6); transition: transform 0.15s ease, box-shadow 0.15s ease; cursor: crosshair; position: relative; }
+        .heatmap-cell:hover { transform: scale(1.15); z-index: 10; box-shadow: 0 6px 12px rgba(0,0,0,0.3); }
+        .heatmap-header { font-weight: bold; color: var(--text-main); text-align: center; padding: 8px; display: flex; align-items: center; justify-content: center; font-size: 12px;}
+        
+        .hm-tooltip { visibility: hidden; position: absolute; bottom: 120%; left: 50%; transform: translateX(-50%); background: var(--text-main); color: var(--bg-panel); padding: 8px 12px; border-radius: 6px; font-size: 12px; font-weight: normal; text-shadow: none; white-space: nowrap; z-index: 100; opacity: 0; transition: opacity 0.2s; pointer-events: none; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
+        .heatmap-cell:hover .hm-tooltip { visibility: visible; opacity: 1; }
+        .hm-tooltip::after { content: ""; position: absolute; top: 100%; left: 50%; margin-left: -5px; border-width: 5px; border-style: solid; border-color: var(--text-main) transparent transparent transparent; }
+
+        .metrics-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; text-align: center; }
+        .metrics-table th, .metrics-table td { padding: 12px; border-bottom: 1px solid var(--border-light); }
+        .metrics-table th { background: var(--bg-control); font-weight: 600; color: var(--text-main); position: sticky; top: 0; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px;}
+        .metrics-table tbody tr { transition: background 0.2s; }
+        .metrics-table tbody tr:hover { background: var(--hover-bg); }
+        .class-badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin: 2px; color: #fff;}
+
+        #sidebar-toggle { position: absolute; top: 10px; left: 10px; z-index: 100; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 4px; padding: 6px 10px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.1); font-size: 16px; color: var(--text-main);}
+        #theme-toggle { position: absolute; top: 10px; right: 15px; z-index: 100; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 4px; padding: 6px 10px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.1); font-size: 16px; color: var(--text-main);}
+        #sidebar-toggle:hover, #theme-toggle:hover { background: var(--hover-bg); }
+        
+        #view-controls { position: absolute; top: 15px; left: 50%; transform: translateX(-50%); z-index: 100; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; align-items: center; gap: 8px; }
+        #viewer-toolbar { position: absolute; top: 10px; left: 15px; z-index: 100; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; align-items: center; gap: 10px; font-size: 13px;}
+        select, input[type="range"] { background: var(--bg-panel); color: var(--text-main); border: 1px solid var(--border); padding: 4px 8px; border-radius: 4px; outline: none; font-size: 13px;}
+        
+        .mol-subviewer { position: relative; width: 100%; height: 100%; border: 1px solid var(--border-light); box-sizing: border-box; border-radius: 6px; overflow: hidden; background: var(--bg-panel); box-shadow: 0 1px 3px rgba(0,0,0,0.1);}
+        #mol-tooltip { position: fixed; display: none; background: rgba(17, 24, 39, 0.9); color: white; padding: 8px 12px; border-radius: 6px; font-size: 13px; pointer-events: none; z-index: 99999; box-shadow: 0 4px 6px rgba(0,0,0,0.1);}
+        .viewer-title { position: absolute; top: 10px; left: 10px; background: var(--bg-panel); color: var(--text-main); padding: 4px 10px; border-radius: 4px; font-size: 13px; font-weight: bold; pointer-events: none; z-index: 50; border: 1px solid var(--border); box-shadow: 0 1px 3px rgba(0,0,0,0.1);}
+        .color-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+        
+        #app-footer { height: 65px; background: var(--bg-panel); border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 20px; font-size: 13px; color: var(--text-muted); flex-shrink: 0; box-shadow: 0 -2px 5px rgba(0,0,0,0.03); z-index: 100; }
+        #app-footer a { color: var(--text-main); text-decoration: none; font-weight: 500; transition: color 0.2s;}
+        #app-footer a:hover { color: var(--btn-bg); text-decoration: underline; }
+
+        [data-theme="light"] .logo-dark { display: none; }
+        [data-theme="dark"] .logo-light { display: none; }
+
+        /* INJECTED CSS */
+        __SIDEBAR_CSS_INJECTION__
+        __MODAL_CSS_INJECTION__
+    </style>
+</head>
+<body data-theme="dark">
+
+<div id="app-container">
+    
+    __SIDEBAR_HTML_INJECTION__
+
+    <div id="main-content">
+        <button id="sidebar-toggle" onclick="toggleSidebar()" title="Toggle Sidebar">☰</button>
+        <button id="theme-toggle" onclick="toggleTheme()" title="Toggle Theme">☀️ / 🌙</button>
+        
+        <div id="view-controls" style="display: none;">
+            <b style="font-size: 13px; color: var(--text-main);">Focus Graph View:</b>
+            <select id="main-graph-selector" onchange="switchGraphViewMode()">
+                <option value="associated">🌐 Associated Graph</option>
+                <option value="filtered">Filtered Graphs</option>
+                <option value="analysis" id="opt-analysis-tab">📊 Analysis & Metrics</option>
+            </select>
+        </div>
+        
+        <div id="top-panel">
+            <div id="single-network"></div>
+        </div>
+        
+        <div id="v-splitter"></div>
+        
+        <div id="bottom-panel">
+            <div id="viewer-toolbar" style="display: none;">
+                <b style="color: var(--text-main);">3D View:</b>
+                <select id="view-selector" onchange="triggerRebuild()">
+                    <option value="aligned">Aligned (Single View)</option>
+                    <option value="separate">Separate (Grid View)</option>
+                </select>
+                <label style="margin-left: 10px; font-size: 13px; color: var(--text-main); cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                    <input type="checkbox" id="syncViews" checked> Sync Cameras
+                </label>
+            </div>
+            <div id="single-mols"></div>
+        </div>
+        
+        <div id="analysis-wrapper"></div>
+    </div>
+</div>
+
+<div id="app-footer">
+    <div class="footer-left">
+        <b><a href="https://github.com/cnpem/MHCXGraph/" target="_blank">MHCXGraph</a></b>
+        <span>|</span>
+        <a href="https://lnbio.cnpem.br/" target="_blank">LNBio</a> - <a href="https://cnpem.br/" target="_blank">CNPEM</a>
+        <span>|</span>
+        <a href="https://github.com/cnpem/MHCXGraph/blob/main/LICENSE" target="_blank">AGPL-3.0 License</a>
+    </div>
+    <div class="footer-right">
+        <a href="https://lnbio.cnpem.br/" target="_blank">__LNBIO_LOGO_INJECTION__</a>
+    </div>
+</div>
+
+<div id="mol-tooltip"></div>
+
+__MODAL_HTML_INJECTION__
+
+<script>
+  __MAIN_JS_INJECTION__
+</script>
+</body>
+</html>

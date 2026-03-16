@@ -1,0 +1,299 @@
+<style>
+    #export-modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.85);
+        z-index: 999999;
+        justify-content: center;
+        align-items: center;
+        backdrop-filter: blur(4px);
+    }
+
+    #export-studio {
+        background: var(--bg-panel);
+        border-radius: 12px;
+        width: 95%;
+        max-width: 1600px;
+        height: 95%;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+        border: 1px solid var(--border);
+    }
+
+    #export-header {
+        padding: 15px 25px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: var(--bg-control);
+    }
+
+    #export-header h2 {
+        margin: 0;
+        font-size: 18px;
+        color: var(--text-main);
+    }
+
+    #export-body {
+        display: flex;
+        flex: 1;
+        overflow: hidden;
+        min-height: 0;
+    }
+
+    #export-controls {
+        width: 340px;
+        border-right: 1px solid var(--border);
+        padding: 20px;
+        overflow-y: auto;
+        background: var(--bg-panel);
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        min-height: 0;
+    }
+
+    #export-preview-area {
+        flex: 1;
+        min-width: 0;
+        min-height: 0;
+        overflow: auto;
+        padding: 40px;
+        background: #e5e7eb;
+        background-image:
+            linear-gradient(45deg, #d1d5db 25%, transparent 25%),
+            linear-gradient(-45deg, #d1d5db 25%, transparent 25%),
+            linear-gradient(45deg, transparent 75%, #d1d5db 75%),
+            linear-gradient(-45deg, transparent 75%, #d1d5db 75%);
+        background-size: 20px 20px;
+        background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        box-sizing: border-box;
+    }
+
+    #export-canvas-wrapper {
+        display: block;
+        width: 1920px;
+        height: 1080px;
+        margin: 0;
+        position: relative;
+        transform-origin: top left;
+        transition: width 0.1s, height 0.1s;
+    }
+
+    #export-canvas-wrapper .canvas-container {
+        box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+        transform-origin: top left;
+        transition: transform 0.1s ease-out;
+    }
+
+    #plotly-hidden-container {
+        position: absolute;
+        left: -9999px;
+        top: -9999px;
+        width: 800px;
+        height: 800px;
+        visibility: hidden;
+    }
+
+    .export-section-title {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: var(--text-muted);
+        font-weight: bold;
+        margin-bottom: 8px;
+        border-bottom: 1px solid var(--border-light);
+        padding-bottom: 5px;
+    }
+
+    .export-cb-label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: var(--text-main);
+        cursor: pointer;
+        margin-bottom: 6px;
+    }
+
+    .tool-btn {
+        background: var(--bg-control);
+        border: 1px solid var(--border);
+        color: var(--text-main);
+        padding: 8px;
+        border-radius: 6px;
+        cursor: pointer;
+        flex: 1;
+        font-weight: bold;
+        font-size: 14px;
+        transition: 0.2s;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .tool-btn:hover {
+        background: var(--hover-bg);
+        border-color: var(--btn-bg);
+        color: var(--btn-bg);
+    }
+
+    .tool-btn.active {
+        background: var(--btn-bg);
+        color: white;
+        border-color: var(--btn-bg);
+    }
+
+    .hint-text {
+        font-size: 11px;
+        color: var(--text-muted);
+        margin-bottom: 5px;
+        line-height: 1.4;
+    }
+</style>
+
+<div id="export-modal">
+    <div id="export-studio">
+        <div id="export-header">
+            <h2>🎨 Publication Figure Studio</h2>
+            <button class="btn" style="background: transparent; color: var(--text-main); border: 1px solid var(--border); padding: 4px 12px;" onclick="closeExportStudio()">Close</button>
+        </div>
+        <div id="export-body">
+            <div id="export-controls">
+                <div>
+                    <div class="export-section-title">Editor Tools</div>
+                    <div class="hint-text">
+                        <b>Shortcuts:</b> <br>
+                        • <b>Scroll:</b> Pan Y &nbsp;&nbsp; • <b>Shift+Scroll:</b> Pan X<br>
+                        • <b>Ctrl+Scroll:</b> Zoom &nbsp;&nbsp; • <b>Del:</b> Delete<br>
+                        • <b>Ctrl+Z / Ctrl+Shift+Z:</b> Undo / Redo
+                    </div>
+                    <div style="display: flex; gap: 6px; margin-bottom: 6px; margin-top: 10px;">
+                        <button class="tool-btn" title="Add Text" onclick="addFabricText()">T</button>
+                        <button class="tool-btn" id="btn-draw-rect" title="Draw Square" onclick="setDrawMode('rect')">⬛</button>
+                        <button class="tool-btn" id="btn-draw-circle" title="Draw Circle" onclick="setDrawMode('circle')">⏺</button>
+                        <button class="tool-btn" id="btn-draw-brush" title="Free Draw" onclick="setDrawMode('brush')">🖌️</button>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="export-section-title">Global Properties</div>
+
+                    <label style="font-size: 12px; color: var(--text-main); margin-top: 10px; display: block;">Graph Color Palette:</label>
+                    <select id="exp-palette" style="width: 100%; margin-bottom: 10px;" onchange="changeExportPalette()">
+                        <option value="standard">Standard (Default)</option>
+                        <option value="colorblind">Colorblind</option>
+                        <option value="high_contrast">High Contrast</option>
+                    </select>
+
+                    <label style="display: flex; gap: 8px; font-size: 13px; align-items: center; margin-bottom: 10px; color: var(--text-main); cursor: pointer;">
+                        <input type="checkbox" id="exp-transparent-bg" onchange="updateCanvasBackground()"> Transparent Background
+                    </label>
+
+                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                        <div style="flex: 1;">
+                            <label style="font-size: 11px; color: var(--text-main);">Background:</label>
+                            <input type="color" id="exp-bg-color" value="#111827" style="width: 100%; height: 35px; cursor: pointer;" onchange="updateCanvasBackground()">
+                        </div>
+                        <div style="flex: 1;">
+                            <label style="font-size: 11px; color: var(--btn-bg); font-weight: bold;">Graph/Mol Labels:</label>
+                            <input type="color" id="exp-data-color" value="#f9fafb" style="width: 100%; height: 35px; cursor: pointer;" onchange="applyDataNodesColor()" title="Updates Graph/Mol Labels">
+                        </div>
+                    </div>
+
+                    <label style="font-size: 12px; color: var(--text-main); display: flex; justify-content: space-between;">
+                        Preview Zoom: <span id="exp-preview-zoom-val">50%</span>
+                    </label>
+                    <input type="range" id="exp-preview-zoom" min="0.1" max="1.5" step="0.05" value="0.5" style="width: 100%; margin-bottom: 10px;" oninput="updatePreviewZoom()">
+
+                    <label style="font-size: 12px; color: var(--text-main);">Workspace Size (W x H):</label>
+                    <div style="display: flex; gap: 5px; margin-top: 4px;">
+                        <input type="number" id="exp-w" value="1920" style="width: 50%;" onchange="resizeCanvasWorkspace()">
+                        <input type="number" id="exp-h" value="1080" style="width: 50%;" onchange="resizeCanvasWorkspace()">
+                    </div>
+                </div>
+
+                <div>
+                    <div class="export-section-title">2. Auto-Layouts</div>
+                    <select id="exp-layout" style="width: 100%;" onchange="applyFabricSnapLayout()">
+                        <option value="none">Free Arrange</option>
+                        <option disabled>──────────</option>
+                        <option value="article_1">Article Layout (Vertical)</option>
+                        <option value="article_2">Article Layout (Horizontal)</option>
+                        <option value="grid">Grid Snap</option>
+                    </select>
+                </div>
+
+                <div>
+                <div class="export-section-title">Heatmap Options</div>
+                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                    <div style="flex: 1;">
+                        <label style="font-size: 11px; color: var(--text-main);">Color Palette:</label>
+                        <select id="exp-hm-colorscale" class="input-field" style="width: 100%; padding: 4px; border-radius: 4px;" onchange="updateHeatmapAsset()">
+                            <option value="Viridis">Viridis</option>
+                            <option value="Plasma">Plasma</option>
+                            <option value="Inferno">Inferno</option>
+                            <option value="Magma">Magma</option>
+                            <option value="Blues">Blues</option>
+                            <option value="Reds">Reds</option>
+                            <option value="YlGnBu">YlGnBu</option>
+                        </select>
+                    </div>
+                    <div style="flex: 1; display: flex; align-items: flex-end;">
+                        <label class="export-cb-label" style="margin-bottom: 5px;">
+                            <input type="checkbox" id="exp-hm-annot" checked onchange="updateHeatmapAsset()"> Show %
+                        </label>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                    <div style="flex: 1;">
+                        <label style="font-size: 11px; color: var(--text-main);">Axis Label Size:</label>
+                        <input type="number" id="exp-hm-axis-size" value="18" min="8" max="40" style="width: 100%; padding: 4px; border-radius: 4px;" onchange="updateHeatmapAsset()">
+                        <label class="export-cb-label" style="margin: 0;" title="Bold Axis Text"><input type="checkbox" id="exp-hm-axis-bold" checked onchange="updateHeatmapAsset()"> <b>B</b></label>
+                    </div>
+                    <div style="flex: 1;">
+                        <label style="font-size: 11px; color: var(--text-main);">Value Text Size:</label>
+                        <input type="number" id="exp-hm-val-size" value="16" min="8" max="40" style="width: 100%; padding: 4px; border-radius: 4px;" onchange="updateHeatmapAsset()">
+                        <label class="export-cb-label" style="margin: 0;" title="Bold Inner Values"><input type="checkbox" id="exp-hm-val-bold" onchange="updateHeatmapAsset()"> <b>B</b></label>
+                    </div>
+                </div> 
+                    <div class="export-section-title">Selected Element</div>
+
+                    <label style="font-size: 12px; color: var(--text-main);">Color (Text/Shapes/Brush):</label>
+                    <input type="color" id="exp-element-color" style="width: 100%; height: 30px; margin-bottom: 10px; cursor: pointer;" onchange="updateSelectedFabricColor()" disabled>
+
+                    <div style="display: flex; gap: 5px; margin-bottom: 10px;">
+                        <button class="btn" style="flex: 1; font-size: 12px; padding: 4px;" onclick="moveLayer('up')" id="btn-layer-up" disabled>⬆️ Forward</button>
+                        <button class="btn" style="flex: 1; font-size: 12px; padding: 4px;" onclick="moveLayer('down')" id="btn-layer-down" disabled>⬇️ Backward</button>
+                    </div>
+
+                    <button id="exp-delete-btn" class="btn" style="width: 100%; background: #ef4444; color: white; border: none; padding: 6px; font-size: 13px;" onclick="deleteSelectedFabricAsset()" disabled>🗑️ Delete Element</button>
+                </div>
+
+                <div style="display: flex; flex-direction: column; flex: 1; min-height: 0;">
+                    <div class="export-section-title">4. Elements & Layers</div>
+                    <div id="exp-elements-list" style="flex: 1; overflow-y: auto; border: 1px solid var(--border-light); padding: 8px; border-radius: 6px; background: var(--bg-control);"></div>
+                </div>
+
+                <div style="margin-top: 15px;">
+                    <button class="btn" style="width: 100%; font-size: 14px; padding: 10px;" onclick="downloadFabricExport()">📥 Download High-Res PNG</button>
+                </div>
+            </div>
+
+            <div id="export-preview-area">
+                <div id="export-canvas-wrapper">
+                    <canvas id="export-canvas"></canvas>
+                </div>
+            </div>
+
+            <div id="plotly-hidden-container"></div>
+        </div>
+    </div>
+</div>
