@@ -18,7 +18,7 @@ def load_manifest(manifest_path: str) -> dict[str, Any]:
     settings = data["settings"]
 
     settings.setdefault("run_name", "test")
-    settings.setdefault("run_mode", "all")
+    settings.setdefault("run_mode", "multiple")
     settings.setdefault("output_path", "./outputs")
 
     os.makedirs(settings["output_path"], exist_ok=True)

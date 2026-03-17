@@ -7,7 +7,7 @@ function toggleTheme() {
     if(network) network.setOptions({ nodes: { font: { color: themeText } } });
     gridNetworks.forEach(n => n.network.setOptions({ nodes: { font: { color: themeText } } }));
     
-    if (masterData.mode === 'pair' && document.getElementById('pair-selector').value === 'GRID') {
+    if (masterData.mode === 'pairwise' && document.getElementById('pair-selector').value === 'GRID') {
         Object.keys(masterData.pairs).forEach(k => applyGraphFiltersGrid(k));
     } else {
         if (currentGraphMode === 'associated') applyGraphFilters();

@@ -20,7 +20,7 @@ function init() {
     document.getElementById('freezePhysics').addEventListener('change', togglePhysics);
     document.getElementById('freezePhysicsFiltered').addEventListener('change', togglePhysics);
     
-    if (masterData.mode === 'pair') {
+    if (masterData.mode === 'pairwise') {
         document.getElementById('pair-mode-panel').style.display = 'block';
         let sel = document.getElementById('pair-selector');
         Object.keys(masterData.pairs).forEach(k => { sel.innerHTML += `<option value="${k}">🔍 Focus: ${k.replace('_vs_', ' vs ')}</option>`; });
@@ -54,7 +54,7 @@ function init() {
 
 function initMetadataGlobalFallback() {
     try {
-        if (masterData.mode !== 'pair') return;
+        if (masterData.mode !== 'pairwise') return;
         const firstPair = Object.keys(masterData.pairs)[0];
         const c = masterData.pairs[firstPair].metadata || {};
         document.getElementById('metadata-panel').innerHTML = `
@@ -63,8 +63,8 @@ function initMetadataGlobalFallback() {
             <div style="margin-bottom: 12px; font-size: 12px; font-style: italic;">Select a specific pair focus or view colors in the grid to see node mappings.</div>
             <div><b>Parameters:</b>
                 <ul style="margin: 5px 0 0 0; padding-left: 20px; line-height: 1.5;">
-                    <li><b>Mode:</b> ${c.run_mode || 'pair'}</li>
-                    <li><b>Granularity:</b> ${c.node_granularity || 'all_atoms'}</li>
+                    <li><b>Mode:</b> ${c.run_mode}</li>
+                    <li><b>Granularity:</b> ${c.node_granularity || 'N/A'}</li>
                     <li><b>Edge Thresh:</b> ${c.edge_threshold || 'N/A'} Å</li>
                     <li><b>Global Diff:</b> ${c.global_distance_diff_threshold || 'N/A'} Å</li>
                 </ul>
@@ -76,7 +76,7 @@ function initMetadataGlobalFallback() {
 function initAdvancedOptions() {
     document.getElementById('optPalette').addEventListener('change', function(e) {
         activePaletteName = e.target.value;
-        if (masterData.mode === 'pair' && document.getElementById('pair-selector').value === 'GRID') {
+        if (masterData.mode === 'pairwise' && document.getElementById('pair-selector').value === 'GRID') {
             assignAllPairGraphColors(); Object.keys(masterData.pairs).forEach(k => applyGraphFiltersGrid(k)); 
         } else {
             assignGraphColorsToData(); initMetadata(); 
@@ -98,7 +98,7 @@ function initAdvancedOptions() {
 
     document.getElementById('optEdgeWidth').addEventListener('input', function(e) {
         optEdgeWidth = parseFloat(e.target.value); document.getElementById('valEdgeWidth').innerText = optEdgeWidth.toFixed(1);
-        if (masterData.mode === 'pair' && document.getElementById('pair-selector').value === 'GRID') {
+        if (masterData.mode === 'pairwise' && document.getElementById('pair-selector').value === 'GRID') {
             Object.keys(masterData.pairs).forEach(k => applyGraphFiltersGrid(k));
         } else {
             if (currentGraphMode === 'associated') applyGraphFilters(); else handleFilteredChange();
@@ -155,8 +155,8 @@ function initMetadata() {
             <div>
                 <b>Parameters:</b>
                 <ul style="margin: 5px 0 0 0; padding-left: 20px; line-height: 1.5;">
-                    <li><b>Mode:</b> ${c.run_mode || 'all'}</li>
-                    <li><b>Granularity:</b> ${c.node_granularity || 'all_atoms'}</li>
+                    <li><b>Mode:</b> ${c.run_mode}</li>
+                    <li><b>Granularity:</b> ${c.node_granularity}</li>
                     <li><b>Edge Thresh:</b> ${c.edge_threshold || 'N/A'} Å</li>
                     <li><b>Global Diff:</b> ${c.global_distance_diff_threshold || 'N/A'} Å</li>
                 </ul>

@@ -284,7 +284,7 @@ async function openExportStudio() {
 
     let gLabelStr = 'Associated Graph';
 
-    if (typeof masterData !== 'undefined' && masterData.mode === 'pair') {
+    if (typeof masterData !== 'undefined' && masterData.mode === 'pairwise') {
         let pSel = document.getElementById('pair-selector');
         if (pSel && pSel.value !== 'GRID' && pSel.value !== 'ANALYSIS') {
             gLabelStr = `Graph: ${pSel.value}`;
@@ -484,7 +484,7 @@ async function openExportStudio() {
 async function generatePlotlyHeatmap() {
     let isGlobalPairMode = (
         typeof masterData !== 'undefined' &&
-        masterData.mode === 'pair' &&
+        masterData.mode === 'pairwise' &&
         document.getElementById('pair-selector') &&
         document.getElementById('pair-selector').value === 'GRID'
     );
@@ -1583,7 +1583,7 @@ async function changeExportPalette() {
         if (typeof assignGraphColorsToData === 'function') assignGraphColorsToData();
 
         let isGlobal = (
-            typeof masterData !== 'undefined' && masterData.mode === 'pair' &&
+            typeof masterData !== 'undefined' && masterData.mode === 'pairwise' &&
             document.getElementById('pair-selector') && document.getElementById('pair-selector').value === 'GRID'
         );
 
@@ -1715,7 +1715,7 @@ async function closeExportStudio() {
 
         let isGlobal = (
             typeof masterData !== 'undefined' &&
-            masterData.mode === 'pair' &&
+            masterData.mode === 'pairwise' &&
             document.getElementById('pair-selector') &&
             document.getElementById('pair-selector').value === 'GRID'
         );

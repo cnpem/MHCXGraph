@@ -21,7 +21,7 @@ def create_master_dashboard(export_data, output_dir, log):
     import json
     import re
     from pathlib import Path
-    
+
     assets_dir = Path(__file__).resolve().parent / "assets"
     html_files = assets_dir / "dashboard"
     js_files = html_files / "js"
@@ -29,8 +29,17 @@ def create_master_dashboard(export_data, output_dir, log):
     def _load_asset(folder, filename, default=""):
         p = folder / filename
         return p.read_text(encoding="utf-8") if p.exists() else default
-    
-    # Safely load local Frameworks or fallback to CDNs
+
+    def split_html(raw_html):
+        css_match = re.search(r'<style>(.*?)</style>', raw_html, re.DOTALL)
+        css = css_match.group(1) if css_match else ""
+        clean_html = re.sub(r'<style>.*?</style>', '', raw_html, flags=re.DOTALL).strip()
+        return css, clean_html
+
+    def inject_js(html, name, code):
+        placeholder = f"__{name.upper()}_JS_INJECTION__"
+        return html.replace(placeholder, code)
+
     vis_local = js_files / "vis-network.min.js"
     if vis_local.exists():
         vis_injection = f'<script>\n{vis_local.read_text(encoding="utf-8")}\n</script>'
@@ -78,7 +87,6 @@ def create_master_dashboard(export_data, output_dir, log):
     if not logo_injection:
         log.debug("LNBio logos not found in assets/images. Skipping logo injection.")
 
-    # --- NEW MODULAR LOADING LOGIC ---
     html_template = _load_asset(html_files, "base.html")
     if not html_template:
         log.error(f"Template base.html not found at {html_files}.")
@@ -96,16 +104,6 @@ def create_master_dashboard(export_data, output_dir, log):
     init_js = _load_asset(js_files, "init_functions.js")
     analysis_js = _load_asset(js_files, "analysis.js")
     graph_js = _load_asset(js_files, "graph.js")
-
-    def split_html(raw_html):
-        css_match = re.search(r'<style>(.*?)</style>', raw_html, re.DOTALL)
-        css = css_match.group(1) if css_match else ""
-        clean_html = re.sub(r'<style>.*?</style>', '', raw_html, flags=re.DOTALL).strip()
-        return css, clean_html
-    
-    def inject_js(html, name, code):
-        placeholder = f"__{name.upper()}_JS_INJECTION__"
-        return html.replace(placeholder, code)
 
     sidebar_css, sidebar_dom = split_html(sidebar_html)
     modal_css, modal_dom = split_html(modal_html)
@@ -138,8 +136,8 @@ def create_master_dashboard(export_data, output_dir, log):
     final_html = inject_js(final_html, "modal", modal_js)
 
     # Dynamically name the output file based on the mode
-    mode = export_data.get("mode", "all")
-    file_name = "Dashboard_Pairs.html" if mode == "pair" else "Dashboard_All.html"
+    mode = export_data.get("mode")
+    file_name = "Dashboard_Pairwise.html" if mode == "pairwise" else "Dashboard_Multiple.html"
     
     full_path = output_dir / file_name
     with open(str(full_path), "w+", encoding="utf-8") as out:
@@ -184,9 +182,9 @@ def setup_trackers(output_dir, settings):
     return tracker_residues
 
 
-def run_all_mode(graphs, base_output, run_name, config, log):
+def run_multiple_mode(graphs, base_output, run_name, config, log):
     """
-    Execute the association workflow in all-graphs mode.
+    Execute the association workflow in multiple-graphs mode.
 
     In this mode all graphs are processed together in a single
     association task.
@@ -213,7 +211,7 @@ def run_all_mode(graphs, base_output, run_name, config, log):
     -------
     None
     """
-    target_dir = base_output / "ALL"
+    target_dir = base_output / "MULTIPLE"
 
     G = run_association_task(
         graphs=graphs,
@@ -230,7 +228,7 @@ def run_all_mode(graphs, base_output, run_name, config, log):
         master_export = G.get_dashboard_data(global_proteins)
         
         # Append the top-level parameters required by the JS frontend
-        master_export["mode"] = "all"
+        master_export["mode"] = "multiple"
         master_export["run_name"] = run_name
         master_export["metadata"] = config
         
@@ -243,7 +241,7 @@ def clean_graph_name(graph):
     return name.replace("_nOH", "")
 
 
-def run_pair_mode(graphs, base_output, run_name, config, log):
+def run_pairwise_mode(graphs, base_output, run_name, config, log):
     """
     Execute the association workflow in pairwise mode.
 
@@ -272,12 +270,12 @@ def run_pair_mode(graphs, base_output, run_name, config, log):
     -------
     None
     """
-    pair_base_dir = base_output / "PAIR"
+    pair_base_dir = base_output / "PAIRWISE"
 
     global_proteins = [clean_graph_name(g) for g in graphs]
 
     master_export = {
-        "mode": "pair",
+        "mode": "pairwise",
         "run_name": run_name,
         "metadata": config,
         "proteins": global_proteins,
@@ -310,10 +308,10 @@ def run(args):
     settings = manifest["settings"]
 
     run_name = settings["run_name"]
-    run_mode = settings.get("run_mode", "all")
+    run_mode = settings.get("run_mode", "multiple")
 
-    if run_mode not in {"all", "pair"}:
-        raise ValueError("run_mode must be 'all' or 'pair'")
+    if run_mode not in {"multiple", "pairwise"}:
+        raise ValueError("run_mode must be 'multiple' or 'pairwise'")
 
     base_output = Path(settings["output_path"])
     output_dir = base_output / run_name
@@ -329,10 +327,10 @@ def run(args):
 
     graphs = create_graphs(manifest)
 
-    if run_mode == "all":
-        run_all_mode(graphs, base_output, run_name, association_config, log)
+    if run_mode == "multiple":
+        run_multiple_mode(graphs, base_output, run_name, association_config, log)
     else:
-        run_pair_mode(graphs, base_output, run_name, association_config, log)
+        run_pairwise_mode(graphs, base_output, run_name, association_config, log)
 
     if tracker_residues:
         out_path = tracker_residues.dump_json()
@@ -340,14 +338,15 @@ def run(args):
 
     if args.dashboard:
         log.info("Opening dashboard in the default web browser...")
-        if run_mode == "all":
-            dash_path = base_output / "ALL" / "Dashboard_All.html"
+        if run_mode == "multiple":
+            dash_path = base_output / "MULTIPLE" / "Dashboard_Multiple.html"
             if dash_path.exists():
                 webbrowser.open(f"file://{dash_path.resolve()}")
         else:
-            dash_path = base_output / "PAIR" / "Dashboard_Pairs.html"
+            dash_path = base_output / "PAIRWISE" / "Dashboard_Pairs.html"
             if dash_path.exists():
                 webbrowser.open(f"file://{dash_path.resolve()}")
+
 
 def renumber(args):
     if args.mhc_class.upper() == "MHCI":
@@ -422,10 +421,10 @@ def main():
 
     The workflow can operate in two modes defined in the manifest:
 
-    ``all``
+    ``multiple``
         Process all graphs together in a single association task.
 
-    ``pair``
+    ``pairwise``
         Perform pairwise comparisons between all graph combinations.
 
     Returns
@@ -435,7 +434,7 @@ def main():
     Raises
     ------
     ValueError
-        If the configured ``run_mode`` is not ``"all"`` or ``"pair"``.
+        If the configured ``run_mode`` is not ``"multiple"`` or ``"pairwise"``.
     """
     args = parse_args()
 
@@ -444,9 +443,9 @@ def main():
 
     elif args.command == "renumber":
         renumber(args)
-    
+
     elif args.command == "heatmap":
-        create_heatmap(args) 
+        create_heatmap(args)
 
 if __name__ == "__main__":
     main()

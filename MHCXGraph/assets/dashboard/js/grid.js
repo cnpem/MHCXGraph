@@ -35,7 +35,7 @@ function buildGridTop() {
             header.style.padding = '8px 12px'; header.style.fontWeight = 'bold'; header.style.background = 'var(--bg-control)';
             header.style.borderBottom = '1px solid var(--border)'; header.style.color = 'var(--text-main)';
             header.innerHTML = `<div style="display:flex; justify-content:space-between; align-items:center;">
-                <span>${pairKey.replace('_vs_', ' vs ')}</span>
+                <span>${pairKey.replace('_vs_', ' x ')}</span>
                 <button class="btn" style="padding: 4px 10px; font-size: 11px;" onclick="focusOnPair('${pairKey}')">🔍 Focus</button>
             </div>`;
             card.appendChild(header);
@@ -115,7 +115,7 @@ function buildGridBottom() {
             let header = document.createElement('div');
             header.style.padding = '8px 12px'; header.style.fontWeight = 'bold'; header.style.background = 'var(--bg-control)';
             header.style.borderBottom = '1px solid var(--border)'; header.style.textAlign = 'center'; header.style.color = 'var(--text-main)';
-            header.innerText = pairKey.replace('_vs_', ' vs ');
+            header.innerText = pairKey.replace('_vs_', ' x ');
             card.appendChild(header);
 
             let body = document.createElement('div');

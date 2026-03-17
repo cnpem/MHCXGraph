@@ -1,6 +1,6 @@
 const masterData = __GRAPH_DATA_JS_INJECTION__;
 
-let graphData = masterData.mode === 'pair' ? null : masterData; 
+let graphData = masterData.mode === 'pairwise' ? null : masterData; 
 
 const RESIDUE_CLASSES = {
     'ALA':'Hydrophobic', 'VAL':'Hydrophobic', 'ILE':'Hydrophobic', 'LEU':'Hydrophobic', 'MET':'Hydrophobic', 'PHE':'Hydrophobic', 'TYR':'Hydrophobic', 'TRP':'Hydrophobic',

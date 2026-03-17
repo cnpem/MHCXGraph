@@ -214,7 +214,7 @@ function renderAnalysis(isGlobalPairMode = false) {
                     } else {
                         tt.innerHTML = `
                             <div style="border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 4px; margin-bottom: 4px; font-weight: bold;">
-                                ${pName_i} vs ${pName_j}
+                                ${pName_i} x ${pName_j}
                             </div>
                             ${pName_i} Match: <b>${cellData.u1}</b> / ${origSizes[i]}<br>
                             ${pName_j} Match: <b>${cellData.u2}</b> / ${origSizes[j]}<br>
@@ -258,7 +258,7 @@ function renderAnalysis(isGlobalPairMode = false) {
                 let assocNodesCount = unique0.size + unique1.size; 
                 let origSum = pData.filtered_graphs[0].nodes.length + pData.filtered_graphs[1].nodes.length;
                 let ratio = origSum > 0 ? ((assocNodesCount / origSum)*100).toFixed(1) : 0;
-                bodyHtml += `<tr><td><b>${pairKey.replace('_vs_', ' vs ')}</b></td><td>${origSum}</td><td>${assocNodesCount}</td><td><span style="color:var(--btn-bg); font-weight:bold;">${ratio}%</span></td></tr>`;
+                bodyHtml += `<tr><td><b>${pairKey.replace('_vs_', ' x ')}</b></td><td>${origSum}</td><td>${assocNodesCount}</td><td><span style="color:var(--btn-bg); font-weight:bold;">${ratio}%</span></td></tr>`;
             });
             tBody.innerHTML = bodyHtml || `<tr><td colspan="4" style="text-align:center;">No pairs found.</td></tr>`;
         } else {

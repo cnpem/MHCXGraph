@@ -38,9 +38,9 @@ async function autoLoadStructures() {
                 if (m && graphData.proteins.includes(m.name)) select.innerHTML += `<option value="prot_${idx}">Prot ${graphData.proteins.indexOf(m.name)}: ${m.name}</option>`;
             });
         }
-        if (masterData.mode !== 'pair' || (document.getElementById('pair-selector').value !== 'GRID' && document.getElementById('pair-selector').value !== 'ANALYSIS')) {
+        if (masterData.mode !== 'pairwise' || (document.getElementById('pair-selector').value !== 'GRID' && document.getElementById('pair-selector').value !== 'ANALYSIS')) {
             rebuildViewer();
-        } else if (masterData.mode === 'pair' && document.getElementById('pair-selector').value === 'GRID') {
+        } else if (masterData.mode === 'pairwise' && document.getElementById('pair-selector').value === 'GRID') {
             document.getElementById('viewer-toolbar').style.display = 'flex';
             buildGridBottom(); 
         }
@@ -57,7 +57,7 @@ async function loadStructures() {
         }
     }
     
-    if (masterData.mode === 'pair' && document.getElementById('pair-selector').value === 'GRID') {
+    if (masterData.mode === 'pairwise' && document.getElementById('pair-selector').value === 'GRID') {
         document.getElementById('viewer-toolbar').style.display = 'flex';
         buildGridBottom(); 
     } else {

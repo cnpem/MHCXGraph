@@ -5,7 +5,7 @@ function focusOnPair(pairKey) {
 }
 
 function triggerRebuild() {
-    if (masterData.mode === 'pair' && document.getElementById('pair-selector').value === 'GRID') buildGridBottom();
+    if (masterData.mode === 'pairwise' && document.getElementById('pair-selector').value === 'GRID') buildGridBottom();
     else rebuildViewer();
 }
 
@@ -45,7 +45,7 @@ function switchGraphViewMode() {
         document.getElementById('nav-title').parentElement.style.display = 'none';
         document.getElementById('edge-interactions-panel').style.display = 'none'; document.getElementById('filtered-options-panel').style.display = 'none';
         
-        let isGlobal = (masterData.mode === 'pair' && document.getElementById('pair-selector') && document.getElementById('pair-selector').value === 'GRID');
+        let isGlobal = (masterData.mode === 'pairwise' && document.getElementById('pair-selector') && document.getElementById('pair-selector').value === 'GRID');
         renderAnalysis(isGlobal); 
     }
 }
@@ -313,7 +313,7 @@ function initMolColors(forceReset = false) {
     let i = 0;
     masterData.proteins.forEach((protName, pIdx) => {
         let chains = new Set();
-        if (masterData.mode === 'pair') Object.values(masterData.pairs).forEach(pd => pd.nodes.forEach(n => n.mapping.forEach(m => { if (m.model_idx === pIdx) chains.add(m.chain); })));
+        if (masterData.mode === 'pairwise') Object.values(masterData.pairs).forEach(pd => pd.nodes.forEach(n => n.mapping.forEach(m => { if (m.model_idx === pIdx) chains.add(m.chain); })));
         else masterData.nodes.forEach(n => n.mapping.forEach(m => { if (m.model_idx === pIdx) chains.add(m.chain); }));
         Array.from(chains).sort().forEach(c => { molChainColors[`${pIdx}_${c}`] = pal[i % pal.length]; i++; });
     });
@@ -324,10 +324,10 @@ function renderMolColorTree() {
     const container = document.getElementById('color-tree');
     let html = '';
     masterData.proteins.forEach((protName, pIdx) => {
-        if (masterData.mode === 'pair' && document.getElementById('pair-selector').value !== 'GRID' && document.getElementById('pair-selector').value !== 'ANALYSIS' && graphData && !graphData.proteins.includes(protName)) return;
+        if (masterData.mode === 'pairwise' && document.getElementById('pair-selector').value !== 'GRID' && document.getElementById('pair-selector').value !== 'ANALYSIS' && graphData && !graphData.proteins.includes(protName)) return;
         html += `<div class="tree-item tree-level-1" style="justify-content: space-between;"><div style="display: flex; align-items: center; gap: 6px;"><span class="collapse-toggle" onclick="toggleComp('colors_prot_${pIdx}', this)">▼</span><label>Prot ${pIdx}: ${protName}</label></div></div><div id="colors_prot_${pIdx}" style="display:block; padding-left: 10px;">`;
         let chains = new Set();
-        if (masterData.mode === 'pair') Object.values(masterData.pairs).forEach(pd => pd.nodes.forEach(n => n.mapping.forEach(m => { if (m.model_idx === pIdx) chains.add(m.chain); })));
+        if (masterData.mode === 'pairwise') Object.values(masterData.pairs).forEach(pd => pd.nodes.forEach(n => n.mapping.forEach(m => { if (m.model_idx === pIdx) chains.add(m.chain); })));
         else masterData.nodes.forEach(n => n.mapping.forEach(m => { if(m.model_idx === pIdx) chains.add(m.chain); }));
         Array.from(chains).sort().forEach(c => {
             const key = `${pIdx}_${c}`;
@@ -339,7 +339,7 @@ function renderMolColorTree() {
 }
 
 function update3DViewerOrGrid() {
-    if (masterData.mode === 'pair' && document.getElementById('pair-selector').value === 'GRID') {
+    if (masterData.mode === 'pairwise' && document.getElementById('pair-selector').value === 'GRID') {
         Object.keys(masterData.pairs).forEach(k => update3DViewerGridForPair(k));
     } else update3DViewer();
 }
