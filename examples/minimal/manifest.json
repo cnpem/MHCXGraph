@@ -1,7 +1,7 @@
 {
   "settings": {
     "run_name": "minimal",
-    "run_mode": "pairwise",
+    "run_mode": "screening",
     "reference_structure": "bst2",
     "max_chunks": 5,
     "output_path": "results/minimal",
