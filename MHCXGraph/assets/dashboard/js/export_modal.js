@@ -91,6 +91,79 @@ function getObjectDebugInfo(obj) {
     };
 }
 
+async function extractTrueProtein(blackSrc, whiteSrc) {
+    return new Promise((resolve) => {
+        const imgB = new Image();
+        const imgW = new Image();
+        
+        let loaded = 0;
+        const onload = () => {
+            loaded++;
+            if (loaded === 2) processPixels();
+        };
+        imgB.onload = onload;
+        imgW.onload = onload;
+        imgB.src = blackSrc;
+        imgW.src = whiteSrc;
+
+        function processPixels() {
+            const w = imgB.width;
+            const h = imgB.height;
+            
+            // Draw Black Background Render
+            const canvasB = document.createElement('canvas');
+            canvasB.width = w; canvasB.height = h;
+            const ctxB = canvasB.getContext('2d', { willReadFrequently: true });
+            ctxB.drawImage(imgB, 0, 0);
+            const dataB = ctxB.getImageData(0, 0, w, h).data;
+            
+            // Draw White Background Render
+            const canvasW = document.createElement('canvas');
+            canvasW.width = w; canvasW.height = h;
+            const ctxW = canvasW.getContext('2d', { willReadFrequently: true });
+            ctxW.drawImage(imgW, 0, 0);
+            const dataW = ctxW.getImageData(0, 0, w, h).data;
+            
+            // Prepare Output
+            const outImageData = new ImageData(w, h);
+            const outData = outImageData.data;
+
+            for (let i = 0; i < dataB.length; i += 4) {
+                // Get difference per channel (0-255)
+                const diffR = dataW[i] - dataB[i];
+                const diffG = dataW[i+1] - dataB[i+1];
+                const diffB = dataW[i+2] - dataB[i+2];
+
+                // Calculate alpha: α = 255 - (W - B)
+                // We average the channels to smooth out sub-pixel anti-aliasing noise
+                const avgDiff = (diffR + diffG + diffB) / 3;
+                let alpha = 255 - avgDiff;
+
+                // Clamp to avoid floating point noise at the extreme edges
+                if (alpha < 2) alpha = 0; 
+                if (alpha > 253) alpha = 255;
+
+                outData[i+3] = alpha; // Set true alpha
+
+                if (alpha > 0) {
+                    // Recover true source color: C_src = C_B / (alpha / 255)
+                    const alphaRatio = alpha / 255;
+                    outData[i]   = Math.min(255, dataB[i]   / alphaRatio); // R
+                    outData[i+1] = Math.min(255, dataB[i+1] / alphaRatio); // G
+                    outData[i+2] = Math.min(255, dataB[i+2] / alphaRatio); // B
+                } else {
+                    outData[i] = 0; outData[i+1] = 0; outData[i+2] = 0;
+                }
+            }
+            
+            const outCanvas = document.createElement('canvas');
+            outCanvas.width = w; outCanvas.height = h;
+            outCanvas.getContext('2d').putImageData(outImageData, 0, 0);
+            resolve(outCanvas.toDataURL('image/png'));
+        }
+    });
+}
+
 function centerExportWorkspace() {
     const preview = document.getElementById('export-preview-area');
     const wrapper = document.getElementById('export-canvas-wrapper');
@@ -355,11 +428,19 @@ async function openExportStudio() {
     if (typeof viewers !== 'undefined' && viewers.length > 0) {
         for (let i = 0; i < viewers.length; i++) {
             let v = viewers[i];
-            v.setBackgroundColor(0x000000, 0.0);
+
+            v.setBackgroundColor(0x000000, 1.0);
             v.render();
+            let blackUri = v.pngURI();
+
+            v.setBackgroundColor(0xffffff, 1.0);
+            v.render();
+            let whiteUri = v.pngURI();
+
+            let trueTransparentUrl = await extractTrueProtein(blackUri, whiteUri);
 
             let img = new Image();
-            img.src = v.pngURI();
+            img.src = trueTransparentUrl;
             await new Promise(r => img.onload = r);
             let croppedUrl = await cropTransparent(img);
 
