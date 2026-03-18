@@ -46,8 +46,8 @@ function buildGridTop() {
             gridWrapper.appendChild(card); 
             
             setTimeout(() => {
-                let dsNodes = new vis.DataSet(pData.nodes.map(n => ({...n, label: '<b>'+n.label+'</b>', color: {background: n.originalColor || '#9ca3af', border: themeBorder}, font: {color: themeText}})));
-                let dsEdges = new vis.DataSet(pData.edges.map(e => ({...e, color: {color: '#9ca3af', opacity: 0.8}, width: optEdgeWidth})));
+                let dsNodes = new vis.DataSet(pData.nodes.map(n => ({...n, label: '<b>'+n.label+'</b>', color: {background: n.originalColor || getCSSVar('--edge-default'), border: themeBorder}, font: {color: themeText}})));
+                let dsEdges = new vis.DataSet(pData.edges.map(e => ({...e, color: {color: getCSSVar('--edge-faded'), opacity: 0.8}, width: optEdgeWidth})));
                 gridNodesDatasets[pairKey] = dsNodes; gridEdgesDatasets[pairKey] = dsEdges;
                 
                 let net = new vis.Network(netDiv, {nodes: dsNodes, edges: dsEdges}, {
@@ -94,7 +94,7 @@ function buildGridBottom() {
         
         const layoutMode = document.getElementById('view-selector').value;
         const isDark = document.body.getAttribute('data-theme') === 'dark';
-        const bgMol = isDark ? "#1f2937" : "#ffffff";
+        const bgMol = getCSSVar('--bg-mol');
         
         let numPairs = Object.keys(masterData.pairs).length;
         let cols = numPairs > 4 ? 3 : (numPairs > 1 ? 2 : 1);

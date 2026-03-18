@@ -185,8 +185,8 @@ function renderAnalysis(isGlobalPairMode = false) {
                 
                 if (!cellData || cellData.pct === 0) {
                     cell.innerText = cellData ? '0%' : '-';
-                    cell.style.background = isDark ? '#1f2937' : '#e5e7eb';
-                    cell.style.color = isDark ? '#4b5563' : '#9ca3af';
+                    cell.style.background = getCSSVar('--bg-control');
+                    cell.style.color = getCSSVar('--text-faint');
                     cell.style.textShadow = 'none';
                     cell.style.cursor = 'default';
                 } else {
@@ -195,7 +195,7 @@ function renderAnalysis(isGlobalPairMode = false) {
                     
                     let intensity = val / 100.0;
                     let hue = 280 - (intensity * 230); 
-                    let light = isDark ? 25 + (intensity * 35) : 35 + (intensity * 35);
+                    let light = 35 + (intensity * 35);
                     cell.style.background = `hsl(${hue}, 85%, ${light}%)`;
                     
                     const tt = document.createElement('div');

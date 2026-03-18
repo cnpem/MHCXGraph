@@ -33,7 +33,8 @@ let currentGraphMode = 'associated';
 let activeFilteredProtIdx = 0;
 
 let optNodeSize = 18, optLabelSize = 22, optEdgeWidth = 1.0, optSpringLen = 150;
-let themeText = '#f9fafb', themeBorder = '#f9fafb';
+let themeText = getCSSVar('--theme-text');
+let themeBorder = getCSSVar('--theme-border');
 
 let network = null;
 let gridNetworks = [];

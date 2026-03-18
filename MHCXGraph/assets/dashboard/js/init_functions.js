@@ -1,4 +1,7 @@
 function init() {
+    logDebug("teste");
+    logDebug(getCSSVar('--dim-bg'));
+    logDebug(getCSSVar('--bg-mol'));
     logDebug("Mode Detected:", masterData.mode);
     updateThemeVars();
     initSplitter();        

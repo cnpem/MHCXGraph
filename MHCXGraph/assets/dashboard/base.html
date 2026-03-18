@@ -10,19 +10,81 @@
     __PLOTLY_JS_INJECTION__
 
     <style>
-        :root {
-            --bg-body: #f3f4f6; --bg-panel: #ffffff; --bg-control: #f9fafb;
-            --border: #d1d5db; --border-light: #e5e7eb; --text-main: #111827;
-            --text-muted: #4b5563; --text-faint: #6b7280; --hover-bg: #e5e7eb;
-            --btn-bg: #2563eb; --btn-hover: #1d4ed8;
-        }
-        [data-theme="dark"] {
-            --bg-body: #030712; --bg-panel: #111827; --bg-control: #1f2937;
-            --border: #374151; --border-light: #1f2937; --text-main: #f9fafb;
-            --text-muted: #9ca3af; --text-faint: #6b7280; --hover-bg: #374151;
-            --btn-bg: #3b82f6; --btn-hover: #60a5fa;
-        }
+:root {
+    /* Base */
+    --bg-body: #f7f5ef;        /* warm paper */
+    --bg-panel: #fcfbf7;       /* soft panel */
+    --bg-control: #f1ede4;     /* layered surface */
+    --bg-mol: #f7f5ef;
 
+    /* Borders */
+    --border: #d9d4c7;
+    --border-light: #e8e3d6;
+
+    /* Text */
+    --text-main: #1c1c1c;
+    --text-muted: #5f5b52;
+    --text-faint: #8c877c;
+
+    --theme-text: #1c1c1c;
+    --theme-border: #d9d4c7;
+
+    /* Interaction */
+    --hover-bg: #eee8dd;
+
+    /* Buttons */
+    --btn-bg: #2563eb;
+    --btn-hover: #1d4ed8;
+
+    /* Graph */
+    --dim-bg: rgba(120, 110, 90, 0.18);
+    --dim-border: rgba(120, 110, 90, 0.28);
+    --dim-text: rgba(80, 75, 65, 0.5);
+
+    --edge-default: #9ca3af;
+    --edge-faded: rgba(120, 110, 90, 0.15);
+
+    --label-color: #111827;
+    --label-stroke: #fcfbf7;
+}
+
+[data-theme="dark"] {
+    /* Base (much darker, less purple) */
+    --bg-body: #050507;        /* almost pure black */
+    --bg-panel: #0d0c11;       /* tiny purple hint */
+    --bg-control: #14121a;     /* slightly elevated */
+    --bg-mol: #050507;
+
+    /* Borders */
+    --border: #1f1b26;
+    --border-light: #14111a;
+
+    /* Text */
+    --text-main: #f4f4f5;
+    --text-muted: #b0a9c0;
+    --text-faint: #7a738a;
+
+    --theme-text: #f4f4f5;
+    --theme-border: #1f1b26;
+
+    /* Interaction */
+    --hover-bg: #1a1622;
+
+    /* Buttons (keep purple accent) */
+    --btn-bg: #7c3aed;
+    --btn-hover: #6d28d9;
+
+    /* Graph */
+    --dim-bg: rgba(80, 70, 110, 0.22);
+    --dim-border: rgba(120, 100, 160, 0.32);
+    --dim-text: rgba(180, 170, 220, 0.45);
+
+    --edge-default: #9ca3af;
+    --edge-faded: rgba(120, 100, 160, 0.15);
+
+    --label-color: #ffffff;
+    --label-stroke: #050507;
+}
         body { margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; font-family: ui-sans-serif, system-ui, sans-serif; overflow: hidden; background: var(--bg-body); color: var(--text-main); transition: background 0.3s, color 0.3s;}
         
         #app-container { display: flex; flex: 1; overflow: hidden; position: relative; }

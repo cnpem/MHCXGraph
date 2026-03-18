@@ -1,3 +1,10 @@
+function getCSSVar(v) {
+    const val = getComputedStyle(document.body)
+        .getPropertyValue(v)
+        .trim();
+
+    return val;
+}
 
 function getStdColor(std, threshold) {
     if (std === null || std === undefined || isNaN(std)) return '#d1d5db'; 
@@ -23,8 +30,8 @@ function drawDynamicStdEdges(nodeId) {
     const i = activeComp.node_index_map[nodeId];
     const newEdges = [], nodeUpdates = [];
     const isDark = document.body.getAttribute('data-theme') === 'dark';
-    const dimBg = isDark ? 'rgba(55,65,81,0.3)' : 'rgba(229,231,235,0.3)';
-    const dimBorder = isDark ? 'rgba(75,85,99,0.3)' : 'rgba(209,213,219,0.3)';
+    const dimBg = getCSSVar('--dim-bg');
+    const dimBorder = getCSSVar('--dim-border');
 
     graphData.nodes.forEach(n => {
         if (n.id === nodeId) nodeUpdates.push({ id: n.id, color: { background: n.originalColor, border: themeBorder } });
@@ -44,7 +51,7 @@ function drawDynamicStdEdges(nodeId) {
         newEdges.push({
             from: nodeId, to: targetId, color: { color: color, opacity: 0.9 }, width: optEdgeWidth * 2.5, physics: false, smooth: false,
             label: std.toFixed(3), 
-            font: { align: "top", size: optLabelSize-2, color: isDark ? '#ffffff' : '#000000', strokeWidth: 4, strokeColor: isDark ? '#111827' : '#ffffff', face: "sans-serif" },
+            font: { align: "top", size: optLabelSize-2, color: getCSSVar('--text-main'), strokeWidth: 4, strokeColor: getCSSVar('--bg-panel'), face: "sans-serif" },
             title: "STD: " + std.toFixed(4)
         });
     });
@@ -145,7 +152,7 @@ function handleFilteredChange() {
             let dist = parseFloat(e.raw_dist);
             if (!isNaN(dist)) edgeWidth = optEdgeWidth * (4.0 - ((Math.max(0, Math.min(dist, maxDist))) / maxDist) * 3.8); 
         }
-        return { ...e, color: { color: '#9ca3af', opacity: 1.0 }, width: Math.max(0.1, edgeWidth) };
+        return { ...e, color: { color: getCSSVar('--edge-default'), opacity: 1.0 }, width: Math.max(0.1, edgeWidth) };
     });
 
     nodesDataset.add(coloredNodes); edgesDataset.add(styledEdges);
@@ -183,7 +190,7 @@ function handleGridTreeChange(pairKey) {
     if (dsNodes.length !== pData.nodes.length) {
         dsNodes.clear(); dsEdges.clear();
         dsNodes.add(pData.nodes.map(n => ({...n, label: '<b>'+n.label+'</b>', font: { color: themeText }})));
-        dsEdges.add(pData.edges.map(e => ({...e, color: {color: '#9ca3af', opacity: 0.8}, width: optEdgeWidth})));
+        dsEdges.add(pData.edges.map(e => ({...e, color: {color: getCSSVar('--edge-default'), opacity: 0.8}, width: optEdgeWidth})));
     }
 
     let activeIds = new Set();
@@ -211,9 +218,9 @@ function applyGraphFiltersGrid(pairKey, activeIds, dsNodes, dsEdges, pData) {
     
     const mode = document.querySelector('input[name="viewMode"]:checked').value;
     const isDark = document.body.getAttribute('data-theme') === 'dark';
-    const dimBg = isDark ? 'rgba(55,65,81,0.3)' : 'rgba(229,231,235,0.3)';
-    const dimBorder = isDark ? 'rgba(75,85,99,0.3)' : 'rgba(209,213,219,0.3)';
-    const dimText = isDark ? 'rgba(156,163,175,0.5)' : 'rgba(107,114,128,0.5)';
+    const dimBg = getCSSVar('--dim-bg');
+    const dimBorder = getCSSVar('--dim-border');
+    const dimText = getCSSVar('--dim-text');
 
     const nodeUpdates = [], edgeUpdates = [];
     pData.nodes.forEach(n => {
@@ -224,8 +231,8 @@ function applyGraphFiltersGrid(pairKey, activeIds, dsNodes, dsEdges, pData) {
 
     pData.edges.forEach(e => {
         const isEdgeActive = activeIds.has(e.from) && activeIds.has(e.to);
-        if (mode === 'hide') edgeUpdates.push({ id: e.id, hidden: !isEdgeActive, color: {color: '#9ca3af'}, width: optEdgeWidth });
-        else edgeUpdates.push({ id: e.id, hidden: false, color: isEdgeActive ? { color: '#9ca3af', opacity: 1.0 } : { color: '#6b7280', opacity: 0.15 }, width: isEdgeActive ? optEdgeWidth : Math.max(0.1, optEdgeWidth * 0.5) });
+        if (mode === 'hide') edgeUpdates.push({ id: e.id, hidden: !isEdgeActive, color: {color: getCSSVar('--edge-default')}, width: optEdgeWidth });
+        else edgeUpdates.push({ id: e.id, hidden: false, color: isEdgeActive ? { color: getCSSVar('--edge-default'), opacity: 1.0 } : { color: getCSSVar('--edge-faded'), opacity: 0.15 }, width: isEdgeActive ? optEdgeWidth : Math.max(0.1, optEdgeWidth * 0.5) });
     });
 
     dsNodes.update(nodeUpdates);
@@ -268,9 +275,9 @@ function applyGraphFilters(force = false) {
 
     const mode = document.querySelector('input[name="viewMode"]:checked').value;
     const isDark = document.body.getAttribute('data-theme') === 'dark';
-    const dimBg = isDark ? 'rgba(55,65,81,0.3)' : 'rgba(229,231,235,0.3)';
-    const dimBorder = isDark ? 'rgba(75,85,99,0.3)' : 'rgba(209,213,219,0.3)';
-    const dimText = isDark ? 'rgba(156,163,175,0.5)' : 'rgba(107,114,128,0.5)';
+    const dimBg = getCSSVar('--dim-bg');
+    const dimBorder = getCSSVar('--dim-border');
+    const dimText = getCSSVar('--dim-text');
 
     const nodeUpdates = [], edgeUpdates = [];
 
@@ -301,7 +308,7 @@ function applyGraphFilters(force = false) {
             edgeUpdates.push({
                 id: e.id,
                 hidden: !isEdgeActive,
-                color: { color: '#9ca3af' },
+                color: { color: getCSSVar('--edge-default') },
                 width: optEdgeWidth
             });
         } else {
@@ -309,8 +316,8 @@ function applyGraphFilters(force = false) {
                 id: e.id,
                 hidden: false,
                 color: isEdgeActive
-                    ? { color: '#9ca3af', opacity: 1.0 }
-                    : { color: '#6b7280', opacity: 0.15 },
+                    ? { color: getCSSVar('--edge-default'), opacity: 1.0 }
+                    : { color: getCSSVar('--edge-faded'), opacity: 0.15 },
                 width: isEdgeActive ? optEdgeWidth : Math.max(0.1, optEdgeWidth * 0.5)
             });
         }

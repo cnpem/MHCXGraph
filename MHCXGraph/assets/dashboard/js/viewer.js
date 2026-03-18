@@ -148,7 +148,7 @@ function unhoverCallback() { document.getElementById("mol-tooltip").style.displa
             
             const layoutMode = document.getElementById('view-selector').value;
             const isDark = document.body.getAttribute('data-theme') === 'dark';
-            const bgMol = isDark ? "#1f2937" : "#ffffff";
+            const bgMol = getCSSVar('--bg-mol');
             
             const validModels = loadedModels.filter(m => m !== null && graphData.proteins.includes(m.name));
             if (validModels.length === 0) return;

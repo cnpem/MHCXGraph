@@ -14,12 +14,13 @@ function toggleTheme() {
         else if (currentGraphMode === 'filtered') handleFilteredChange();
     }
 
-    const bgMol = newIsDark ? "#1f2937" : "#ffffff"; 
+    const bgMol = getCSSVar('--bg-mol'); 
     viewers.forEach(v => { v.setBackgroundColor(bgMol); v.render(); });
     resetMolColors();
 }
 
 function updateThemeVars() {
     const isDark = document.body.getAttribute('data-theme') === 'dark';
-    themeText = isDark ? '#f9fafb' : '#111827'; themeBorder = isDark ? '#f9fafb' : '#111827';
+    themeText = getCSSVar('--theme-text'); 
+    themeBorder = getCSSVar('--theme-border');
 }

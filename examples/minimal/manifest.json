@@ -8,7 +8,6 @@
     "debug_logs": false,
     "verbose": true,
     "track_steps": false,
-    "rsa_table": "Wilke",
     "edge_threshold": 10.0,
     "node_granularity": "ca_only",
     "include_ligands": true,

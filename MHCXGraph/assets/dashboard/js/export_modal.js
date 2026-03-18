@@ -444,7 +444,7 @@ async function openExportStudio() {
             await new Promise(r => img.onload = r);
             let croppedUrl = await cropTransparent(img);
 
-            v.setBackgroundColor(isDark ? "#1f2937" : "#ffffff", 1.0);
+            v.setBackgroundColor(getCSSVar('--bg-mol'), 1.0);
             v.render();
 
             let pName = (v.layoutMode === 'aligned' && typeof graphData !== 'undefined')
@@ -1604,7 +1604,7 @@ async function applyDataNodesColor() {
             molImg.src = v.pngURI();
             await new Promise(r => molImg.onload = r);
             let croppedMolUrl = await cropTransparent(molImg);
-            v.setBackgroundColor(isDark ? "#1f2937" : "#ffffff", 1.0);
+            v.setBackgroundColor(getCSSVar('--bg-mol'), 1.0);
             v.render();
 
             await new Promise(resolve => {
