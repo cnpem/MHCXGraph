@@ -135,10 +135,38 @@ def create_master_dashboard(export_data, output_dir, log):
     final_html = inject_js(final_html, "structures", structures_js)
     final_html = inject_js(final_html, "modal", modal_js)
 
-    # Dynamically name the output file based on the mode
-    mode = export_data.get("mode")
-    file_name = "Dashboard_Pairwise.html" if mode == "pairwise" else "Dashboard_Multiple.html"
-    
+    actual_mode = export_data.get("actual_mode", export_data.get("mode"))
+    if actual_mode == "screening":
+        final_html = final_html.replace(
+            "Pairwise View Mode",
+            "Screening Mode (1 vs All)"
+        )
+        final_html = final_html.replace(
+            "Global Pair Analysis",
+            "Global Screening Analysis"
+        )
+        
+        patch_script = """
+<script>
+window.addEventListener('DOMContentLoaded', () => {
+    if (typeof masterData !== 'undefined' && masterData.actual_mode === 'screening') {
+        const observer = new MutationObserver(() => {
+            const metaPanel = document.getElementById('metadata-panel');
+            if (metaPanel && metaPanel.innerHTML.includes('pairwise')) {
+                metaPanel.innerHTML = metaPanel.innerHTML.replace(/pairwise/g, 'screening');
+            }
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+    }
+});
+</script>
+"""
+        final_html = final_html.replace("</body>", f"{patch_script}\n</body>")
+        file_name = "Dashboard_Screening.html"
+    else:
+        mode = export_data.get("mode")
+        file_name = "Dashboard_Pairwise.html" if mode == "pairwise" else "Dashboard_Multiple.html"
+
     full_path = output_dir / file_name
     with open(str(full_path), "w+", encoding="utf-8") as out:
         out.write(final_html)
@@ -224,10 +252,8 @@ def run_multiple_mode(graphs, base_output, run_name, config, log):
     if G and G.associated_graphs is not None:
         global_proteins = [clean_graph_name(g) for g in graphs]
         
-        # G.get_dashboard_data correctly formats nodes, edges, components & filtered_graphs
         master_export = G.get_dashboard_data(global_proteins)
         
-        # Append the top-level parameters required by the JS frontend
         master_export["mode"] = "multiple"
         master_export["run_name"] = run_name
         master_export["metadata"] = config
@@ -303,15 +329,92 @@ def run_pairwise_mode(graphs, base_output, run_name, config, log):
 
     create_master_dashboard(master_export, pair_base_dir, log)
 
+
+def run_screening_mode(ref_graph, target_graphs, base_output, run_name, config, log):
+    """
+    Execute the association workflow in screening mode (1-vs-All).
+
+    This mode compares a single reference graph against a collection of target 
+    graphs. Each target is processed individually against the reference, and 
+    the results are aggregated into a single interactive dashboard. To leverage 
+    existing frontend logic, the dashboard payload mimics the "pairwise" mode 
+    structure but includes an `actual_mode` flag to trigger specific UI text 
+    replacements during HTML generation.
+
+    Parameters
+    ----------
+    ref_graph : tuple
+        A tuple containing the reference graph data produced by the preprocessing 
+        stage. Typically structured as `(networkx.Graph, file_path, base_name)`.
+    target_graphs : list of tuple
+        A list of graph tuples to be compared against the reference graph.
+    base_output : pathlib.Path
+        The root directory where the screening results and the final HTML 
+        dashboard will be saved.
+    run_name : str
+        A unique base identifier for the current execution run.
+    config : dict[str, Any]
+        The association configuration dictionary controlling the graph 
+        association algorithm's parameters and thresholds.
+    log : logging.Logger
+        Logger instance used to record runtime progress, warnings, and errors.
+
+    Returns
+    -------
+    None
+    """
+    if not target_graphs:
+        log.error("Screening mode requires at least 1 target graph alongside the reference.")
+        return
+
+    screening_base_dir = base_output / "SCREENING"
+    ref_name = clean_graph_name(ref_graph)
+ 
+    # Reconstruct the global graph list to pass to get_dashboard_data
+    all_graphs = [ref_graph] + target_graphs
+    global_proteins = [clean_graph_name(g) for g in all_graphs]
+
+    master_export = {
+        "mode": "pairwise",
+        "actual_mode": "screening",
+        "reference_structure": ref_name,
+        "run_name": run_name,
+        "metadata": config,
+        "proteins": global_proteins,
+        "protein_paths": [str(Path(g[1]).resolve()) for g in all_graphs],
+        "pairs": {}
+    }
+
+
+    for target_graph in target_graphs:
+        target_name = clean_graph_name(target_graph)
+
+        pair_folder = f"{ref_name}_vs_{target_name}"
+        pair_key = f"{ref_name}_vs_{target_name}"
+        pair_run_name = f"{run_name}_{ref_name}_{target_name}"
+
+        G = run_association_task(
+            graphs=[ref_graph, target_graph],
+            output_path=screening_base_dir / pair_folder,
+            run_name=pair_run_name,
+            association_config=config,
+            log=log,
+        )
+        if G and G.associated_graphs is not None:
+            master_export["pairs"][pair_key] = G.get_dashboard_data(global_proteins)
+
+    create_master_dashboard(master_export, screening_base_dir, log)
+
+
 def run(args):
     manifest = load_manifest(args.manifest)
     settings = manifest["settings"]
 
     run_name = settings["run_name"]
-    run_mode = settings.get("run_mode", "multiple")
+    run_mode = settings.get("run_mode")
 
-    if run_mode not in {"multiple", "pairwise"}:
-        raise ValueError("run_mode must be 'multiple' or 'pairwise'")
+    if run_mode not in {"multiple", "pairwise", "screening"}:
+        raise ValueError("run_mode must be 'multiple', 'pairwise' or 'screening'")
 
     base_output = Path(settings["output_path"])
     output_dir = base_output / run_name
@@ -329,8 +432,21 @@ def run(args):
 
     if run_mode == "multiple":
         run_multiple_mode(graphs, base_output, run_name, association_config, log)
-    else:
+    elif run_mode == "pairwise":
         run_pairwise_mode(graphs, base_output, run_name, association_config, log)
+    elif run_mode == "screening":
+        ref_name = settings.get("reference_structure")
+        if not ref_name:
+            raise ValueError("Screening mode requires 'reference_structure' to be defined in the manifest settings.")
+        
+        ref_graph = next((g for g in graphs if clean_graph_name(g) == ref_name), None)
+
+        if not ref_graph:
+            raise ValueError(f"Reference structure '{ref_name}' not found among the input graphs.")
+
+        target_graphs = [g for g in graphs if clean_graph_name(g) != ref_name]
+
+        run_screening_mode(ref_graph, target_graphs, base_output, run_name, association_config, log)
 
     if tracker_residues:
         out_path = tracker_residues.dump_json()
@@ -338,14 +454,16 @@ def run(args):
 
     if args.dashboard:
         log.info("Opening dashboard in the default web browser...")
+        dash_path = None
         if run_mode == "multiple":
             dash_path = base_output / "MULTIPLE" / "Dashboard_Multiple.html"
-            if dash_path.exists():
-                webbrowser.open(f"file://{dash_path.resolve()}")
-        else:
+        elif run_mode == "pairwise":
             dash_path = base_output / "PAIRWISE" / "Dashboard_Pairs.html"
-            if dash_path.exists():
-                webbrowser.open(f"file://{dash_path.resolve()}")
+        elif run_mode == "screening":
+            dash_path = base_output / "SCREENING" / "Dashboard_Pairwise.html"
+
+        if dash_path.exists():
+            webbrowser.open(f"file://{dash_path.resolve()}")
 
 
 def renumber(args):

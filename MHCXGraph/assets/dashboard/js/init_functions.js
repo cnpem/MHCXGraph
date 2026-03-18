@@ -52,27 +52,6 @@ function init() {
     }
 }
 
-function initMetadataGlobalFallback() {
-    try {
-        if (masterData.mode !== 'pairwise') return;
-        const firstPair = Object.keys(masterData.pairs)[0];
-        const c = masterData.pairs[firstPair].metadata || {};
-        document.getElementById('metadata-panel').innerHTML = `
-            <h3>Execution Metadata</h3>
-            <div style="margin-bottom: 10px;"><b>Run Name:</b> ${masterData.run_name || 'N/A'}</div>
-            <div style="margin-bottom: 12px; font-size: 12px; font-style: italic;">Select a specific pair focus or view colors in the grid to see node mappings.</div>
-            <div><b>Parameters:</b>
-                <ul style="margin: 5px 0 0 0; padding-left: 20px; line-height: 1.5;">
-                    <li><b>Mode:</b> ${c.run_mode}</li>
-                    <li><b>Granularity:</b> ${c.node_granularity || 'N/A'}</li>
-                    <li><b>Edge Thresh:</b> ${c.edge_threshold || 'N/A'} Å</li>
-                    <li><b>Global Diff:</b> ${c.global_distance_diff_threshold || 'N/A'} Å</li>
-                </ul>
-            </div>
-        `;
-    } catch(e) { logError("initMetadataGlobalFallback failed", e); }
-}
-
 function initAdvancedOptions() {
     document.getElementById('optPalette').addEventListener('change', function(e) {
         activePaletteName = e.target.value;
@@ -136,6 +115,34 @@ function initSplitter() {
     document.addEventListener('mouseup', function(e) { if (isDragging) { isDragging = false; document.body.style.cursor = 'default'; } });
 }
 
+
+function initMetadataGlobalFallback() {
+    try {
+        if (masterData.mode !== 'pairwise') return;
+        const c = masterData.metadata || {}; 
+        
+        // Highlight the reference structure if in screening mode
+        const refHtml = (masterData.actual_mode === 'screening' && masterData.reference_structure) 
+            ? `<div style="margin-bottom: 10px; padding: 6px 10px; background: rgba(37, 99, 235, 0.1); border-left: 3px solid var(--btn-bg); border-radius: 4px; color: var(--text-main);"><b>Reference Structure:</b> ${masterData.reference_structure}</div>` 
+            : '';
+
+        document.getElementById('metadata-panel').innerHTML = `
+            <h3>Execution Metadata</h3>
+            <div style="margin-bottom: 10px;"><b>Run Name:</b> ${masterData.run_name || 'N/A'}</div>
+            ${refHtml}
+            <div style="margin-bottom: 12px; font-size: 12px; font-style: italic;">Select a specific pair focus or view colors in the grid to see node mappings.</div>
+            <div><b>Parameters:</b>
+                <ul style="margin: 5px 0 0 0; padding-left: 20px; line-height: 1.5;">
+                    <li><b>Mode:</b> ${c.run_mode || 'N/A'}</li>
+                    <li><b>Granularity:</b> ${c.node_granularity || 'N/A'}</li>
+                    <li><b>Edge Thresh:</b> ${c.edge_threshold || 'N/A'} Å</li>
+                    <li><b>Global Diff:</b> ${c.global_distance_diff_threshold || 'N/A'} Å</li>
+                </ul>
+            </div>
+        `;
+    } catch(e) { logError("initMetadataGlobalFallback failed", e); }
+}
+
 function initMetadata() {
     try {
         if (!graphData) return;
@@ -145,18 +152,29 @@ function initMetadata() {
         let p_html = graphData.proteins.map((p, localIdx) => {
             let globalIdx = masterData.proteins.indexOf(p);
             const color = pal[globalIdx % pal.length];
-            return `<div style="margin-bottom: 3px;"><span class="color-dot" style="background-color: ${color};"></span><b>Prot ${localIdx}:</b> ${p}</div>`;
+            
+            // Tag the reference structure in the tuple list
+            const isRef = (masterData.actual_mode === 'screening' && p === masterData.reference_structure);
+            const refIcon = isRef ? ' <span style="color: var(--text-muted); font-size: 11px;"><i>(Ref)</i></span>' : '';
+            
+            return `<div style="margin-bottom: 3px;"><span class="color-dot" style="background-color: ${color};"></span><b>Prot ${localIdx}:</b> ${p}${refIcon}</div>`;
         }).join('');
+
+        // Highlight the reference structure at the top
+        const refHtml = (masterData.actual_mode === 'screening' && masterData.reference_structure) 
+            ? `<div style="margin-bottom: 10px; padding: 6px 10px; background: rgba(37, 99, 235, 0.1); border-left: 3px solid var(--btn-bg); border-radius: 4px; color: var(--text-main);"><b>Reference Structure:</b> ${masterData.reference_structure}</div>` 
+            : '';
 
         document.getElementById('metadata-panel').innerHTML = `
             <h3>Execution Metadata</h3>
             <div style="margin-bottom: 10px;"><b>Run Name:</b> ${graphData.run_name || masterData.run_name || 'N/A'}</div>
+            ${refHtml}
             <div style="margin-bottom: 12px;"><b>Protein Order (Tuple Layout):</b><div style="margin-top: 5px;">${p_html}</div></div>
             <div>
                 <b>Parameters:</b>
                 <ul style="margin: 5px 0 0 0; padding-left: 20px; line-height: 1.5;">
-                    <li><b>Mode:</b> ${c.run_mode}</li>
-                    <li><b>Granularity:</b> ${c.node_granularity}</li>
+                    <li><b>Mode:</b> ${c.run_mode || 'N/A'}</li>
+                    <li><b>Granularity:</b> ${c.node_granularity || 'N/A'}</li>
                     <li><b>Edge Thresh:</b> ${c.edge_threshold || 'N/A'} Å</li>
                     <li><b>Global Diff:</b> ${c.global_distance_diff_threshold || 'N/A'} Å</li>
                 </ul>

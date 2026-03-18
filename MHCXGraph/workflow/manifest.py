@@ -19,6 +19,7 @@ def load_manifest(manifest_path: str) -> dict[str, Any]:
 
     settings.setdefault("run_name", "test")
     settings.setdefault("run_mode", "multiple")
+    settings.setdefault("reference_structure", None)
     settings.setdefault("output_path", "./outputs")
 
     os.makedirs(settings["output_path"], exist_ok=True)
@@ -93,6 +94,7 @@ def build_association_config(settings: dict[str, Any], run_mode: str, tracker_re
         "debug_tracking":           settings.get("debug_tracking"),
         "verbose":                  settings.get("verbose"),
         "show_std_edges":           settings.get("show_std_edges"),
-        "max_gap_helix":            settings.get("max_gap_helix")
+        "max_gap_helix":            settings.get("max_gap_helix"),
+        "reference_structure":            settings.setdefault("reference_structure", None)
     }
 

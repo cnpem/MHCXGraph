@@ -2,6 +2,7 @@
   "settings": {
     "run_name": "minimal",
     "run_mode": "pairwise",
+    "reference_structure": "bst2",
     "max_chunks": 5,
     "output_path": "results/minimal",
     "debug_logs": false,
