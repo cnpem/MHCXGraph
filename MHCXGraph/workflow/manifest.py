@@ -44,7 +44,8 @@ def load_manifest(manifest_path: str) -> dict[str, Any]:
     settings.setdefault("local_distance_diff_threshold", 1.0)
     settings.setdefault("global_distance_diff_threshold", 2.0)
 
-    settings.setdefault("rsa_bin_width", 0.2)
+    settings.setdefault("rsa_bin_width", 0.3)
+    settings.setdefault("rsa_diff_threshold", 0.3)
     settings.setdefault("distance_bin_width", 2.0)
 
     settings.setdefault("max_chunks", 5)
@@ -57,6 +58,8 @@ def load_manifest(manifest_path: str) -> dict[str, Any]:
     settings.setdefault("show_std_edges", False)
 
     settings.setdefault("max_gap_helix", 0)
+
+    settings.setdefault("output_structures", False)
     return data
 
 
@@ -79,6 +82,7 @@ def build_association_config(settings: dict[str, Any], run_mode: str, tracker_re
         "global_distance_diff_threshold":  settings.get("global_distance_diff_threshold"),
         "rsa_filter":               settings.get("rsa_filter"),
         "rsa_bin_width":            settings.get("rsa_bin_width"),
+        "rsa_diff_threshold":       settings.get("rsa_diff_threshold"),
         "distance_bin_width":       settings.get("distance_bin_width"),
         "close_tolerance":          settings.get("close_tolerance"),
         "close_tolerance_rsa":      settings.get("close_tolerance_rsa"),
@@ -95,6 +99,6 @@ def build_association_config(settings: dict[str, Any], run_mode: str, tracker_re
         "verbose":                  settings.get("verbose"),
         "show_std_edges":           settings.get("show_std_edges"),
         "max_gap_helix":            settings.get("max_gap_helix"),
-        "reference_structure":            settings.setdefault("reference_structure", None)
+        "reference_structure":      settings.get("reference_structure"),
+        "output_structures":        settings.get("output_structures")
     }
-

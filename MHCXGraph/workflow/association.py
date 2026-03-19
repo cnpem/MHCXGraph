@@ -36,11 +36,10 @@ def run_association_task(graphs, output_path, run_name, association_config, log)
         log.warning(f"No associated graphs found for {run_name}.")
         return
 
-    log.info("Making graph views.")
-
-    # G.draw_graph_interactive(show=False, save=True)
-    # G.create_pdb_per_protein()
-    # G.align_all_frames()
+    if association_config["output_structures"]:
+        log.info("Generating structures.")
+        G.create_pdb_per_protein()
+        G.align_all_frames()
 
     graph_data = {}
     for j, comps in enumerate(G.associated_graphs):

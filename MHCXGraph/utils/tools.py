@@ -158,7 +158,7 @@ def value_to_class(
     value: float,
     bin_width: float,        # Fixed size of each division
     threshold: float,
-    diff_threshold: float = 0.0,
+    diff_threshold: float,
     inverse: bool = False,
     upper_bound: float = 100.0,
     close_tolerance: float = 0.1,  # Absolute tolerance in 'value' units
@@ -200,11 +200,9 @@ def value_to_class(
     if not inverse:
         lower = 0.0
         upper = threshold
-        inc = diff_threshold
     else:
         lower = threshold
         upper = upper_bound
-        inc = bin_width / 2
 
     if value <= lower or value > upper:
         return None
@@ -230,7 +228,7 @@ def value_to_class(
         return [i]
 
 
-    inc = bin_width / 2.0
+    inc = diff_threshold / 2.0
     low = max(0.0, local_value - inc)
     high = min(span, local_value + inc)
 
@@ -555,6 +553,7 @@ def find_triads(graph_data, classes, config, checks, protein_index, tracker: Res
                         config["rsa_filter"] * 100,
                         inverse=True,
                         close_tolerance=config["close_tolerance_rsa"],
+                        diff_threshold=config["rsa_diff_threshold"]
                     )
                 )
 
