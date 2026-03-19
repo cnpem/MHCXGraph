@@ -227,7 +227,6 @@ def value_to_class(
     if abs(local_value - center) <= abs(tol):
         return [i]
 
-
     inc = diff_threshold / 2.0
     low = max(0.0, local_value - inc)
     high = min(span, local_value + inc)
@@ -552,8 +551,8 @@ def find_triads(graph_data, classes, config, checks, protein_index, tracker: Res
                         config["rsa_bin_width"] * 100,
                         config["rsa_filter"] * 100,
                         inverse=True,
-                        close_tolerance=config["close_tolerance_rsa"],
-                        diff_threshold=config["rsa_diff_threshold"]
+                        close_tolerance=config["close_tolerance_rsa"] * 100,
+                        diff_threshold=config["rsa_diff_threshold"] * 100
                     )
                 )
 
