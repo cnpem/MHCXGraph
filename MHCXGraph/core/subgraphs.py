@@ -833,7 +833,8 @@ def extract_surface_subgraph_asa(
 
     for n, d in g.nodes(data=True):
         asa = d.get("asa", None)
-        if asa is None:
+        rsa = d.get("rsa", None)
+        if asa is None or rsa is not None:
             continue
 
         try:

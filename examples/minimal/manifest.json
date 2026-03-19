@@ -13,7 +13,7 @@
     "include_ligands": true,
     "include_noncanonical_residues": true,
     "include_waters": true,
-    "triad_rsa": false,
+    "triad_rsa": true,
     "rsa_filter": 0.1,
     "asa_filter": 5,
     "close_tolerance_rsa": 0.01,
@@ -21,7 +21,8 @@
     "global_distance_diff_threshold": 2.0,
     "distance_bin_width": 2,
     "close_tolerance": 0.1,
-    "rsa_bin_width": 0.2,
+    "rsa_bin_width": 1.0,
+    "rsa_diff_threshold": 1.0,
     "show_std_edges": true
   },
   "inputs": [

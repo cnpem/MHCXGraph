@@ -562,7 +562,7 @@ def find_triads(graph_data, classes, config, checks, protein_index, tracker: Res
                 rsa3_opts = _rsa_opts(rsa3)
             else:
                 rsa1_opts, rsa2_opts, rsa3_opts = [None], [None], [None]
-
+            
             if distance_classes is not None:
                 d1_opts = _as_list(find_class(distance_classes, d1))
                 d2_opts = _as_list(find_class(distance_classes, d2))
@@ -617,6 +617,7 @@ def find_triads(graph_data, classes, config, checks, protein_index, tracker: Res
                         triads[triad_token]["count"] += 1
                         triads[triad_token]["triads_full"].append(triad_full)
                         triads[triad_token]["triads_absolute"].append(triad_absolute)
+
     n_triad = 0
     counters = {}
     for triad, data in triads.items():

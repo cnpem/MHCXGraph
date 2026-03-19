@@ -187,7 +187,6 @@ def get_exposed_residues(graph: Graph, rsa_filter: float, asa_filter: float, sel
 
     selection_params = selection_params or {}
     logic_expr = selection_params.get("logic")
-
     graph.create_subgraph(name="exposed_residues", rsa_threshold=rsa_filter, asa_threshold=asa_filter)
     exposed = graph.get_subgraph("exposed_residues")
     if exposed is None or exposed.number_of_nodes() == 0:
