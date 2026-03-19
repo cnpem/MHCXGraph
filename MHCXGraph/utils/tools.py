@@ -158,6 +158,7 @@ def value_to_class(
     value: float,
     bin_width: float,        # Fixed size of each division
     threshold: float,
+    diff_threshold: float = 0.0,
     inverse: bool = False,
     upper_bound: float = 100.0,
     close_tolerance: float = 0.1,  # Absolute tolerance in 'value' units
@@ -199,9 +200,11 @@ def value_to_class(
     if not inverse:
         lower = 0.0
         upper = threshold
+        inc = diff_threshold
     else:
         lower = threshold
         upper = upper_bound
+        inc = bin_width / 2
 
     if value <= lower or value > upper:
         return None
@@ -573,6 +576,7 @@ def find_triads(graph_data, classes, config, checks, protein_index, tracker: Res
                         config["distance_bin_width"],
                         config["edge_threshold"],
                         close_tolerance=config["close_tolerance"],
+                        diff_threshold=config["local_distance_diff_threshold"]
                     )
                 )
                 d2_opts = _as_list(
@@ -581,6 +585,7 @@ def find_triads(graph_data, classes, config, checks, protein_index, tracker: Res
                         config["distance_bin_width"],
                         2 * config["edge_threshold"],
                         close_tolerance=config["close_tolerance"],
+                        diff_threshold=config["local_distance_diff_threshold"]
                     )
                 )
                 d3_opts = _as_list(
@@ -589,6 +594,7 @@ def find_triads(graph_data, classes, config, checks, protein_index, tracker: Res
                         config["distance_bin_width"],
                         config["edge_threshold"],
                         close_tolerance=config["close_tolerance"],
+                        diff_threshold=config["local_distance_diff_threshold"]
                     )
                 )
 
