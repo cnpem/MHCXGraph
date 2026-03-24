@@ -12,6 +12,116 @@ function getStdColor(std, threshold) {
     if (ratio > 1) ratio = 1; if (ratio < 0) ratio = 0;
     return `hsl(${120 * (1 - ratio)}, 100%, 45%)`;
 }
+function hexToHsl(hex) {
+    hex = hex.replace('#', '');
+
+    if (hex.length === 3) {
+        hex = hex.split('').map(c => c + c).join('');
+    }
+
+    const r = parseInt(hex.slice(0, 2), 16) / 255;
+    const g = parseInt(hex.slice(2, 4), 16) / 255;
+    const b = parseInt(hex.slice(4, 6), 16) / 255;
+
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const d = max - min;
+
+    let h = 0;
+    let s = 0;
+    let l = (max + min) / 2;
+
+    if (d !== 0) {
+        s = d / (1 - Math.abs(2 * l - 1));
+
+        switch (max) {
+            case r:
+                h = 60 * (((g - b) / d) % 6);
+                break;
+            case g:
+                h = 60 * ((b - r) / d + 2);
+                break;
+            case b:
+                h = 60 * ((r - g) / d + 4);
+                break;
+        }
+    }
+
+    if (h < 0) h += 360;
+
+    return { h, s: s * 100, l: l * 100 };
+}
+
+function hslToHex(h, s, l) {
+    s /= 100;
+    l /= 100;
+
+    const c = (1 - Math.abs(2 * l - 1)) * s;
+    const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+    const m = l - c / 2;
+
+    let r = 0, g = 0, b = 0;
+
+    if (h < 60) [r, g, b] = [c, x, 0];
+    else if (h < 120) [r, g, b] = [x, c, 0];
+    else if (h < 180) [r, g, b] = [0, c, x];
+    else if (h < 240) [r, g, b] = [0, x, c];
+    else if (h < 300) [r, g, b] = [x, 0, c];
+    else [r, g, b] = [c, 0, x];
+
+    const toHex = v => {
+        const n = Math.round((v + m) * 255);
+        return n.toString(16).padStart(2, '0');
+    };
+
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+}
+
+function deriveVariantsFromBase(hex) {
+    const { h, s, l } = hexToHsl(hex);
+
+    const variants = [
+        { dh: 0, ds: 0, dl: 0 },     
+        { dh: 0, ds: 0, dl: -18 },   
+        { dh: 0, ds: 0, dl: 18 },    
+        { dh: 8, ds: -5, dl: -10 },  
+        { dh: -8, ds: -5, dl: 10 }   
+    ];
+
+    return variants.map(v =>
+        hslToHex(
+            (h + v.dh + 360) % 360,
+            clamp(s + v.ds, 35, 90),
+            clamp(l + v.dl, 25, 80)
+        )
+    );
+}
+
+function buildExtendedPalette(basePalette, needed) {
+    const extended = [];
+    const seen = new Set();
+
+    const families = basePalette.map(deriveVariantsFromBase);
+
+    for (let layer = 0; extended.length < needed; layer++) {
+        for (let i = 0; i < families.length && extended.length < needed; i++) {
+            const family = families[i];
+            if (layer < family.length) {
+                const color = family[layer];
+                if (!seen.has(color)) {
+                    seen.add(color);
+                    extended.push(color);
+                }
+            }
+        }
+    }
+
+    return extended;
+}
 
 function clearDynamicStdEdges() {
     if (tempEdgeIds.length) { edgesDataset.remove(tempEdgeIds); tempEdgeIds = []; }
@@ -72,7 +182,10 @@ function drawDynamicStdEdges(nodeId) {
 function assignAllPairGraphColors() {
     logDebug("Assigning global graph palettes for all pairs");
     try {
-        const pal = GRAPH_PALETTES[activePaletteName];
+        // const pal = GRAPH_PALETTES[activePaletteName];
+        let uniqueGroups = [...new Set(graphData.nodes.map(n => n.group))].sort();
+        const basePalette = GRAPH_PALETTES[activePaletteName];
+        const pal = buildExtendedPalette(basePalette, uniqueGroups.length);
         logDebug("Global palette selected", {
             activePaletteName,
             palette: pal
@@ -103,8 +216,10 @@ function assignGraphColorsToData() {
     try {
         if (!graphData) return;
 
-        const pal = GRAPH_PALETTES[activePaletteName];
+        // const pal = GRAPH_PALETTES[activePaletteName];
         let uniqueGroups = [...new Set(graphData.nodes.map(n => n.group))].sort();
+        const basePalette = GRAPH_PALETTES[activePaletteName];
+        const pal = buildExtendedPalette(basePalette, uniqueGroups.length);
 
         graphNodeColors = {};
         uniqueGroups.forEach((g, i) => {
@@ -257,7 +372,10 @@ function updateNodeListText() {
     });
 
     let html = "";
-    const pal = GRAPH_PALETTES[activePaletteName];
+    // const pal = GRAPH_PALETTES[activePaletteName];
+    let uniqueGroups = [...new Set(graphData.nodes.map(n => n.group))].sort();
+    const basePalette = GRAPH_PALETTES[activePaletteName];
+    const pal = buildExtendedPalette(basePalette, uniqueGroups.length);
     for (let i = 0; i < graphData.proteins.length; i++) {
         if (protNodes[i] && protNodes[i].length > 0) {
             let uniqueNodes = [...new Set(protNodes[i])];
