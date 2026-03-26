@@ -928,33 +928,53 @@ def _extract_chain_from_idx(idx, maps):
         return None
     return res_tuple[0]  # cadeia
 
-def _build_threshold_matrix(nodes, maps, threshold_cfg):
+def sym_from_packed_bool(k: int, packed: np.ndarray) -> np.ndarray:
+    out = np.zeros((k, k), dtype=bool)
+    iu = np.triu_indices(k, k=1)
+    out[iu] = packed
+    out[(iu[1], iu[0])] = packed
+    return out
+
+def sym_from_packed_float(k: int, packed: np.ndarray, fill_diag: float = np.nan) -> np.ndarray:
+    out = np.full((k, k), fill_diag, dtype=packed.dtype)
+    iu = np.triu_indices(k, k=1)
+    out[iu] = packed
+    out[(iu[1], iu[0])] = packed
+    return out
+
+def build_threshold_vector(nodes, maps, threshold_cfg):
+    """
+    Return the upper-triangular threshold vector instead of a full KxK matrix.
+    """
     K = len(nodes)
-    dim = len(nodes[0])
+    iu = np.triu_indices(K, k=1)
 
     if not isinstance(threshold_cfg, dict):
-        return np.full((K, K), float(threshold_cfg), dtype=float)
+        return np.full(len(iu[0]), float(threshold_cfg), dtype=np.float32)
 
     default_thr = float(threshold_cfg.get("default", 2.0))
     mix_thr = float(threshold_cfg.get("mix", default_thr))
 
-    # chains[p, i] = cadeia do nó i na proteína p
+    dim = len(nodes[0])
+
     chains = np.array(
         [[_extract_chain_from_idx(nodes[i][p], maps) for i in range(K)] for p in range(dim)],
         dtype=object
     )
 
-    # all_eq[i, j] = True se para todo p chains[p,i] == chains[p,j]
     all_eq = np.all(chains[:, :, None] == chains[:, None, :], axis=0)
 
-    # threshold por cadeia (usa cadeia da proteína 0 como referência de linha)
     row_chain = chains[0, :]
-    row_thr = np.array([float(threshold_cfg.get(c, default_thr)) for c in row_chain], dtype=float)
+    row_thr = np.array(
+        [float(threshold_cfg.get(c, default_thr)) for c in row_chain],
+        dtype=np.float32
+    )
 
-    T = np.full((K, K), mix_thr, dtype=float)
+    T = np.full((K, K), mix_thr, dtype=np.float32)
     T[all_eq] = row_thr[:, None][all_eq]
 
-    return T
+    return T[iu]
+
 
 def create_coherent_matrices(nodes, matrices: dict, maps: dict, threshold: float | dict = 3.0):
     """
@@ -984,25 +1004,31 @@ def create_coherent_matrices(nodes, matrices: dict, maps: dict, threshold: float
         Updated node mapping dictionary.
     """
 
+
     dim = len(nodes[0])
     K = len(nodes)
 
     maps_out = {}
     maps_out["possible_nodes"] = {}
     for i, node in enumerate(nodes):
-        maps_out["possible_nodes"][i]      = node
+        maps_out["possible_nodes"][i] = node
         maps_out["possible_nodes"][str(node)] = i
     maps["possible_nodes"] = maps_out["possible_nodes"]
 
-    stacked_induced  = np.empty((dim, K, K))
-    stacked_adjacent  = np.empty_like(stacked_induced)
+    iu = np.triu_indices(K, k=1)
+    M = len(iu[0])
+
+    stacked_induced = np.empty((dim, M), dtype=np.float32)
+    stacked_adjacent = np.empty((dim, M), dtype=np.float32)
 
     for p in range(dim):
-        idx = [node[p] for node in nodes]
+        idx = np.array([node[p] for node in nodes], dtype=np.int32)
 
-        for i in range(K):
-            stacked_induced[p,  i, :] = matrices["dm_induced"][idx[i],  idx]
-            stacked_adjacent[p, i, :]  = matrices["dm_adjacent"][idx[i], idx]
+        sub_induced = matrices["dm_induced"][np.ix_(idx, idx)]
+        sub_adjacent = matrices["dm_adjacent"][np.ix_(idx, idx)]
+
+        stacked_induced[p] = sub_induced[iu]
+        stacked_adjacent[p] = sub_adjacent[iu]
 
     mask_invalid_induced = np.any((stacked_induced == 0) | np.isnan(stacked_induced), axis=0)
     mask_invalid_adjacent = np.any((stacked_adjacent == 0) | np.isnan(stacked_adjacent), axis=0)
@@ -1010,31 +1036,26 @@ def create_coherent_matrices(nodes, matrices: dict, maps: dict, threshold: float
     range_induced = np.max(stacked_induced, axis=0) - np.min(stacked_induced, axis=0)
     range_adjacent = np.max(stacked_adjacent, axis=0) - np.min(stacked_adjacent, axis=0)
 
-    std_induced = np.std(stacked_induced, axis=0)
-    std_adjacent = np.std(stacked_adjacent, axis=0)
-    
-    thr_norm = float(threshold.get("default", 1.0)) if isinstance(threshold, dict) else float(threshold)
+    std_induced = np.std(stacked_induced, axis=0).astype(np.float32, copy=False)
+    std_adjacent = np.std(stacked_adjacent, axis=0).astype(np.float32, copy=False)
 
-    norm_std_induced = std_induced / (thr_norm + 1e-12)
-    norm_std_adjacent = std_adjacent / (thr_norm + 1e-12)
-
-    T = _build_threshold_matrix(nodes, maps, threshold)
+    T = build_threshold_vector(nodes, maps, threshold)
 
     mask_valid_ind = (range_induced <= T) & (~mask_invalid_induced)
-    final_induced = np.full((K, K), np.nan)
-    final_induced[mask_valid_ind] = 1.0
-
     mask_valid_adj = (range_adjacent <= T) & (~mask_invalid_adjacent)
-    final_adjacent = np.full((K, K), np.nan)
-    final_adjacent[mask_valid_adj] = 1.0
+
+    final_induced = sym_from_packed_bool(K, mask_valid_ind)
+    final_adjacent = sym_from_packed_bool(K, mask_valid_adj)
+
+    std_induced_sq = sym_from_packed_float(K, std_induced)
+    std_adjacent_sq = sym_from_packed_float(K, std_adjacent)
 
     new_matrices = {
         "coherent_global_nodes": final_induced,
         "coherent_adjacent_nodes": final_adjacent,
-        "std_adjacent": std_induced,
-        "std_induced": std_induced
+        "std_adjacent": std_adjacent_sq,
+        "std_induced": std_induced_sq
     }
-
 
     return new_matrices, maps
 
@@ -1272,7 +1293,7 @@ def process_chunk(step_idx, chunk_idx, chunk_triads, global_state, residue_track
             nodes_indices.append(node_converted)
 
         save(f"comp_id_{comp_id}", "nodes_indices", nodes_indices)
-        log.info(f"{schMsg} Creating the std_matrix for component {comp_id}...")
+        log.info(f"{schMsg} Creating the coherence matrix for component {comp_id}...")
         coherent_matrices, coherent_maps = create_coherent_matrices(
             nodes=nodes_indices,
             matrices=matrices_dict,
@@ -1280,7 +1301,7 @@ def process_chunk(step_idx, chunk_idx, chunk_triads, global_state, residue_track
             threshold=config["global_distance_diff_threshold"]
         )
 
-        log.info(f"{schMsg} Finished creating the std_matrix.")
+        log.info(f"{schMsg} Finished creating the coherence matrix.")
 
         save(f"comp_id_{comp_id}", "coherent_matrices", coherent_matrices)
         save(f"comp_id_{comp_id}", "coherent_maps", coherent_maps)
@@ -1543,15 +1564,9 @@ def generate_frames(component_graph, matrices, maps, len_component, chunk_id, st
     union_graph : dict
         Graph representation combining all accepted frames.
     """
-
-    dm_raw = matrices["coherent_global_nodes"].copy()
-    adj_raw = matrices["coherent_adjacent_nodes"].copy()
+    C = matrices["coherent_global_nodes"].copy()
+    A = matrices["coherent_adjacent_nodes"].copy()
     std_adj = matrices.get("std_adjacent")
-    np.fill_diagonal(dm_raw, 1)
-    np.fill_diagonal(adj_raw, np.nan)
-
-    C = (dm_raw == 1)     # Matriz de coerência na forma booleana
-    A = (adj_raw == 1)    # Matriz de adjacência na forma booleana
 
     np.fill_diagonal(C, True)
     np.fill_diagonal(A, False)

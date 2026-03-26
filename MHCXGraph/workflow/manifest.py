@@ -30,7 +30,7 @@ def load_manifest(manifest_path: str) -> dict[str, Any]:
     settings.setdefault("verbose", False)
 
     settings.setdefault("edge_threshold", 8.5)
-    settings.setdefault("close_tolerance", 1.0)
+    settings.setdefault("close_tolerance", 0.1)
     settings.setdefault("node_granularity", "all_atoms")
 
     settings.setdefault("include_ligands", True)
@@ -40,7 +40,7 @@ def load_manifest(manifest_path: str) -> dict[str, Any]:
     settings.setdefault("triad_rsa", False)
     settings.setdefault("rsa_filter", 0.1)
     settings.setdefault("asa_filter", 5)
-    settings.setdefault("close_tolerance_rsa", 0.1)
+    settings.setdefault("close_tolerance_rsa", 0.01)
     settings.setdefault("local_distance_diff_threshold", 1.0)
     settings.setdefault("global_distance_diff_threshold", 2.0)
 
