@@ -976,9 +976,14 @@ def build_threshold_vector(nodes, maps, threshold_cfg):
     return T[iu]
 
 
-def create_coherent_matrices(nodes, matrices: dict, maps: dict, threshold: float | dict = 3.0):
+def create_coherent_matrices(
+    nodes,
+    matrices: dict,
+    maps: dict,
+    threshold: float | dict = 3.0,
+):
     """
-    Compute coherence matrices across proteins.
+    Compute coherence matrices across proteins using a memory-efficient streaming approach.
 
     Parameters
     ----------
@@ -997,19 +1002,16 @@ def create_coherent_matrices(nodes, matrices: dict, maps: dict, threshold: float
     Returns
     -------
     new_matrices : dict
-        Dictionary containing coherence masks and standard deviation
-        matrices.
+        Dictionary containing coherence masks and standard deviation matrices.
 
     maps : dict
         Updated node mapping dictionary.
     """
 
-
     dim = len(nodes[0])
     K = len(nodes)
 
-    maps_out = {}
-    maps_out["possible_nodes"] = {}
+    maps_out = {"possible_nodes": {}}
     for i, node in enumerate(nodes):
         maps_out["possible_nodes"][i] = node
         maps_out["possible_nodes"][str(node)] = i
@@ -1018,46 +1020,74 @@ def create_coherent_matrices(nodes, matrices: dict, maps: dict, threshold: float
     iu = np.triu_indices(K, k=1)
     M = len(iu[0])
 
-    stacked_induced = np.empty((dim, M), dtype=np.float32)
-    stacked_adjacent = np.empty((dim, M), dtype=np.float32)
+    min_induced = np.full(M, np.inf, dtype=np.float32)
+    max_induced = np.full(M, -np.inf, dtype=np.float32)
+    sum_induced = np.zeros(M, dtype=np.float32)
+    sumsq_induced = np.zeros(M, dtype=np.float32)
+    invalid_induced = np.zeros(M, dtype=bool)
+
+    min_adj = np.full(M, np.inf, dtype=np.float32)
+    max_adj = np.full(M, -np.inf, dtype=np.float32)
+    sum_adj = np.zeros(M, dtype=np.float32)
+    sumsq_adj = np.zeros(M, dtype=np.float32)
+    invalid_adj = np.zeros(M, dtype=bool)
 
     for p in range(dim):
-        idx = np.array([node[p] for node in nodes], dtype=np.int32)
+        idx = np.fromiter((node[p] for node in nodes), dtype=np.int32, count=K)
 
-        sub_induced = matrices["dm_induced"][np.ix_(idx, idx)]
-        sub_adjacent = matrices["dm_adjacent"][np.ix_(idx, idx)]
+        sub_induced = matrices["dm_induced"][idx[:, None], idx][iu]
+        sub_adj = matrices["dm_adjacent"][idx[:, None], idx][iu]
 
-        stacked_induced[p] = sub_induced[iu]
-        stacked_adjacent[p] = sub_adjacent[iu]
+        invalid_induced |= (sub_induced == 0) | np.isnan(sub_induced)
+        invalid_adj |= (sub_adj == 0) | np.isnan(sub_adj)
 
-    mask_invalid_induced = np.any((stacked_induced == 0) | np.isnan(stacked_induced), axis=0)
-    mask_invalid_adjacent = np.any((stacked_adjacent == 0) | np.isnan(stacked_adjacent), axis=0)
+        min_induced = np.minimum(min_induced, sub_induced)
+        max_induced = np.maximum(max_induced, sub_induced)
 
-    range_induced = np.max(stacked_induced, axis=0) - np.min(stacked_induced, axis=0)
-    range_adjacent = np.max(stacked_adjacent, axis=0) - np.min(stacked_adjacent, axis=0)
+        min_adj = np.minimum(min_adj, sub_adj)
+        max_adj = np.maximum(max_adj, sub_adj)
 
-    std_induced = np.std(stacked_induced, axis=0).astype(np.float32, copy=False)
-    std_adjacent = np.std(stacked_adjacent, axis=0).astype(np.float32, copy=False)
+        sum_induced += sub_induced
+        sumsq_induced += sub_induced * sub_induced
+
+        sum_adj += sub_adj
+        sumsq_adj += sub_adj * sub_adj
+
+    range_induced = max_induced - min_induced
+    range_adj = max_adj - min_adj
+
+    mean_induced = sum_induced / dim
+    mean_adj = sum_adj / dim
+
+    var_induced = (sumsq_induced / dim) - (mean_induced * mean_induced)
+    var_adj = (sumsq_adj / dim) - (mean_adj * mean_adj)
+
+    var_induced = np.maximum(var_induced, 0.0)
+    var_adj = np.maximum(var_adj, 0.0)
+
+    std_induced = np.sqrt(var_induced, dtype=np.float32)
+    std_adj = np.sqrt(var_adj, dtype=np.float32)
 
     T = build_threshold_vector(nodes, maps, threshold)
 
-    mask_valid_ind = (range_induced <= T) & (~mask_invalid_induced)
-    mask_valid_adj = (range_adjacent <= T) & (~mask_invalid_adjacent)
+    mask_valid_ind = (range_induced <= T) & (~invalid_induced)
+    mask_valid_adj = (range_adj <= T) & (~invalid_adj)
 
     final_induced = sym_from_packed_bool(K, mask_valid_ind)
     final_adjacent = sym_from_packed_bool(K, mask_valid_adj)
 
     std_induced_sq = sym_from_packed_float(K, std_induced)
-    std_adjacent_sq = sym_from_packed_float(K, std_adjacent)
+    std_adjacent_sq = sym_from_packed_float(K, std_adj)
 
     new_matrices = {
         "coherent_global_nodes": final_induced,
         "coherent_adjacent_nodes": final_adjacent,
         "std_adjacent": std_adjacent_sq,
-        "std_induced": std_induced_sq
+        "std_induced": std_induced_sq,
     }
 
     return new_matrices, maps
+
 
 def get_memory_usage_mb():
     """
