@@ -7,9 +7,10 @@ name = "MHCXGraph"
 description = "A python package for graph-based detection of structurally similar surface regions in protein complexes, with a focus on peptide-MHC (pMHC) systems involved in T cell receptor (TCR) recognition."
 authors = [
     { name = "Carlos D. M. S. Simões ", email = "carlos.simoes@lnbio.cnpem.br" },
-    { name = "Rocio R. Maidana" },
-    { name = "João V. S. Guerra" },
-    { name = "Helder V. Ribeiro-Filho", email = "helder.ribeiro@lnbio.cnpem.br" },
+    { name = "Rocio R. Maidana", email = "rocio.maidana@lnbio.cnpem.br"},
+    { name = "Samuel Chagas de Assis", email = "samuel.assis@lnbio.cnpem.br"}
+    { name = "João V. S. Guerra", email = "joao.guerra@lnbio.cnpem.br"},
+    { name = "Helder V. Ribeiro-Filho", email = "helder.ribeiro@lnbio.cnpem.br"},
 ]
 maintainers = [
     { name = "Carlos D. M. S. Simões ", email = "carlos.simoes@lnbio.cnpem.br" },
@@ -47,7 +48,6 @@ classifiers = [
 ]
 dependencies = [
     "biopython>=1.86",
-    "gemmi>=0.7.4",
     "matplotlib>=3.10.8",
     "networkx>=3.4.2",
     "numpy>=2.2.6",
