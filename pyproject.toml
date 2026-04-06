@@ -8,7 +8,7 @@ description = "A python package for graph-based detection of structurally simila
 authors = [
     { name = "Carlos D. M. S. Simões ", email = "carlos.simoes@lnbio.cnpem.br" },
     { name = "Rocio R. Maidana", email = "rocio.maidana@lnbio.cnpem.br"},
-    { name = "Samuel Chagas de Assis", email = "samuel.assis@lnbio.cnpem.br"}
+    { name = "Samuel Chagas de Assis", email = "samuel.assis@lnbio.cnpem.br"},
     { name = "João V. S. Guerra", email = "joao.guerra@lnbio.cnpem.br"},
     { name = "Helder V. Ribeiro-Filho", email = "helder.ribeiro@lnbio.cnpem.br"},
 ]
