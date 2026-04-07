@@ -39,7 +39,6 @@ extensions = [
     "sphinx.ext.ifconfig",
     "sphinx.ext.viewcode",
     "sphinx.ext.githubpages",
-    "sphinxcontrib.video"
 ]
 
 # Add any paths that contain templates here, relative to this directory.
