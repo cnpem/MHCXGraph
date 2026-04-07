@@ -6,14 +6,14 @@ build-backend = "setuptools.build_meta"
 name = "MHCXGraph"
 description = "A python package for graph-based detection of structurally similar surface regions in protein complexes, with a focus on peptide-MHC (pMHC) systems involved in T cell receptor (TCR) recognition."
 authors = [
-    { name = "Carlos D. M. S. Simões ", email = "carlos.simoes@lnbio.cnpem.br" },
-    { name = "Rocio R. Maidana", email = "rocio.maidana@lnbio.cnpem.br"},
-    { name = "Samuel Chagas de Assis", email = "samuel.assis@lnbio.cnpem.br"},
-    { name = "João V. S. Guerra", email = "joao.guerra@lnbio.cnpem.br"},
-    { name = "Helder V. Ribeiro-Filho", email = "helder.ribeiro@lnbio.cnpem.br"},
+    { name = "Carlos D. M. S. Simões" },
+    { name = "Rocio R. Maidana" },
+    { name = "Samuel Chagas de Assis" },
+    { name = "João V. S. Guerra" },
+    { name = "Helder V. Ribeiro-Filho"},
 ]
 maintainers = [
-    { name = "Carlos D. M. S. Simões ", email = "carlos.simoes@lnbio.cnpem.br" },
+    { name = "Carlos D. M. S. Simões", email = "carlos.simoes@lnbio.cnpem.br" },
 ]
 license = "AGPL-3.0-or-later"
 license-files = ["LICENSE"]
@@ -71,9 +71,10 @@ MHCXGraph = "MHCXGraph.app:main"
 [project.optional-dependencies]
 dev = ["mypy>=1.15.0", "pre-commit>=4.1.0", "pytest>=8.3.5", "ruff>=0.11.0"]
 docs = [
-    "mkdocs>=1.6.1",
-    "mkdocstrings[python]>=0.29.0",
-    "mkdocs-material>=9.6.9",
+    "sphinx>=9.0.4",
+    "furo>=2025.12.19",
+    "sphinx-autodoc-typehints>=3.6.1",
+    "numpydoc>=1.10.0",
 ]
 
 [tool.setuptools]
