@@ -675,300 +675,9 @@ class AssociatedGraph:
                     output_dir = self.output_path / "frames"
                     self._write_frame_multichain(comp_idx, frame_idx, models, output_dir)
 
-    def draw_graph_interactive(self, show=False, save=True):
-        """
-        Generate interactive visualizations of associated graphs.
-
-        Graphs are rendered using PyVis and can be displayed in a
-        browser or saved as HTML files.
-
-        Parameters
-        ----------
-        show : bool, default=False
-            If True, display the generated visualization.
-
-        save : bool, default=True
-            If True, save the visualization to disk.
-
-        Returns
-        -------
-        None
-        """
-
-        if not show and not save:
-            log.info("You are not saving or viewing the graph. Please leave at least one of the parameters as true.")
-            return
-
-        if not isinstance(self.associated_graphs, list):
-            log.warning(f"I can't draw the graph because it's {self.associated_graphs!r}")
-            return
-
-        out_dir = Path(self.output_path)
-        out_dir.mkdir(parents=True, exist_ok=True)
-
-        export_data = {
-            "run_name": self.run_name,
-            "metadata": self.association_config,
-            "proteins": [gd['name'] for gd in self.graphs_data],
-            "protein_paths": [gd['pdb_file'] for gd in self.graphs_data],
-            "nodes": [],
-            "edges": [],
-            "components": [],
-            "filtered_graphs": []
-        }
-
-        global_nodes = {}
-        global_edges = {}
-        node_id_counter = 0
-        edge_id_counter = 0
-        all_chain_ids = set()
-
-        # Pass 1: Gather Associated Graphs Nodes, edges, and std_matrices
-        for j, comps in enumerate(self.associated_graphs):
-            comp_data = {
-                "id": j, 
-                "node_ids": [], 
-                "frames": [],
-                "std_matrix": None,
-                "node_index_map": {}
-            }
-            
-            if len(comps[0]) > 0:
-                comp_std_matrix = comps[0][0].graph.get("edge_std_matrix")
-                if comp_std_matrix is not None:
-                    safe_matrix = [
-                        [None if np.isnan(val) else float(val) for val in row]
-                        for row in comp_std_matrix
-                    ]
-                    comp_data["std_matrix"] = safe_matrix
-
-            for i, graph in enumerate(comps[0]):
-                if graph.number_of_nodes() == 0:
-                    continue
-                
-                frame_data = {"id": i, "node_ids": []}
-                node_index_map = graph.graph.get("node_index_map")
-
-                # Nodes
-                for n in graph.nodes():
-                    node_label = str(n)
-                    try:
-                        residues = [r for r in n]
-                    except TypeError:
-                        residues = [str(n)]
-                        
-                    mapping = []
-                    chains = []
-                    for prot_idx, res in enumerate(residues):
-                        parts = str(res).split(':')
-                        if len(parts) >= 3: 
-                            chains.append(parts[0])
-                            mapping.append({
-                                "model_idx": prot_idx,
-                                "chain": parts[0],
-                                "resn": parts[1],
-                                "resi": parts[2]
-                            })
-                    
-                    chain_id = ''.join(chains) or "?"
-                    all_chain_ids.add(chain_id)
-
-                    if node_label not in global_nodes:
-                        global_nodes[node_label] = {
-                            "id": node_id_counter,
-                            "label": node_label,
-                            "title": f"Chains: {chain_id}\n{node_label}",
-                            "group": chain_id,
-                            "chain_id": chain_id,
-                            "mapping": mapping,
-                            "originalColor": None, 
-                        }
-                        node_id_counter += 1
-                    
-                    numeric_id = global_nodes[node_label]["id"]
-                    if numeric_id not in comp_data["node_ids"]:
-                        comp_data["node_ids"].append(numeric_id)
-                    frame_data["node_ids"].append(numeric_id)
-                    
-                    if node_index_map is not None and n in node_index_map:
-                        comp_data["node_index_map"][numeric_id] = int(node_index_map[n])
-
-                # Edges
-                for u, v, data in graph.edges(data=True):
-                    u_id = global_nodes[str(u)]["id"]
-                    v_id = global_nodes[str(v)]["id"]
-                    edge_key = tuple(sorted([u_id, v_id]))
-                    
-                    if edge_key not in global_edges:
-                        dist_tuple = []
-                        for prot_idx, gd in enumerate(self.graphs_data):
-                            u_res = u[prot_idx] if isinstance(u, tuple) else str(u)
-                            v_res = v[prot_idx] if isinstance(v, tuple) else str(v)
-                            try:
-                                u_parts = u_res.split(":")
-                                v_parts = v_res.split(":")
-                                u_tup = (u_parts[0], u_parts[2], u_parts[1])
-                                v_tup = (v_parts[0], v_parts[2], v_parts[1])
-                                distance = gd["contact_map"][gd["residue_map_all"][u_tup], gd["residue_map_all"][v_tup]]
-                                dist_tuple.append(f"{distance:.2f}")
-                            except:
-                                dist_tuple.append("N/A")
-                        
-                        dists = "(" + ", ".join(dist_tuple) + ")"
-                        w = data.get('weight')
-                        
-                        std_val = None
-                        if node_index_map is not None and comp_data["std_matrix"] is not None:
-                            idx_u = node_index_map.get(u)
-                            idx_v = node_index_map.get(v)
-                            if idx_u is not None and idx_v is not None:
-                                std_val = comp_data["std_matrix"][idx_u][idx_v]
-                        
-                        title = f"Distances: {dists}\n"
-                        if w is not None: title += f"Weight: {w}\n"
-                        if std_val is not None: title += f"STD: {std_val:.3f}"
-                        
-                        global_edges[edge_key] = {
-                            "id": edge_id_counter,
-                            "from": u_id,
-                            "to": v_id,
-                            "std": std_val,
-                            "title": title,
-                            "raw_dist": float(w) if isinstance(w, (int, float)) else None
-                        }
-                        edge_id_counter += 1
-
-                comp_data["frames"].append(frame_data)
-            export_data["components"].append(comp_data)
-
-        export_data["nodes"] = list(global_nodes.values())
-        export_data["edges"] = list(global_edges.values())
-
-        filtered_graphs_data = []
-        for prot_idx, (g, pdb_file, name) in enumerate(self.graphs):
-            f_nodes = []
-            f_edges = []
-            
-            for n in g.nodes():
-                node_label = str(n)
-                parts = node_label.split(':')
-                chain_id = parts[0] if len(parts) >= 1 else "?"
-                mapping = []
-                if len(parts) >= 3:
-                    mapping.append({
-                        "model_idx": prot_idx,
-                        "chain": parts[0],
-                        "resn": parts[1],
-                        "resi": parts[2]
-                    })
-                
-                f_nodes.append({
-                    "id": node_label,
-                    "label": node_label,
-                    "title": f"Chain: {chain_id}\n{node_label}",
-                    "group": chain_id,
-                    "chain_id": chain_id,
-                    "mapping": mapping
-                })
-                
-            for u, v, data in g.edges(data=True):
-                w = data.get('weight')
-                dist_val = data.get('distance', w)
-                
-                title = f"Distance: {float(dist_val):.2f} Å" if dist_val is not None else ""
-                
-                f_edges.append({
-                    "id": f"{u}-{v}",
-                    "from": str(u),
-                    "to": str(v),
-                    "title": title,
-                    "raw_dist": float(dist_val) if isinstance(dist_val, (int, float)) else None
-                })
-                
-            filtered_graphs_data.append({
-                "id": prot_idx,
-                "name": name,
-                "nodes": f_nodes,
-                "edges": f_edges
-            })
-            
-        export_data["filtered_graphs"] = filtered_graphs_data
-
-        # Safely load local Frameworks or fallback to CDNs
-        assets_dir = Path(__file__).resolve().parent.parent / "assets"
-        
-        vis_local = assets_dir / "vis-network.min.js"
-        if vis_local.exists():
-            vis_injection = f'<script>\n{vis_local.read_text(encoding="utf-8")}\n</script>'
-        else:
-            log.warning("Local vis-network.min.js not found in assets/. Falling back to CDN.")
-            vis_injection = '<script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>'
-
-        mol3d_local = assets_dir / "3Dmol-min.js"
-        if mol3d_local.exists():
-            mol3d_injection = f'<script>\n{mol3d_local.read_text(encoding="utf-8")}\n</script>'
-        else:
-            log.warning("Local 3Dmol-min.js not found in assets/. Falling back to CDN.")
-            mol3d_injection = '<script src="https://3Dmol.csb.pitt.edu/build/3Dmol-min.js"></script>'
-
-        logo_dark_path = assets_dir / "LNBio white.png"
-        logo_light_path = assets_dir / "LNBio.png"
-        logo_injection = ""
-        if logo_light_path.exists():
-            with open(logo_light_path, "rb") as image_file:
-                encoded = base64.b64encode(image_file.read()).decode("utf-8")
-                logo_injection += f'<img src="data:image/png;base64,{encoded}" alt="LNBio Logo" class="logo-light" style="height: 7rem; width: auto;">'
-        if logo_dark_path.exists():
-            with open(logo_dark_path, "rb") as image_file:
-                encoded = base64.b64encode(image_file.read()).decode("utf-8")
-                logo_injection += f'<img src="data:image/png;base64,{encoded}" alt="LNBio Logo" class="logo-dark" style="height: 7rem; width: auto;">'
-        if not logo_injection:
-            log.debug("LNBio logos not found in assets/. Skipping logo injection.")
-
-        mhcx_logo_path = assets_dir / "MHCXGraph logo.png"
-        mhcx_logo_injection = "<h2>MHCXGraph</h2>" # Fallback text if image is missing
-        favicon_injection = ""
-
-        if mhcx_logo_path.exists():
-            with open(mhcx_logo_path, "rb") as image_file:
-                encoded = base64.b64encode(image_file.read()).decode("utf-8")
-                mhcx_logo_injection = f'<img src="data:image/png;base64,{encoded}" alt="MHCXGraph Logo" style="max-width: 80%; height: auto;">'
-                favicon_injection = f'<link rel="icon" type="image/png" href="data:image/png;base64,{encoded}">'
-        else:
-            log.debug("MHCXGraph logo not found in assets/. Using text fallback.")
-
-        # Load Template and Inject Data
-        template_path = assets_dir / "dashboard_template.html"
-        try:
-            with open(template_path, "r", encoding="utf-8") as f:
-                html_template = f.read()
-        except FileNotFoundError:
-            log.error(f"Template not found at {template_path}. Please create it.")
-            return
-
-        json_data = json.dumps(export_data)
-        final_html = html_template.replace("__GRAPH_DATA_INJECTION__", json_data)
-        final_html = final_html.replace("__FAVICON_INJECTION__", favicon_injection)
-        final_html = final_html.replace("__VIS_JS_INJECTION__", vis_injection)
-        final_html = final_html.replace("__3DMOL_JS_INJECTION__", mol3d_injection)
-        final_html = final_html.replace("__MHCXGRAPH_LOGO_INJECTION__", mhcx_logo_injection)
-        final_html = final_html.replace("__LNBIO_LOGO_INJECTION__", logo_injection)
-
-        if save:
-            full_path = out_dir / "Dashboard.html"
-            with open(str(full_path), "w+", encoding="utf-8") as out:
-                out.write(final_html)
-            log.info(f"Interactive Dashboard saved to {full_path}")
-            
-        if show:
-            tmpfile = out_dir / "__preview.html"
-            with open(str(tmpfile), "w+", encoding="utf-8") as out:
-                out.write(final_html)
-
     def get_dashboard_data(self, global_proteins: list[str]) -> dict:
         """Extracts JSON serializable data for the dashboard injection."""
         global_idx = [global_proteins.index(gd['name']) for gd in self.graphs_data]
-        
         export_data = {
             "proteins": [gd['name'] for gd in self.graphs_data],
             "protein_paths": [gd['pdb_file'] for gd in self.graphs_data],
@@ -987,24 +696,25 @@ class AssociatedGraph:
                 comp_data["std_matrix"] = [[None if np.isnan(val) else float(val) for val in row] for row in comps[0][0].graph.get("edge_std_matrix")]
 
             for i, frame_graph in enumerate(comps[0]):
-                if frame_graph.number_of_nodes() == 0: continue
-                
+                if frame_graph.number_of_nodes() == 0:
+                    continue
+
                 # ---> EXTRACT THE SAVED RMSDS <---
                 rmsds = {k: v for k, v in frame_graph.graph.items() if k.startswith("rmsd")}
                 frame_data = {"id": i, "node_ids": [], "rmsds": rmsds}
-                
+
                 node_index_map = frame_graph.graph.get("node_index_map")
 
                 for n in frame_graph.nodes():
                     node_label = str(n)
-                    residues = [r for r in n] if isinstance(n, tuple) else [str(n)]
+                    residues = list(n)
                     mapping, chains = [], []
-                    
+
                     for prot_idx, res in enumerate(residues):
                         parts = str(res).split(':')
                         if len(parts) >= 3:
                             chains.append(parts[0])
-                            
+
                             # ---> EXTRACT RSA FROM THE ORIGINAL GRAPH <---
                             orig_g = self.graphs[prot_idx][0]
                             rsa_val = orig_g.nodes.get(str(res), {}).get("rsa", "N/A")
@@ -1012,16 +722,15 @@ class AssociatedGraph:
                                 rsa_val = round(rsa_val, 3)
                             else:
                                 rsa_val = "N/A"
-                                
+
                             mapping.append({
-                                "model_idx": global_idx[prot_idx], 
-                                "chain": parts[0], "resn": parts[1], "resi": parts[2], 
-                                "rsa": rsa_val # Pass RSA to frontend
+                                "model_idx": global_idx[prot_idx],
+                                "chain": parts[0], "resn": parts[1], "resi": parts[2],
+                                "rsa": rsa_val
                             })
 
                     chain_id = ''.join(chains) or "?"
                     if node_label not in global_nodes:
-                        # ---> ADD RSA TO HOVER TITLE <---
                         title = f"Chains: {chain_id}\n{node_label}"
                         for m in mapping:
                             title += f"\nP{m['model_idx']} RSA: {m['rsa']}"
@@ -1030,7 +739,7 @@ class AssociatedGraph:
                             "id": node_id_counter, "label": node_label, "title": title,
                             "group": chain_id, "mapping": mapping, "originalColor": None,
                         }
-                        node_id_counter += 1                   
+                        node_id_counter += 1
                     numeric_id = global_nodes[node_label]["id"]
                     if numeric_id not in comp_data["node_ids"]: comp_data["node_ids"].append(numeric_id)
                     frame_data["node_ids"].append(numeric_id)

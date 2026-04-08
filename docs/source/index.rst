@@ -17,14 +17,17 @@ The approach combines discretized representations of local residue environments 
 ..  " for paragraphs
 
 .. toctree::
-   :maxdepth: 1
-   :caption: Python Package
+  :maxdepth: 1
+  :caption: Python Package
+  :hidden:
 
-   Installation <package/installation/index>
-   Tutorial <package/tutorial/index>
-   API Reference <package/api_reference/index>
-   Examples <package/examples/index>
-   GitHub repository <https://github.com/CNPEM/MHCXGraph>
+  Installation <package/installation/index>
+  Quick Setup <quicksetup/index>
+  Tutorial <package/tutorial/index>
+  Execution Configuration (Manifest) <configuration/index>
+  API Reference <package/api_reference/index>
+  Examples <package/examples/index>
+  GitHub repository <https://github.com/CNPEM/MHCXGraph>
 
 .. toctree::
    :maxdepth: 1

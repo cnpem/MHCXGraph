@@ -1,0 +1,49 @@
+/* ===== PARAM TITLE (flat, rectangular) ===== */
+.mhcx-param-title {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+
+    padding: 8px 14px;
+
+    font-size: 1.05rem;
+    line-height: 1.6;
+
+    border-radius: 0;        /* ← remove rounded corners */
+    border: none;            /* ← remove border */
+}
+
+/* ===== DARK THEME ===== */
+[data-theme="dark"] .mhcx-param-title {
+    background: #2b1f5c;     /* single deep purple */
+}
+
+/* ===== LIGHT THEME ===== */
+[data-theme="light"] .mhcx-param-title {
+    background: #ddd6fe;     /* flat light purple */
+}
+
+/* ===== TEXT ===== */
+.mhcx-param-name {
+    font-weight: 600;
+    color: white;
+}
+
+[data-theme="light"] .mhcx-param-name {
+    color: #1e1b4b;
+}
+
+/* ===== META ===== */
+.mhcx-param-meta {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.9em;
+}
+
+[data-theme="dark"] .mhcx-param-meta {
+    color: #c4b5fd;
+}
+
+[data-theme="light"] .mhcx-param-meta {
+    color: #5b21b6;
+}

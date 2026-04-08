@@ -1,4 +1,4 @@
-MHCXGraph.core
+﻿MHCXGraph.core
 ==============
 
 .. automodule:: MHCXGraph.core

@@ -1,4 +1,4 @@
-MHCXGraph.app
+﻿MHCXGraph.app
 =============
 
 .. automodule:: MHCXGraph.app

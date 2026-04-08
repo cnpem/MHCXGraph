@@ -1,0 +1,54 @@
+{
+  "settings": {
+    "run_name": "screening-run",
+    "run_mode": "screening",
+    "output_path": "examples/results/screening",
+    "reference_structure": "pmhc_mage3_5brz_renumber",
+    "debug_logs": false,
+    "debug_tracking": false,
+    "track_steps": false,
+    "edge_threshold": 10,
+    "node_granularity": "ca_only",
+    "include_ligands": true,
+    "include_noncanonical_residues": true,
+    "include_waters": false,
+    "triad_rsa": false,
+    "rsa_filter": 0.1,
+    "local_distance_diff_threshold":1.0,
+    "global_distance_diff_threshold":2.0,
+    "distance_bin_width": 2,
+    "close_tolerance": 0.1
+  },
+
+  "inputs": [
+    {
+      "path": "examples/input/renumbered",
+      "enable_tui": false,
+      "extensions": [".pdb", ".cif"],
+      "selectors": [
+        { "name": "general" }
+      ]
+    }
+  ],
+  "selectors": {
+    "MHC1": {
+      "chains": ["C"],
+      "structures": {},
+      "residues": {
+        "A": [18,19,42,43,44,54,55,56,58,59,61,62,63,64,65,66,68,69,70,71,72,73,75,76,79,80,83,84,89,108,109,142,143,145,146,147,148,149,150,151,152,153,154,155,156,157,158,159,161,162,163,165,166,167,169,170,171]
+      }
+    },
+    "MHC2": {
+      "chains": ["C"],
+      "residues": {
+        "A": [37,51,52,53,55,56,58,59,60,62,63,65,66,67,69],
+        "B": [56,57,59,60,61,62,63,65,66,67,68,69,70,71,72,73,74,77,78,81]
+      }
+    },
+     "general": {
+	    "chains" : ["C"],
+	    "structures" : ["helix"],
+	    "residues" : {}
+    }
+  }
+}

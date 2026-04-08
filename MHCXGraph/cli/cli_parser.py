@@ -72,19 +72,19 @@ def parse_args():
 
     parser_heatmap = subparsers.add_parser("heatmap")
     parser_heatmap.add_argument("-i", '--input-dir', required=True, nargs='?', default=os.getcwd())
-    parser_heatmap.add_argument("-o", "--output-dir", required=True, help="Output directory")
-    parser_heatmap.add_argument("-n", "--name", required=True)
+    parser_heatmap.add_argument("-o", "--output-dir", required=True, help="Output directory.")
+    parser_heatmap.add_argument("-n", "--name", default="heatmap", required=False, help="Figure name of heatmap.")
 
     parser_renumber = subparsers.add_parser(
         "renumber",
         help="Renumber MHC structures using IMGT mapping."
     )
 
-    parser_renumber.add_argument("-i", "--input-dir", required=True, help="Input directory with .pdb/.cif/.mmcif files")
-    parser_renumber.add_argument("-o", "--output-dir", required=True, help="Output directory")
+    parser_renumber.add_argument("-i", "--input-dir", required=True, help="Input directory with .pdb/.cif/.mmcif files.")
+    parser_renumber.add_argument("-o", "--output-dir", required=True, help="Output directory.")
     parser_renumber.add_argument("-c", "--mhc-class", required=True, help="The class of MHC to renumber.")
-    parser_renumber.add_argument("--warn-score", type=float, default=50.0, help="Warn if the best alignment score is below this value")
-    parser_renumber.add_argument("--debug", action="store_true", help="Print debug output")
-    parser_renumber.add_argument("--suffix", default="", help="Optional suffix added before file extension in output")
+    parser_renumber.add_argument("--warn-score", type=float, default=50.0, help="Warn if the best alignment score is below this value.")
+    parser_renumber.add_argument("--debug", action="store_true", help="Print debug output.")
+    parser_renumber.add_argument("--suffix", default="", help="Optional suffix added before file extension in output.")
 
     return parser.parse_args()

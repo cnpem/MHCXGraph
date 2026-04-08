@@ -1,4 +1,4 @@
-MHCXGraph.workflow.association
+﻿MHCXGraph.workflow.association
 ==============================
 
 .. automodule:: MHCXGraph.workflow.association

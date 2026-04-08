@@ -1,4 +1,4 @@
-MHCXGraph.classes.graph
+﻿MHCXGraph.classes.graph
 =======================
 
 .. automodule:: MHCXGraph.classes.graph

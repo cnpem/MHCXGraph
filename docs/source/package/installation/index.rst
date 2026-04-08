@@ -1,4 +1,4 @@
-Tutorial
+Installation
 ============
 
 To install the latest release from `PyPI <https://pypi.org/project/MHCXGraph>`_, 
