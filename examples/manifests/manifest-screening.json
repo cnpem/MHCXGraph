@@ -12,12 +12,16 @@
     "include_ligands": true,
     "include_noncanonical_residues": true,
     "include_waters": false,
-    "triad_rsa": false,
+    "triad_rsa": true,
     "rsa_filter": 0.1,
     "local_distance_diff_threshold":1.0,
     "global_distance_diff_threshold":2.0,
     "distance_bin_width": 2,
-    "close_tolerance": 0.1
+    "close_tolerance": 0.1,
+    "rsa_bin_width": 0.3,
+    "rsa_diff_threshold": 0.3,
+    "close_tolerance_rsa" : 0.01,
+    "max_gap_helix": 5.0
   },
 
   "inputs": [

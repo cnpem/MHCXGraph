@@ -12,6 +12,8 @@ import re
 from docutils import nodes
 from docutils.parsers.rst import roles
 from docutils.parsers.rst import Directive, directives
+from sphinx.addnodes import pending_xref
+from sphinx.util.nodes import make_refnode
 
 sys.path.insert(0, os.path.abspath("../.."))
 
@@ -264,23 +266,39 @@ class MHCXParamDirective(Directive):
         return [target_node, header] + content_nodes
 
 def mhcx_param_role(name, rawtext, text, lineno, inliner, options={}, content=[]):
-    env = inliner.document.settings.env
     param_name = text.strip()
     
-    if not hasattr(env, "mhcx_params") or param_name not in env.mhcx_params:
-        return [nodes.literal(text=param_name)], []
+    # Create a pending cross-reference. Sphinx will try to resolve this later.
+    node = pending_xref(
+        '',
+        refdomain='std',
+        reftype='mhcx-param',
+        reftarget=param_name,
+        refexplicit=False,
+        refwarn=True
+    )
+    
+    # The visible text inside the link will be a literal node
+    node += nodes.literal(param_name, param_name)
+    
+    return [node], []
 
-    docname, target_id = env.mhcx_params[param_name]
-
-    builder = env.app.builder
-    fromdoc = env.docname
-    refuri = builder.get_relative_uri(fromdoc, docname) + "#" + target_id
-
-    literal = nodes.literal(param_name, param_name)
-    refnode = nodes.reference("", "", literal, refuri=refuri)
-
-    return [refnode], []
+def resolve_mhcx_param_reference(app, env, node, contnode):
+    # Only process our custom reftype
+    if node.get('reftype') == 'mhcx-param':
+        target = node.get('reftarget')
+        
+        # Check if the target was registered by the directive
+        if hasattr(env, 'mhcx_params') and target in env.mhcx_params:
+            docname, target_id = env.mhcx_params[target]
+            
+            # Build and return the actual hyperlink node
+            return make_refnode(app.builder, env.docname, docname, target_id, contnode)
+            
+    return None
 
 def setup(app):
     app.add_directive("mhcx-param", MHCXParamDirective)
     roles.register_local_role("mhcx-param", mhcx_param_role)
+
+    app.connect('missing-reference', resolve_mhcx_param_reference)

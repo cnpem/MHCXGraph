@@ -22,11 +22,10 @@ The approach combines discretized representations of local residue environments 
   :hidden:
 
   Installation <package/installation/index>
-  Quick Setup <quicksetup/index>
-  Tutorial <package/tutorial/index>
+  Getting Started <gettingstarted/index>
   Execution Configuration (Manifest) <configuration/index>
-  API Reference <package/api_reference/index>
   Examples <package/examples/index>
+  API Reference <package/api_reference/index>
   GitHub repository <https://github.com/CNPEM/MHCXGraph>
 
 .. toctree::
