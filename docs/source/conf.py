@@ -8,6 +8,13 @@
 
 import os
 import sys
+import re
+from docutils import nodes
+from docutils.parsers.rst import roles
+from docutils.parsers.rst import Directive, directives
+from sphinx.addnodes import pending_xref
+from sphinx.util.nodes import make_refnode
+
 sys.path.insert(0, os.path.abspath("../.."))
 
 from MHCXGraph import __version__
@@ -97,6 +104,7 @@ html_theme = "furo"
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static"]
+html_css_files = ['custom.css']
 
 # HTML favicon
 html_favicon = "_static/icon.ico"
@@ -200,3 +208,97 @@ intersphinx_mapping = {'python': ('https://docs.python.org/3', None)}
 
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = True
+
+def is_float_regex(value):
+    return bool(re.match(r'^[-+]?[0-9]*\.?[0-9]+$', value))
+
+class MHCXParamDirective(Directive):
+    required_arguments = 1
+    has_content = True
+
+    option_spec = {
+        "type": directives.unchanged,
+        "default": directives.unchanged,
+    }
+
+    def run(self):
+        env = self.state.document.settings.env
+        name = self.arguments[0].strip()
+
+        target_id = f"mhcx-param-{name}"
+        target_node = nodes.target('', '', ids=[target_id])
+
+        # HEADER (subsection-like)
+        header = nodes.container(classes=["mhcx-param"])
+
+        title = nodes.paragraph(classes=["mhcx-param-title"])
+
+        title += nodes.inline(text=name + ":", classes=["mhcx-param-name"])
+
+        # META
+        meta_parts = []
+        if "type" in self.options:
+            meta_parts.append(f"type: {self.options['type']}")
+        if "default" in self.options:
+            if self.options["type"] == "string":
+                meta_parts.append(f'default: "{self.options["default"]}"')
+            else:
+                meta_parts.append(f'default: {self.options["default"]}')
+
+        if meta_parts:
+            meta_text = " (" + ", ".join(meta_parts) + ")"
+            title += nodes.inline(text=meta_text, classes=["mhcx-param-meta"])
+
+        header += title
+
+        # CONTENT (normal flow)
+        content_nodes = []
+        if self.content:
+            content = nodes.paragraph()
+            self.state.nested_parse(self.content, self.content_offset, content)
+            content_nodes.append(content)
+
+        # register for references
+        if not hasattr(env, "mhcx_params"):
+            env.mhcx_params = {}
+        env.mhcx_params[name] = (env.docname, target_id)
+
+        return [target_node, header] + content_nodes
+
+def mhcx_param_role(name, rawtext, text, lineno, inliner, options={}, content=[]):
+    param_name = text.strip()
+    
+    # Create a pending cross-reference. Sphinx will try to resolve this later.
+    node = pending_xref(
+        '',
+        refdomain='std',
+        reftype='mhcx-param',
+        reftarget=param_name,
+        refexplicit=False,
+        refwarn=True
+    )
+    
+    # The visible text inside the link will be a literal node
+    node += nodes.literal(param_name, param_name)
+    
+    return [node], []
+
+def resolve_mhcx_param_reference(app, env, node, contnode):
+    # Only process our custom reftype
+    if node.get('reftype') == 'mhcx-param':
+        target = node.get('reftarget')
+        
+        # Check if the target was registered by the directive
+        if hasattr(env, 'mhcx_params') and target in env.mhcx_params:
+            docname, target_id = env.mhcx_params[target]
+            
+            # Build and return the actual hyperlink node
+            return make_refnode(app.builder, env.docname, docname, target_id, contnode)
+            
+    return None
+
+def setup(app):
+    app.add_directive("mhcx-param", MHCXParamDirective)
+    roles.register_local_role("mhcx-param", mhcx_param_role)
+
+    app.connect('missing-reference', resolve_mhcx_param_reference)

@@ -1,8 +1,8 @@
-# Structural Similarity Detection in pMHC Complexes (MHCXGraph)
+# MHCXGraph
 
-A python package for graph-based detection of structurally similar surface regions in protein complexes, with a focus on peptide–MHC (pMHC) systems involved in T cell receptor (TCR) recognition.
+A Python package for detecting potential T cell receptor cross-reactivity based on peptide–MHC structures.
 
-The methodology supports the investigation of TCR cross-reactivity by identifying conserved surface patterns that may be recognized by the same TCR across different pMHC structures.
+MHCXGraph leverages graph-based approaches to identify conserved exposed regions across multiple pMHC structures. It supports multiple execution modes and offers fully adjustable parameters, enabling flexible configuration to suit diverse user needs. For result analysis, the package provides an interactive dashboard that facilitates data exploration through graph visualizations and projections onto 3D structures
 
 See also:
 
@@ -28,31 +28,31 @@ pip install -e MHCXGraph
 
 ## Quick Start
 
+MHCXGraph is configured via a JSON manifest file. An example is in
+`examples/manifests/manifest-minimal.json`. To run it:
 ```bash
-MHCXGraph run manifest.json
+MHCXGraph run examples/manifests/manifest-minimal.json
 ```
 
-MHCXGraph is configured via a JSON manifest file. An example is in `examples/minimal/manifest.json`. A minimal manifest structure:
+A basic manifest has the following structure:
 
 ```json
 {
   "settings": {
     "run_name": "my-run",
-    "run_mode": "pairwise",
-    "output_path": "results/pairwise",
-    "edge_threshold": 10,
-    "node_granularity": "ca_only",
+    "run_mode": "multiple",
+    "output_path": "path/to/output/",
+    "edge_threshold": 8.5,
+    "node_granularity": "all_atoms",
     "triad_rsa": false,
     "rsa_filter": 0.1,
-    "asa_filter": 5,
-    "local_distance_diff_threshold":1.0,
     "global_distance_diff_threshold":2.0,
+    "local_distance_diff_threshold":1.0,
     "distance_bin_width": 2,
-    "close_tolerance": 0.1
   },
   "inputs": [
     {
-      "path": "data/structures",
+      "path": "path/to/input",
       "extensions": [".pdb", ".cif"],
       "selectors": [{ "name": "MHC1" }]
     }
@@ -62,20 +62,35 @@ MHCXGraph is configured via a JSON manifest file. An example is in `examples/min
       "chains": ["C"],
       "structures": {},
       "residues": {
-        "A": [18,19,42,43,44,54,55,56,58,59,61,62,63,64,65,66,68,69,70,71,72,73,75,76,79,80,83,84,89,108,109,142,143,145,146,147,148,149,150,151,152,153,154,155,156,157,158,159,161,162,163,165,166,167,169,170,171]
+        "A": [18,19,42,43,44,54,55,56,58,59,61,62,63,64,65,66,68,69,70,71,72,73,75,76,79,
+            80,83,84,89,108,109,142,143,145,146,147,148,149,150,151,152,153,154,155,156,
+            157,158,159,161,162,163,165,166,167,169,170,171]
       }
+    },
+    ,
+    "MHC2": {
+      "chains": ["C"],
+      "residues": {
+        "A": [37,51,52,53,55,56,58,59,60,62,63,65,66,67,69],
+        "B": [56,57,59,60,61,62,63,65,66,67,68,69,70,71,72,73,74,77,78,81]
+      }
+    },
+    "general": {
+	    "chains" : ["C"],
+	    "structures" : ["helix"],
+	    "residues" : {}
     }
   }
 }
 ```
-> [!NOTE]
-> Input structures in this example have been pre-processed with **`MHCXGraph renumber`**.
+> [!WARNING]
+> Input structures in this example have been pre-processed with **`MHCXGraph renumber`**. This step must be executed before graph analysis whenever residue selectors targeting TCR-contacting positions are used.
 
-## Basic Configuration Parameters¹
+## Key Configuration Parameters¹
 
 | Category | Parameter | Description | Default |
 |----------|-----------|-------------|---------|
-| **Run** | `run_name` | Name of the run | `test` |
+| **Execution** | `run_name` | Name of the run | `test` |
 |         | `run_mode` | Execution mode: `pairwise`, `multiple`, or `screening` | `multiple`|
 |         | `output_path` | Path for results output | `./outputs` |
 |         | `reference_structure` | Path to reference structure (required for `screening` mode) | `None`|

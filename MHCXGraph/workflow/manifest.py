@@ -22,9 +22,6 @@ def load_manifest(manifest_path: str) -> dict[str, Any]:
     settings.setdefault("reference_structure", None)
     settings.setdefault("output_path", "./outputs")
 
-    os.makedirs(settings["output_path"], exist_ok=True)
-
-    shutil.copy2(manifest_path, settings["output_path"] + "/manifest.json")
     settings.setdefault("debug_logs", False)
     settings.setdefault("debug_tracking", False)
     settings.setdefault("verbose", False)
@@ -60,6 +57,12 @@ def load_manifest(manifest_path: str) -> dict[str, Any]:
     settings.setdefault("max_gap_helix", 0)
 
     settings.setdefault("output_structures", False)
+
+    os.makedirs(settings["output_path"], exist_ok=True)
+    with open(f'{settings["output_path"]}/manifest.json', "w") as f:
+        json.dump(data, f, indent=4)
+    # shutil.copy2(manifest_path, settings["output_path"] + "/manifest.json")
+
     return data
 
 

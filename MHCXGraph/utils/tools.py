@@ -1102,13 +1102,6 @@ def get_memory_usage_mb():
     process = psutil.Process(os.getpid())
     return process.memory_info().rss / (1024 ** 2)
 
-def write_json_raw(path, data):
-    """
-    Salva dados em JSON bruto, indentado.
-    """
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2)
-
 def execute_step(
     step_idx: int,
     graph_collection,
