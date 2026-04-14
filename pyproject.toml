@@ -56,7 +56,6 @@ dependencies = [
     "pydssp>=0.9.1",
     "freesasa>=2.2.1",
     "seaborn>=0.13.2",
-    "scipy>=1.17.1",
 ]
 dynamic = ["version"]
 
