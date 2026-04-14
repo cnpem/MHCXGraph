@@ -81,7 +81,7 @@ docs = [
 include-package-data = true
 
 [tool.setuptools.package-data]
-MHCXGraph = ["assets/*.js"]
+MHCXGraph = ["assets/**"]
 
 [tool.setuptools.packages.find]
 where = ["."]
