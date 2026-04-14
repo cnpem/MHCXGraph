@@ -33,7 +33,7 @@ Citing
 
 If you use **MHCXGraph** in your reserach, please cite the following references:
 
-* (manuscript in preparation) 
+Santos Simões, C. D. M., Riveros Maidana, R. L. B., de Assis, S. C., Guerra, J. V. S., & Ribeiro-Filho, H. V. (2026). MHCXGraph: A Graph-Based approach to detecting T cell receptor cross-reactivity. https://doi.org/10.64898/2026.04.07.717034
 
 Funding
 =======
