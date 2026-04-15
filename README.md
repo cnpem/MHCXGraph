@@ -28,8 +28,24 @@ pip install -e MHCXGraph
 
 ## Quick Start
 
-MHCXGraph is configured via a JSON manifest file. An example is in
-`examples/manifests/manifest-minimal.json`. To run it:
+MHCXGraph is configured via a JSON manifest file. Download and extract the examples package:
+
+**Linux / macOS**
+```bash
+wget https://github.com/cnpem/MHCXGraph/releases/download/0.1.2/examples.tar.gz
+tar -xzf examples.tar.gz
+```
+
+**Windows (PowerShell)**
+```powershell
+Invoke-WebRequest -Uri https://github.com/cnpem/MHCXGraph/releases/download/0.1.2/examples.zip -OutFile examples.zip
+Expand-Archive examples.zip
+```
+
+Or download directly: [Linux/macOS (.tar.gz)](https://github.com/cnpem/MHCXGraph/releases/download/0.1.2/examples.tar.gz) · [Windows (.zip)](https://github.com/cnpem/MHCXGraph/releases/download/0.1.2/examples.zip)
+
+The example manifest is at `examples/manifests/manifest-minimal.json`. To run it:
+
 ```bash
 MHCXGraph run examples/manifests/manifest-minimal.json
 ```
