@@ -92,13 +92,20 @@ def secondary_structure(G, **ctx):
     for nid, data in G.nodes(data=True):
         if data.get("kind") == "water":
             continue
+        try:
+            ss_val = ss_map[nid]
+        except KeyError:
+            log.warning(f"pyDSSP could not assign a secondary structure to residue: {nid}")
+            ss_val = None
+        except Exception as e:
+            log.warning(e)
+            ss_val = None
 
-        ss_val = ss_map[nid]
         if ss_val is not None and ss_val == ' ':
             ss_val = '-'
         G.nodes[nid]["ss"] = ss_val
 
-    ss_vals = [d.get("ss") for _, d in G.nodes(data=True) if d.get("kind") != "water"]
+    ss_vals = [d.get("ss") for _, d in G.nodes(data=True) if d.get("kind") not in ["water", "ligand"]]
     counts = {}
 
     for s in ss_vals:
