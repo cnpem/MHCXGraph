@@ -299,15 +299,10 @@ function handleTreeChange() {
 
 function handleGridTreeChange(pairKey) {
     let pData = masterData.pairs[pairKey];
-    let dsNodes = gridNodesDatasets[pairKey]; let dsEdges = gridEdgesDatasets[pairKey];
-    if (!dsNodes || !dsEdges) return;
 
-    if (dsNodes.length !== pData.nodes.length) {
-        dsNodes.clear(); dsEdges.clear();
-        dsNodes.add(pData.nodes.map(n => ({...n, label: '<b>'+n.label+'</b>', font: { color: themeText }})));
-        dsEdges.add(pData.edges.map(e => ({...e, color: {color: getCSSVar('--edge-default'), opacity: 0.8}, width: optEdgeWidth})));
-    }
-
+    /* Compute and cache active node set first — must run even if the pair's
+     * vis-network is not currently instantiated (lazy mode), so that when
+     * it loads later it picks up the correct selection. */
     let activeIds = new Set();
     let checkboxes = document.querySelectorAll(`.tree-cb-grid[data-pair="${pairKey}"]:checked`);
     checkboxes.forEach(cb => {
@@ -316,9 +311,17 @@ function handleGridTreeChange(pairKey) {
         else if (parts[0] === 'comp') { let c = pData.components.find(c => c.id === parseInt(parts[1])); if(c) c.node_ids.forEach(id => activeIds.add(id)); } 
         else if (parts[0] === 'frame') { let c = pData.components.find(c => c.id === parseInt(parts[1])); if(c) { let f = c.frames.find(f => f.id === parseInt(parts[2])); if(f) f.node_ids.forEach(id => activeIds.add(id)); } }
     });
-    
     if (!window.gridActiveNodes) window.gridActiveNodes = {};
     window.gridActiveNodes[pairKey] = activeIds;
+
+    let dsNodes = gridNodesDatasets[pairKey]; let dsEdges = gridEdgesDatasets[pairKey];
+    if (!dsNodes || !dsEdges) return;   /* pair not loaded yet; selection cached above */
+
+    if (dsNodes.length !== pData.nodes.length) {
+        dsNodes.clear(); dsEdges.clear();
+        dsNodes.add(pData.nodes.map(n => ({...n, label: '<b>'+n.label+'</b>', font: { color: themeText }})));
+        dsEdges.add(pData.edges.map(e => ({...e, color: {color: getCSSVar('--edge-default'), opacity: 0.8}, width: optEdgeWidth})));
+    }
 
     applyGraphFiltersGrid(pairKey, activeIds, dsNodes, dsEdges, pData);
     update3DViewerGridForPair(pairKey);

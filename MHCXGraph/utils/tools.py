@@ -1156,7 +1156,9 @@ def execute_step(
 
     num_items = len(source)
     chunks = [source[i:i + max_chunks] for i in range(0, num_items, max_chunks)]
-
+    if len(chunks) >= 2 and len(chunks[-1]) == 1:
+        chunks[-2] = chunks[-2] + chunks[-1]
+        chunks.pop()
     new_filtered_cross_combos = []
     all_step_graphs = []
 
@@ -1488,11 +1490,17 @@ def association_product(graphs_data: list,
     matrices_dict["dm_induced"] = dm_induced
 
     qtd_graphs = len(graph_collection["graphs"])
-    n = qtd_graphs
 
+    def count_chunks(num_items: int, mc: int) -> int:
+        n_chunks = (num_items + mc - 1) // mc
+        if n_chunks >= 2 and num_items % mc == 1:
+            n_chunks -= 1
+        return n_chunks
+
+    n = qtd_graphs
     steps = 0
     while n > 1:
-        n = (n + max_chunks - 1) // max_chunks
+        n = count_chunks(n, max_chunks)
         steps += 1
 
     filtered_cross_combos = []
@@ -1524,11 +1532,12 @@ def association_product(graphs_data: list,
         if step_idx == steps:
             final_graphs.extend(step_graphs)
 
+
+            
     steps_execution_time_end = time.perf_counter()
 
     log.info(f"Finished executing all steps in {steps_execution_time_end - steps_execution_time_start:.3f}s.")
     save("association_product", "Graphs", final_graphs)
-
     return {
         "AssociatedGraph": final_graphs
     }

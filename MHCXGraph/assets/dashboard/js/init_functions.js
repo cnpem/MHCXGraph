@@ -232,16 +232,18 @@ function initUploads() {
 function initHierarchy() {
     const tree = document.getElementById('hierarchy-tree'); let html = '';
     if(!graphData || !graphData.components) return;
+    const nCountBadge = (n) => `<span style="font-size: 10px; color: var(--text-muted); margin-left: 6px;">[${n} nodes]</span>`;
     graphData.components.forEach(comp => {
         if (comp.id === 0) {
-            html += `<div class="tree-item tree-level-1"><span class="collapse-toggle" style="visibility:hidden;"></span><label><input type="checkbox" class="tree-cb" value="global" checked onchange="handleTreeChange()"> 🌐 Global Associated Graph</label></div>`;
+            html += `<div class="tree-item tree-level-1"><span class="collapse-toggle" style="visibility:hidden;"></span><label><input type="checkbox" class="tree-cb" value="global" checked onchange="handleTreeChange()"> 🌐 Global Associated Graph${nCountBadge((comp.node_ids||[]).length || graphData.nodes.length)}</label></div>`;
         } else {
             const hasFrames = comp.frames.some(f => f.id !== 0);
             const toggleBtn = hasFrames ? `<span class="collapse-toggle" onclick="toggleComp('comp_${comp.id}_frames', this)">▼</span>` : `<span class="collapse-toggle" style="visibility:hidden;"></span>`;
-            html += `<div class="tree-item tree-level-2">${toggleBtn}<label><input type="checkbox" class="tree-cb" value="comp_${comp.id}" onchange="handleTreeChange()"> 📦 Component ${comp.id}</label></div>`;
+            const compN = (comp.node_ids || []).length;
+            html += `<div class="tree-item tree-level-2">${toggleBtn}<label><input type="checkbox" class="tree-cb" value="comp_${comp.id}" onchange="handleTreeChange()"> 📦 Component ${comp.id}${nCountBadge(compN)}</label></div>`;
             if (hasFrames) {
                 html += `<div id="comp_${comp.id}_frames" style="display:block;">`;
-                comp.frames.forEach(frame => { if (frame.id !== 0) html += `<div class="tree-item tree-level-3"><span class="collapse-toggle" style="visibility:hidden;"></span><label><input type="checkbox" class="tree-cb" value="frame_${comp.id}_${frame.id}" onchange="handleTreeChange()"> ↳ Frame ${frame.id}</label></div>`; });
+                comp.frames.forEach(frame => { if (frame.id !== 0) html += `<div class="tree-item tree-level-3"><span class="collapse-toggle" style="visibility:hidden;"></span><label><input type="checkbox" class="tree-cb" value="frame_${comp.id}_${frame.id}" onchange="handleTreeChange()"> ↳ Frame ${frame.id}${nCountBadge((frame.node_ids||[]).length)}</label></div>`; });
                 html += `</div>`;
             }
         }
@@ -258,20 +260,23 @@ function initHierarchy() {
 function initHierarchyGrid() {
     const tree = document.getElementById('hierarchy-tree'); let html = '';
     if (!masterData.pairs) return;
+    const nCountBadge = (n) => `<span style="font-size: 10px; color: var(--text-muted); margin-left: 6px;">[${n} nodes]</span>`;
     Object.keys(masterData.pairs).forEach(pairKey => {
         let pData = masterData.pairs[pairKey]; let pkSafe = pairKey.replace(/[^a-zA-Z0-9]/g, '_');
-        html += `<div class="tree-item tree-level-1" style="background: var(--bg-control); border: 1px solid var(--border); margin-top: 10px;"><span class="collapse-toggle" onclick="toggleComp('grid_${pkSafe}', this)">▼</span><label style="color: var(--btn-bg);"><b>${pairKey.replace('_vs_', ' vs ')}</b></label></div>`;
+        const pairN = (pData.nodes || []).length;
+        html += `<div class="tree-item tree-level-1" style="background: var(--bg-control); border: 1px solid var(--border); margin-top: 10px;"><span class="collapse-toggle" onclick="toggleComp('grid_${pkSafe}', this)">▼</span><label style="color: var(--btn-bg);"><b>${pairKey.replace('_vs_', ' vs ')}</b>${nCountBadge(pairN)}</label></div>`;
         html += `<div id="grid_${pkSafe}" style="display:block; padding-left: 10px; border-left: 2px solid var(--border-light); margin-left: 5px;">`;
         
         pData.components.forEach(comp => {
-            if (comp.id === 0) html += `<div class="tree-item tree-level-1"><span class="collapse-toggle" style="visibility:hidden;"></span><label><input type="checkbox" class="tree-cb-grid" data-pair="${pairKey}" value="global" checked onchange="handleGridTreeChange('${pairKey}')"> 🌐 Global Associated Graph</label></div>`;
+            if (comp.id === 0) html += `<div class="tree-item tree-level-1"><span class="collapse-toggle" style="visibility:hidden;"></span><label><input type="checkbox" class="tree-cb-grid" data-pair="${pairKey}" value="global" checked onchange="handleGridTreeChange('${pairKey}')"> 🌐 Global Associated Graph${nCountBadge((comp.node_ids||[]).length || pairN)}</label></div>`;
             else {
                 const hasFrames = comp.frames.some(f => f.id !== 0);
                 const toggleBtn = hasFrames ? `<span class="collapse-toggle" onclick="toggleComp('grid_${pkSafe}_comp_${comp.id}_frames', this)">▼</span>` : `<span class="collapse-toggle" style="visibility:hidden;"></span>`;
-                html += `<div class="tree-item tree-level-2">${toggleBtn}<label><input type="checkbox" class="tree-cb-grid" data-pair="${pairKey}" value="comp_${comp.id}" onchange="handleGridTreeChange('${pairKey}')"> 📦 Component ${comp.id}</label></div>`;
+                const compN = (comp.node_ids || []).length;
+                html += `<div class="tree-item tree-level-2">${toggleBtn}<label><input type="checkbox" class="tree-cb-grid" data-pair="${pairKey}" value="comp_${comp.id}" onchange="handleGridTreeChange('${pairKey}')"> 📦 Component ${comp.id}${nCountBadge(compN)}</label></div>`;
                 if (hasFrames) {
                     html += `<div id="grid_${pkSafe}_comp_${comp.id}_frames" style="display:block;">`;
-                    comp.frames.forEach(frame => { if (frame.id !== 0) html += `<div class="tree-item tree-level-3"><span class="collapse-toggle" style="visibility:hidden;"></span><label><input type="checkbox" class="tree-cb-grid" data-pair="${pairKey}" value="frame_${comp.id}_${frame.id}" onchange="handleGridTreeChange('${pairKey}')"> ↳ Frame ${frame.id}</label></div>`; });
+                    comp.frames.forEach(frame => { if (frame.id !== 0) html += `<div class="tree-item tree-level-3"><span class="collapse-toggle" style="visibility:hidden;"></span><label><input type="checkbox" class="tree-cb-grid" data-pair="${pairKey}" value="frame_${comp.id}_${frame.id}" onchange="handleGridTreeChange('${pairKey}')"> ↳ Frame ${frame.id}${nCountBadge((frame.node_ids||[]).length)}</label></div>`; });
                     html += `</div>`;
                 }
             }
