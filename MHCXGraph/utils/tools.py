@@ -2100,7 +2100,7 @@ def create_graph(edges_dict: dict,
                 )
 
             chain_color_map = {}
-            color_palette = plt.cm.get_cmap('tab10', 20)
+            color_palette = plt.colormaps['tab20']
             color_counter = 1
 
             if typeEdge == "edges_residues":
