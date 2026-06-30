@@ -23,7 +23,7 @@ from MHCXGraph.core.subgraphs import extract_subgraph
 from MHCXGraph.utils.logging_utils import get_log
 from MHCXGraph.utils.pyvis_inject import inject_fullscreen_css, inject_std_hover
 from MHCXGraph.utils.tools import association_product
-
+import random
 log = get_log()
 
 
@@ -440,7 +440,10 @@ class AssociatedGraph:
         graphs_data : list[GraphData]
             Structured metadata describing each input graph.
         """
-
+        
+        random.seed(7)
+        random.shuffle(self.graphs)
+        input(self.graphs)
         graphs_data = []
         for i, (g, pdb_file, name) in enumerate(self.graphs):
             contact_map = g.graph["contact_map"]
