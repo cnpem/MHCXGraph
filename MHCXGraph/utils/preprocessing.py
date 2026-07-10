@@ -642,33 +642,67 @@ def resolve_selection_params_for_file(file_path: Path, manifest: dict[str, Any])
     return merged
 
 
-def create_graphs(manifest: dict) -> list[tuple]:
+class GraphSpec:
+    """A deferred subgraph build.
+
+    Carries everything needed to materialize one filtered subgraph, but
+    builds nothing until .build() is called. Exposes .path/.name so callers
+    can identify a protein without paying its construction cost.
+
+    Indexing mirrors the old (subgraph, path, base_name) tuple after build,
+    so clean_graph_name(spec) and spec[1] keep working unchanged.
     """
-    Construct filtered graphs from the manifest input structures.
+    def __init__(self, orig_path, base_name, graph_config, settings,
+                 output_path, selection_params):
+        self.orig_path = orig_path
+        self.base_name = base_name
+        self._config = graph_config
+        self._settings = settings
+        self._output_path = output_path
+        self._selection_params = selection_params
 
-    The function loads structure files, builds graph representations,
-    applies residue selection filters, and stores intermediate outputs.
+    # keep clean_graph_name(spec) working: it reads graph[1] (the path)
+    def __getitem__(self, i):
+        return (None, str(self.orig_path), self.base_name)[i]
 
-    Parameters
-    ----------
-    manifest : dict
-        Manifest configuration dictionary containing runtime settings
-        and input selection rules.
+    def build(self) -> nx.Graph:
+        graph_instance = Graph(config=self._config, graph_path=str(self.orig_path))
+        subgraph = get_exposed_residues(
+            graph=graph_instance,
+            rsa_filter=self._settings.get("rsa_filter"),
+            asa_filter=self._settings.get("asa_filter"),
+            selection_params=self._selection_params or {},
+        )
+        graph_instance.save_filtered_pdb(
+            g=subgraph,
+            output_path=self._output_path / "filtered_graphs",
+            name=f"{self.base_name}_filtered",
+            use_cif=True,
+        )
+        # returned shape matches the old tuple exactly
+        return (subgraph, str(self.orig_path), self.base_name)
+
+
+def create_graphs(manifest: dict) -> list[GraphSpec]:
+    """
+    Construct deferred subgraph builders from the manifest input structures.
+
+    Rather than building every subgraph up front (which makes resident memory
+    grow linearly with the number of proteins), this returns one GraphSpec per
+    file. Callers decide when to materialize: 'multiple' builds all of them,
+    'pairwise'/'screening' build one or two at a time.
 
     Returns
     -------
-    graphs : list[tuple]
-        List of tuples containing the filtered graph, original file path,
-        and base structure name.
+    list[GraphSpec]
+        One deferred builder per selected input structure.
     """
-
     settings = manifest["settings"]
 
     output_path = Path(settings["output_path"]).expanduser().resolve()
     log.vinfo(f"Trying to create output directory in {output_path}", "Creating output diretory")
     output_path.mkdir(parents=True, exist_ok=True)
 
-    # Retrieve the list of files passed via manifest.
     selected_files = collect_selected_files_from_manifest(manifest)
     if not selected_files:
         msg = "None file was selected from manifest."
@@ -681,45 +715,100 @@ def create_graphs(manifest: dict) -> list[tuple]:
         include_waters=settings["include_waters"],
         include_ligands=settings["include_ligands"],
         include_noncanonical_residues=settings["include_noncanonical_residues"],
-        max_gap_helix=settings["max_gap_helix"]
+        max_gap_helix=settings["max_gap_helix"],
     )
 
-    graphs: list[tuple] = []
-    start = time.perf_counter()
+    specs: list[GraphSpec] = []
     for file_info in selected_files:
         orig_path = Path(file_info["input_path"]).resolve()
- 
-        graph_instance = Graph(config=graph_config, graph_path=str(orig_path))
-        selection_params = resolve_selection_params_for_file(orig_path, manifest)
+        specs.append(GraphSpec(
+            orig_path=orig_path,
+            base_name=Path(orig_path).stem,
+            graph_config=graph_config,
+            settings=settings,
+            output_path=output_path,
+            selection_params=resolve_selection_params_for_file(orig_path, manifest),
+        ))
+    return specs
 
-        subgraph = get_exposed_residues(
-            graph=graph_instance,
-            rsa_filter=settings.get("rsa_filter"),
-            asa_filter=settings.get("asa_filter"),
-            selection_params=selection_params or {},
-        )
+# def create_graphs(manifest: dict) -> list[tuple]:
+#     """
+#     Construct filtered graphs from the manifest input structures.
 
-        sub_dir = output_path / "filtered_graphs"
-        base_name = Path(orig_path).stem
-        # graph_instance.save_subgraph_view(
-        #     g=subgraph,
-        #     output_dir=sub_dir,
-        #     name=f"{base_name}_filtered",
-        #     with_html=True,
-        # )
+#     The function loads structure files, builds graph representations,
+#     applies residue selection filters, and stores intermediate outputs.
 
-        graph_instance.save_filtered_pdb(
-            g=subgraph,
-            output_path=sub_dir,
-            name=f"{base_name}_filtered",
-            use_cif=True
-        )
+#     Parameters
+#     ----------
+#     manifest : dict
+#         Manifest configuration dictionary containing runtime settings
+#         and input selection rules.
+
+#     Returns
+#     -------
+#     graphs : list[tuple]
+#         List of tuples containing the filtered graph, original file path,
+#         and base structure name.
+#     """
+
+#     settings = manifest["settings"]
+
+#     output_path = Path(settings["output_path"]).expanduser().resolve()
+#     log.vinfo(f"Trying to create output directory in {output_path}", "Creating output diretory")
+#     output_path.mkdir(parents=True, exist_ok=True)
+
+#     # Retrieve the list of files passed via manifest.
+#     selected_files = collect_selected_files_from_manifest(manifest)
+#     if not selected_files:
+#         msg = "None file was selected from manifest."
+#         log.warning(msg)
+#         raise Exception(msg)
+
+#     graph_config = make_default_config(
+#         edge_threshold=settings["edge_threshold"],
+#         granularity=settings["node_granularity"],
+#         include_waters=settings["include_waters"],
+#         include_ligands=settings["include_ligands"],
+#         include_noncanonical_residues=settings["include_noncanonical_residues"],
+#         max_gap_helix=settings["max_gap_helix"]
+#     )
+
+#     graphs: list[tuple] = []
+#     start = time.perf_counter()
+#     for file_info in selected_files:
+#         orig_path = Path(file_info["input_path"]).resolve()
+#  
+#         graph_instance = Graph(config=graph_config, graph_path=str(orig_path))
+#         selection_params = resolve_selection_params_for_file(orig_path, manifest)
+
+#         subgraph = get_exposed_residues(
+#             graph=graph_instance,
+#             rsa_filter=settings.get("rsa_filter"),
+#             asa_filter=settings.get("asa_filter"),
+#             selection_params=selection_params or {},
+#         )
+
+#         sub_dir = output_path / "filtered_graphs"
+#         base_name = Path(orig_path).stem
+#         # graph_instance.save_subgraph_view(
+#         #     g=subgraph,
+#         #     output_dir=sub_dir,
+#         #     name=f"{base_name}_filtered",
+#         #     with_html=True,
+#         # )
+
+#         graph_instance.save_filtered_pdb(
+#             g=subgraph,
+#             output_path=sub_dir,
+#             name=f"{base_name}_filtered",
+#             use_cif=True
+#         )
 
 
-        save("create_graphs", f"{output_path.stem}_subgraph", subgraph)
-        graphs.append((subgraph, str(orig_path), base_name))
+#         save("create_graphs", f"{output_path.stem}_subgraph", subgraph)
+#         graphs.append((subgraph, str(orig_path), base_name))
 
-    end = time.perf_counter()
+#     end = time.perf_counter()
 
-    log.vinfo(f"Took {end - start:.6f} seconds to create graphs")
-    return graphs
+#     log.vinfo(f"Took {end - start:.6f} seconds to create graphs")
+#     return graphs

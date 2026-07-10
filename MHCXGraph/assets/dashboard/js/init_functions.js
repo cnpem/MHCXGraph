@@ -97,6 +97,35 @@ function initAdvancedOptions() {
         if(network) network.setOptions({ edges: { smooth: !e.target.checked } });
         gridNetworks.forEach(n => n.network.setOptions({ edges: { smooth: !e.target.checked } }));
     });
+
+    // --- 3D visualization controls ---
+    const repEl = document.getElementById('optRepresentation');
+    if (repEl) repEl.addEventListener('change', function(e) {
+        optRepresentation = e.target.value;
+        // Representation (esp. surface) changes need a full viewer rebuild.
+        triggerRebuild();
+    });
+
+    const opEl = document.getElementById('optMolOpacity');
+    if (opEl) opEl.addEventListener('input', function(e) {
+        optMolOpacity = parseFloat(e.target.value);
+        document.getElementById('valMolOpacity').innerText = optMolOpacity.toFixed(2);
+        // Surface opacity can't be restyled in place; rebuild for surface only.
+        if (optRepresentation === 'surface') triggerRebuild();
+        else update3DViewerOrGrid();
+    });
+
+    const waterEl = document.getElementById('optShowWaters');
+    if (waterEl) waterEl.addEventListener('change', function(e) {
+        optShowWaters = e.target.checked;
+        triggerRebuild();
+    });
+
+    const waterColEl = document.getElementById('optWaterColor');
+    if (waterColEl) waterColEl.addEventListener('input', function(e) {
+        optWaterColor = e.target.value;
+        triggerRebuild();
+    });
 }
 
 

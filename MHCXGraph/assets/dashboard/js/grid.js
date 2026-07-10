@@ -440,7 +440,7 @@ function loadMolForPair(pairKey) {
                     canvasWrapper.addEventListener('wheel', () => { window.activeMolViewer = v; }, { passive: true });
                     if (loadedModels[idx]) {
                         v.addModel(loadedModels[idx].text, loadedModels[idx].format);
-                        v.setStyle({}, { cartoon: { colorfunc: (atom) => get3DColor(atom.chain, idx) } });
+                        applyMolStyle(v, {}, (atom) => get3DColor(atom.chain, idx));
                         v.zoomTo();
                     }
                     v.pairKey = pairKey; v.protIdxs = [idx]; viewers.push(v);
@@ -466,7 +466,7 @@ function loadMolForPair(pairKey) {
                 [p1_idx, p2_idx].forEach(idx => {
                     if (loadedModels[idx]) {
                         const mObj = v.addModel(loadedModels[idx].text, loadedModels[idx].format);
-                        v.setStyle({ model: mObj.getID() }, { cartoon: { colorfunc: (atom) => get3DColor(atom.chain, idx) } });
+                        applyMolStyle(v, { model: mObj.getID() }, (atom) => get3DColor(atom.chain, idx));
                         hasMol = true;
                     }
                 });

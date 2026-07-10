@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import webbrowser
@@ -172,6 +173,46 @@ window.addEventListener('DOMContentLoaded', () => {
         out.write(final_html)
     log.info(f"Interactive Dashboard saved to {full_path}")
 
+
+def write_master_json(export_data, output_dir, log):
+    """Write the raw dashboard payload as a standalone JSON file.
+
+    This is the same ``master_export`` structure the dashboard consumes
+    (``__GRAPH_DATA_JS_INJECTION__``), so a dashboard can be regenerated from
+    it later. Written when dashboard generation is disabled — or always, if you
+    want the data decoupled from the HTML. Cheap: a single json.dump, no asset
+    loading and no template string assembly.
+    """
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    actual_mode = export_data.get("actual_mode", export_data.get("mode"))
+    if actual_mode == "screening":
+        file_name = "graph_data_screening.json"
+    elif export_data.get("mode") == "pairwise":
+        file_name = "graph_data_pairwise.json"
+    else:
+        file_name = "graph_data_multiple.json"
+
+    full_path = output_dir / file_name
+    with open(str(full_path), "w", encoding="utf-8") as out:
+        json.dump(export_data, out)
+    log.info(f"Graph data JSON saved to {full_path}")
+    return full_path
+
+
+def emit_output(export_data, output_dir, generate_dashboard, log):
+    """Route the assembled payload to HTML dashboard and/or raw JSON.
+
+    generate_dashboard=True  -> build the self-contained HTML (default).
+    generate_dashboard=False -> write only the JSON payload (fast, no assets).
+    """
+    if generate_dashboard:
+        create_master_dashboard(export_data, output_dir, log)
+    else:
+        write_master_json(export_data, output_dir, log)
+
+
 def setup_trackers(output_dir, settings):
     """
     Initialize runtime tracking utilities.
@@ -210,7 +251,7 @@ def setup_trackers(output_dir, settings):
     return tracker_residues
 
 
-def run_multiple_mode(graphs, base_output, run_name, config, log):
+def run_multiple_mode(specs, base_output, run_name, config, log, generate_dashboard=True):
     """
     Execute the association workflow in multiple-graphs mode.
 
@@ -241,6 +282,8 @@ def run_multiple_mode(graphs, base_output, run_name, config, log):
     """
     target_dir = base_output / "MULTIPLE"
 
+    graphs = [s.build() for s in specs] 
+
     G = run_association_task(
         graphs=graphs,
         output_path=target_dir,
@@ -251,14 +294,14 @@ def run_multiple_mode(graphs, base_output, run_name, config, log):
 
     if G and G.associated_graphs is not None:
         global_proteins = [clean_graph_name(g) for g in graphs]
-        
+
         master_export = G.get_dashboard_data(global_proteins)
-        
+
         master_export["mode"] = "multiple"
         master_export["run_name"] = run_name
         master_export["metadata"] = config
-        
-        create_master_dashboard(master_export, target_dir, log)
+
+        emit_output(master_export, target_dir, generate_dashboard, log)
 
 
 def clean_graph_name(graph):
@@ -267,7 +310,7 @@ def clean_graph_name(graph):
     return name.replace("_nOH", "")
 
 
-def run_pairwise_mode(graphs, base_output, run_name, config, log):
+def run_pairwise_mode(specs, base_output, run_name, config, log, generate_dashboard=True):
     """
     Execute the association workflow in pairwise mode.
 
@@ -298,39 +341,59 @@ def run_pairwise_mode(graphs, base_output, run_name, config, log):
     """
     pair_base_dir = base_output / "PAIRWISE"
 
-    global_proteins = [clean_graph_name(g) for g in graphs]
+    global_proteins = [clean_graph_name(s) for s in specs]
 
     master_export = {
         "mode": "pairwise",
         "run_name": run_name,
         "metadata": config,
         "proteins": global_proteins,
-        "protein_paths": [str(Path(g[1]).resolve()) for g in graphs],
+        "protein_paths": [str(Path(g[1]).resolve()) for g in specs],
+        # Each protein's filtered graph is identical across every pair it
+        # appears in. Store it ONCE here (keyed by protein name) instead of
+        # duplicating it into every pair's payload — that duplication was the
+        # main driver of the linear/superlinear RAM growth.
+        "filtered_graphs": {},
         "pairs": {}
     }
 
-    for g1, g2 in combinations(graphs, 2):
+    n = len(specs)
+    for i in range(n):
+        g1 = specs[i].build()          # pinned across the whole inner sweep
         name1 = clean_graph_name(g1)
-        name2 = clean_graph_name(g2)
 
-        pair_folder = f"{name1}_vs_{name2}"
-        pair_key = f"{name1}_vs_{name2}"
-        pair_run_name = f"{run_name}_{name1}_{name2}"
+        for j in range(i + 1, n):
+            g2 = specs[j].build()      # built, used, dropped
+            name2 = clean_graph_name(g2)
 
-        G = run_association_task(
-            graphs=[g1, g2],
-            output_path=pair_base_dir / pair_folder,
-            run_name=pair_run_name,
-            association_config=config,
-            log=log,
-        )
-        if G and G.associated_graphs is not None:
-            master_export["pairs"][pair_key] = G.get_dashboard_data(global_proteins)
+            pair_key = f"{name1}_vs_{name2}"
+            G = run_association_task(
+                graphs=[g1, g2],
+                output_path=pair_base_dir / pair_key,
+                run_name=f"{run_name}_{name1}_{name2}",
+                association_config=config,
+                log=log,
+            )
+            if G and G.associated_graphs is not None:
+                # Pair payload WITHOUT the redundant per-protein filtered graphs.
+                master_export["pairs"][pair_key] = G.get_dashboard_data(
+                    global_proteins, include_filtered_graphs=False
+                )
+                # Store each protein's filtered graph exactly once.
+                for prot_idx, gd in enumerate(G.graphs_data):
+                    pname = gd["name"]
+                    if pname not in master_export["filtered_graphs"]:
+                        model_idx = global_proteins.index(pname)
+                        master_export["filtered_graphs"][pname] = \
+                            G.get_filtered_graph_data(prot_idx, model_idx)
 
-    create_master_dashboard(master_export, pair_base_dir, log)
+            del g2
 
+        del g1
 
-def run_screening_mode(ref_graph, target_graphs, base_output, run_name, config, log):
+    emit_output(master_export, pair_base_dir, generate_dashboard, log)
+
+def run_screening_mode(ref_spec, target_specs, base_output, run_name, config, log, generate_dashboard=True):
     """
     Execute the association workflow in screening mode (1-vs-All).
 
@@ -363,16 +426,18 @@ def run_screening_mode(ref_graph, target_graphs, base_output, run_name, config, 
     -------
     None
     """
-    if not target_graphs:
+    if not target_specs:
         log.error("Screening mode requires at least 1 target graph alongside the reference.")
         return
 
     screening_base_dir = base_output / "SCREENING"
+
+    ref_graph = ref_spec.build()
     ref_name = clean_graph_name(ref_graph)
- 
-    # Reconstruct the global graph list to pass to get_dashboard_data
-    all_graphs = [ref_graph] + target_graphs
-    global_proteins = [clean_graph_name(g) for g in all_graphs]
+
+    all_specs = [ref_spec, *list(target_specs)]
+    global_proteins = [clean_graph_name(s) for s in all_specs]
+
 
     master_export = {
         "mode": "pairwise",
@@ -381,13 +446,15 @@ def run_screening_mode(ref_graph, target_graphs, base_output, run_name, config, 
         "run_name": run_name,
         "metadata": config,
         "proteins": global_proteins,
-        "protein_paths": [str(Path(g[1]).resolve()) for g in all_graphs],
+        "protein_paths": [str(Path(g[1]).resolve()) for g in all_specs],
+        "filtered_graphs": {},
         "pairs": {}
     }
 
 
-    for target_graph in target_graphs:
-        target_name = clean_graph_name(target_graph)
+    for target_spec in target_specs:
+        target_graph = target_spec.build()
+        target_name = clean_graph_name(target_spec)
 
         pair_folder = f"{ref_name}_vs_{target_name}"
         pair_key = f"{ref_name}_vs_{target_name}"
@@ -401,9 +468,21 @@ def run_screening_mode(ref_graph, target_graphs, base_output, run_name, config, 
             log=log,
         )
         if G and G.associated_graphs is not None:
-            master_export["pairs"][pair_key] = G.get_dashboard_data(global_proteins)
+            master_export["pairs"][pair_key] = G.get_dashboard_data(
+                global_proteins, include_filtered_graphs=False
+            )
+            for prot_idx, gd in enumerate(G.graphs_data):
+                pname = gd["name"]
+                if pname not in master_export["filtered_graphs"]:
+                    model_idx = global_proteins.index(pname)
+                    master_export["filtered_graphs"][pname] = \
+                        G.get_filtered_graph_data(prot_idx, model_idx)
 
-    create_master_dashboard(master_export, screening_base_dir, log)
+        del target_graph
+
+        del target_graph
+
+    emit_output(master_export, screening_base_dir, generate_dashboard, log)
 
 
 def run(args):
@@ -428,42 +507,49 @@ def run(args):
     tracker_residues = setup_trackers(output_dir=output_dir, settings=settings)
     association_config = build_association_config(settings, run_mode, tracker_residues)
 
-    graphs = create_graphs(manifest)
+    # Dashboard HTML generation is on by default. Set to False in the manifest
+    # to skip the (relatively expensive) HTML assembly and write only the raw
+    # graph_data JSON, from which a dashboard can be regenerated later.
+    generate_dashboard = settings.get("generate_dashboard", True)
+
+    specs = create_graphs(manifest)
 
     if run_mode == "multiple":
-        run_multiple_mode(graphs, base_output, run_name, association_config, log)
+        run_multiple_mode(specs, base_output, run_name, association_config, log, generate_dashboard)
     elif run_mode == "pairwise":
-        run_pairwise_mode(graphs, base_output, run_name, association_config, log)
+        run_pairwise_mode(specs, base_output, run_name, association_config, log, generate_dashboard)
     elif run_mode == "screening":
         ref_name = settings.get("reference_structure")
         if not ref_name:
             raise ValueError("Screening mode requires 'reference_structure' to be defined in the manifest settings.")
         
-        ref_graph = next((g for g in graphs if clean_graph_name(g) == ref_name), None)
+        ref_spec = next((s for s in specs if clean_graph_name(s) == ref_name), None)
 
-        if not ref_graph:
+        if not ref_spec:
             raise ValueError(f"Reference structure '{ref_name}' not found among the input graphs.")
 
-        target_graphs = [g for g in graphs if clean_graph_name(g) != ref_name]
+        target_specs = [s for s in specs if clean_graph_name(s) != ref_name]
 
-        run_screening_mode(ref_graph, target_graphs, base_output, run_name, association_config, log)
+        run_screening_mode(ref_spec, target_specs, base_output, run_name, association_config, log, generate_dashboard)
 
     if tracker_residues:
         out_path = tracker_residues.dump_json()
         log.info(f"Residue tracking report saved to: {out_path}")
 
-    if args.dashboard:
+    if args.dashboard and generate_dashboard:
         log.info("Opening dashboard in the default web browser...")
         dash_path = None
         if run_mode == "multiple":
             dash_path = base_output / "MULTIPLE" / "Dashboard_Multiple.html"
         elif run_mode == "pairwise":
-            dash_path = base_output / "PAIRWISE" / "Dashboard_Pairs.html"
+            dash_path = base_output / "PAIRWISE" / "Dashboard_Pairwise.html"
         elif run_mode == "screening":
-            dash_path = base_output / "SCREENING" / "Dashboard_Pairwise.html"
+            dash_path = base_output / "SCREENING" / "Dashboard_Screening.html"
 
-        if dash_path.exists():
+        if dash_path and dash_path.exists():
             webbrowser.open(f"file://{dash_path.resolve()}")
+    elif args.dashboard and not generate_dashboard:
+        log.info("Dashboard generation disabled (generate_dashboard=false); only JSON was written.")
 
 
 def renumber(args):

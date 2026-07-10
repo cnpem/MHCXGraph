@@ -33,6 +33,15 @@ let currentGraphMode = 'associated';
 let activeFilteredProtIdx = 0;
 
 let optNodeSize = 18, optLabelSize = 22, optEdgeWidth = 1.0, optSpringLen = 150;
+
+// --- 3D molecular visualization state ---
+// Water residue names 3DMol will recognize for sphere rendering.
+const WATER_RESN = ['HOH', 'WAT', 'H2O', 'SOL', 'TIP', 'TIP3', 'DOD'];
+let optRepresentation = 'cartoon';   // cartoon | stick | line | sphere | surface
+let optMolOpacity = 1.0;             // base representation opacity
+let optShowWaters = true;            // waters as red spheres when present
+let optWaterColor = '#e53935';       // red
+
 let themeText = getCSSVar('--theme-text');
 let themeBorder = getCSSVar('--theme-border');
 

@@ -1,3 +1,63 @@
+// ---------------------------------------------------------------------------
+// 3D representation + water styling
+// ---------------------------------------------------------------------------
+
+// Build the base 3DMol style spec for the current representation + opacity.
+// colorGetter(atom) -> hex color string. Surface is handled separately
+// (it is not a setStyle representation), so we fall back to cartoon underneath.
+function buildBaseStyleSpec(colorGetter, opacity) {
+    const op = (typeof opacity === 'number') ? opacity : optMolOpacity;
+    switch (optRepresentation) {
+        case 'stick':
+            return { stick: { colorfunc: colorGetter, opacity: op, radius: 0.15 } };
+        case 'line':
+            return { line: { colorfunc: colorGetter, opacity: op } };
+        case 'sphere':
+            return { sphere: { colorfunc: colorGetter, opacity: op } };
+        case 'surface':
+            // surface is applied via addSurface; keep a faint cartoon skeleton
+            return { cartoon: { colorfunc: colorGetter, opacity: Math.min(op, 0.4) } };
+        case 'cartoon':
+        default:
+            return { cartoon: { colorfunc: colorGetter, opacity: op } };
+    }
+}
+
+// Apply the base representation to a model, plus an optional molecular surface.
+// `sel` scopes to a model when aligned/multi. Waters are NOT styled here: only
+// waters belonging to active graph nodes should appear as spheres, which is
+// handled in the active-node highlight loops (see styleActiveWater / update3DViewer).
+function applyMolStyle(v, sel, colorGetter, opacity) {
+    const baseSel = sel || {};
+    v.setStyle(baseSel, buildBaseStyleSpec(colorGetter, opacity));
+
+    // Surface: 3DMol surfaces are added, not set. Only add once per (viewer,sel).
+    if (optRepresentation === 'surface') {
+        try {
+            v.addSurface($3Dmol.SurfaceType.VDW, { opacity: opacity != null ? opacity : optMolOpacity, colorfunc: colorGetter }, baseSel);
+        } catch (e) { logError('addSurface failed', e); }
+    }
+}
+
+// True when a node mapping refers to a water residue.
+function isWaterMapping(m) {
+    return m && m.resn && WATER_RESN.includes(String(m.resn).toUpperCase());
+}
+
+// Style a single active residue: waters as spheres, everything else as the
+// usual cartoon+stick highlight. `sel` must already scope the residue.
+function styleActiveResidue(v, sel, drawColor, isWater) {
+    if (isWater) {
+        if (optShowWaters) {
+            v.setStyle(sel, { sphere: { color: optWaterColor, radius: 0.35 } }, true);
+        }
+        // if waters are toggled off, leave it faded like other inactive atoms
+    } else {
+        v.setStyle(sel, { cartoon: { color: drawColor }, stick: { colorscheme: 'whiteCarbon', radius: 0.25 } }, true);
+    }
+}
+
+
 function focusOnPair(pairKey) {
     logDebug(`Direct focus button clicked for: ${pairKey}`);
     document.getElementById('pair-selector').value = pairKey;
@@ -176,7 +236,7 @@ function unhoverCallback() { document.getElementById("mol-tooltip").style.displa
                         }
                         let v = $3Dmol.createViewer(molDiv, { backgroundColor: bgMol });
                         let mObj = v.addModel(m.text, m.format); m.internalModel = mObj.getID();
-                        v.setStyle({}, { cartoon: { colorfunc: function(atom) { return get3DColor(atom.chain, m.protIdx); } } });
+                        applyMolStyle(v, {}, function(atom) { return get3DColor(atom.chain, m.protIdx); });
                         
                         molDiv.addEventListener('mousedown', () => { window.activeMolViewer = v; });
                         molDiv.addEventListener('wheel', () => { window.activeMolViewer = v; }, {passive: true});
@@ -202,7 +262,7 @@ function unhoverCallback() { document.getElementById("mol-tooltip").style.displa
                         }
                         let v = $3Dmol.createViewer(molDiv, { backgroundColor: bgMol });
                         let mObj = v.addModel(targetModel.text, targetModel.format); targetModel.internalModel = mObj.getID();
-                        v.setStyle({}, { cartoon: { colorfunc: function(atom) { return get3DColor(atom.chain, targetModel.protIdx); } } });
+                        applyMolStyle(v, {}, function(atom) { return get3DColor(atom.chain, targetModel.protIdx); });
                         v.protIdx = targetModel.protIdx; v.protName = targetModel.name; v.layoutMode = 'single';
                         v.setHoverable({}, true, hoverCallback, unhoverCallback); v.zoomTo(); viewers.push(v);
                         update3DViewer();
@@ -221,7 +281,7 @@ function unhoverCallback() { document.getElementById("mol-tooltip").style.displa
                     let v = $3Dmol.createViewer(molDiv, { backgroundColor: bgMol });
                     validModels.forEach(m => {
                         let mObj = v.addModel(m.text, m.format); m.internalModel = mObj.getID();
-                        v.setStyle({model: m.internalModel}, { cartoon: { colorfunc: function(atom) { return get3DColor(atom.chain, m.protIdx); } } });
+                        applyMolStyle(v, {model: m.internalModel}, function(atom) { return get3DColor(atom.chain, m.protIdx); });
                     });
                     v.layoutMode = 'aligned'; v.setHoverable({}, true, hoverCallback, unhoverCallback); v.zoomTo(); viewers.push(v);
                     update3DViewer();
@@ -241,7 +301,7 @@ function update3DViewerGridForPair(pairKey) {
         if (v.pairKey !== pairKey) return;
         v.removeAllLabels();
         v.protIdxs.forEach(idx => {
-            if(loadedModels[idx]) v.setStyle({}, { cartoon: { colorfunc: function(atom) { return get3DColor(atom.chain, idx); }, opacity: 0.5 } });
+            if(loadedModels[idx]) applyMolStyle(v, {}, function(atom) { return get3DColor(atom.chain, idx); }, Math.min(optMolOpacity, 0.5));
         });
 
         if(!window.gridActiveNodes || !window.gridActiveNodes[pairKey]) { v.render(); return; }
@@ -252,9 +312,9 @@ function update3DViewerGridForPair(pairKey) {
         pData.nodes.forEach(n => {
             if (activeIds.has(n.id)) {
                 n.mapping.forEach(m => {
-                    let sel = { chain: m.chain, resi: parseInt(m.resi) }; 
+                    let sel = { chain: m.chain, resi: parseInt(m.resi) };
                     const drawColor = get3DColor(m.chain, m.model_idx);
-                    v.setStyle(sel, { cartoon: { color: drawColor }, stick: { colorscheme: 'whiteCarbon', radius: 0.25 } }, true);
+                    styleActiveResidue(v, sel, drawColor, isWaterMapping(m));
                     if (showLabels) v.addLabel(`${m.resn}:${m.resi}`, { font: "sans-serif", fontSize: 13, fontColor: labelColor, showBackground: false, alignment: "center", position: sel }, sel, true);
                 });
             }
@@ -270,12 +330,22 @@ function update3DViewer() {
     const isDark = document.body.getAttribute('data-theme') === 'dark';
     const labelColor = window.exportLabelColor || (isDark ? "white" : "black");
     
+    // Dim opacity for the resting representation so active residues stand out.
+    const dimOp = Math.min(optMolOpacity, 0.5);
+
     viewers.forEach(v => {
         v.removeAllLabels();
+        // Surfaces are additive; clear before re-applying to avoid stacking.
+        if (optRepresentation === 'surface') { try { v.removeAllSurfaces(); } catch(e) {} }
+
         if (layoutMode === 'aligned') {
-            loadedModels.forEach(m => { if (m && graphData.proteins.includes(m.name)) v.setStyle({model: m.internalModel}, { cartoon: { colorfunc: function(atom) { return get3DColor(atom.chain, m.protIdx); }, opacity: 0.5 } }); });
+            loadedModels.forEach(m => {
+                if (m && graphData.proteins.includes(m.name)) {
+                    applyMolStyle(v, {model: m.internalModel}, function(atom) { return get3DColor(atom.chain, m.protIdx); }, dimOp);
+                }
+            });
         } else if (layoutMode === 'separate' || layoutMode.startsWith('prot_')) {
-            v.setStyle({}, { cartoon: { colorfunc: function(atom) { return get3DColor(atom.chain, v.protIdx); }, opacity: 0.5 } });
+            applyMolStyle(v, {}, function(atom) { return get3DColor(atom.chain, v.protIdx); }, dimOp);
         }
     });
     
@@ -297,7 +367,7 @@ function update3DViewer() {
 
                 let sel = { model: targetModel, chain: m.chain, resi: parseInt(m.resi) };
                 const drawColor = get3DColor(m.chain, globalIdx);
-                v.setStyle(sel, { cartoon: { color: drawColor }, stick: { colorscheme: 'whiteCarbon', radius: 0.25 } }, true);
+                styleActiveResidue(v, sel, drawColor, isWaterMapping(m));
                 
                 if (showLabels) v.addLabel(`${m.resn}:${m.resi}`, { font: "sans-serif", fontSize: 13, fontColor: labelColor, showBackground: false, alignment: "center", position: sel }, sel, true);
             });
