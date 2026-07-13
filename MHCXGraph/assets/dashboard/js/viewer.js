@@ -1,4 +1,30 @@
 // ---------------------------------------------------------------------------
+// filtered_graphs rehydration
+// ---------------------------------------------------------------------------
+// To keep the writer's memory constant, each protein's filtered graph is stored
+// ONCE at the top level (masterData.filtered_graphs, keyed by protein name)
+// instead of being duplicated into every pair's payload. The rest of the
+// frontend still expects a per-pair POSITIONAL ARRAY (pData.filtered_graphs[0]
+// and [1], matching pData.proteins order), so we rebuild that view on demand.
+// Idempotent + cached: safe to call on every pair switch.
+function hydrateFilteredGraphs(pData) {
+    if (!pData) return pData;
+    if (Array.isArray(pData.filtered_graphs)) return pData;   // already hydrated
+    const store = masterData.filtered_graphs;
+    if (!store) return pData;                                  // legacy payload
+
+    pData.filtered_graphs = (pData.proteins || []).map(name => {
+        const fg = store[name];
+        if (!fg) {
+            logError(`filtered graph missing for protein: ${name}`);
+            return { id: -1, name: name, nodes: [], edges: [] };
+        }
+        return fg;
+    });
+    return pData;
+}
+
+// ---------------------------------------------------------------------------
 // 3D representation + water styling
 // ---------------------------------------------------------------------------
 
@@ -163,6 +189,7 @@ function switchPairView(val) {
             document.getElementById('view-controls').style.display = 'flex';
             
             graphData = masterData.pairs[val];
+            hydrateFilteredGraphs(graphData);
             
             assignGraphColorsToData();
             initMetadata();

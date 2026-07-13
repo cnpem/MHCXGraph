@@ -25,6 +25,14 @@ function init() {
     
     if (masterData.mode === 'pairwise') {
         document.getElementById('pair-mode-panel').style.display = 'block';
+
+        // filtered_graphs are stored once at the top level (deduplicated by the
+        // writer). Rebuild the per-pair positional array for EVERY pair up front
+        // so aggregate views (analysis, export, GRID) that read pairs directly
+        // also see it. This only stores references into the shared store, so it
+        // costs no extra memory.
+        Object.values(masterData.pairs).forEach(pd => hydrateFilteredGraphs(pd));
+
         let sel = document.getElementById('pair-selector');
         Object.keys(masterData.pairs).forEach(k => { sel.innerHTML += `<option value="${k}">🔍 Focus: ${k.replace('_vs_', ' vs ')}</option>`; });
         
