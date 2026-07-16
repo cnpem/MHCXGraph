@@ -53,9 +53,10 @@ dependencies = [
     "numpy>=2.2.6",
     "pandas>=2.3.3",
     "coloredlogs>=15.0.1",
-    "pydssp>=0.9.1",
+    "einops>=0.8.2",
     "freesasa>=2.2.1",
     "seaborn>=0.13.2",
+    "scipy>=1.15.0",
 ]
 dynamic = ["version"]
 

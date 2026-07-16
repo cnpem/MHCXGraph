@@ -674,8 +674,21 @@ class AssociatedGraph:
                     output_dir = self.output_path / "frames"
                     self._write_frame_multichain(comp_idx, frame_idx, models, output_dir)
 
-    def get_dashboard_data(self, global_proteins: list[str]) -> dict:
-        """Extracts JSON serializable data for the dashboard injection."""
+    def get_dashboard_data(self, global_proteins: list[str],
+                           include_filtered_graphs: bool = True) -> dict:
+        """Extracts JSON serializable data for the dashboard injection.
+
+        Parameters
+        ----------
+        include_filtered_graphs : bool, default=True
+            When False, the per-protein ``filtered_graphs`` block is omitted
+            from the payload. In pairwise/screening runs each protein's
+            filtered graph is identical across every pair it appears in, so
+            serializing it per pair duplicates it (N-1) times and is the main
+            driver of memory growth. Callers should set this False here and
+            store each protein's filtered graph once via
+            ``get_filtered_graph_data``.
+        """
         global_idx = [global_proteins.index(gd['name']) for gd in self.graphs_data]
         export_data = {
             "proteins": [gd['name'] for gd in self.graphs_data],
@@ -800,15 +813,30 @@ class AssociatedGraph:
         export_data["nodes"] = list(global_nodes.values())
         export_data["edges"] = list(global_edges.values())
 
-        for prot_idx, (g, pdb_file, name) in enumerate(self.graphs):
-            f_nodes, f_edges = [], []
-            for n in g.nodes():
-                parts = str(n).split(':')
-                mapping = [{"model_idx": global_idx[prot_idx], "chain": parts[0], "resn": parts[1], "resi": parts[2]}] if len(parts) >= 3 else []
-                f_nodes.append({"id": str(n), "label": str(n), "title": f"Chain: {parts[0] if len(parts)>=1 else '?'}\n{n}", "group": parts[0] if len(parts)>=1 else "?", "mapping": mapping})
-            for u, v, data in g.edges(data=True):
-                dist_val = data.get('distance')
-                f_edges.append({"id": f"{u}-{v}", "from": str(u), "to": str(v), "title": f"Distance: {float(dist_val):.2f} Å" if dist_val is not None else "", "raw_dist": float(dist_val) if isinstance(dist_val, (int, float)) else None})
-            export_data["filtered_graphs"].append({"id": global_idx[prot_idx], "name": name, "nodes": f_nodes, "edges": f_edges})
+        if include_filtered_graphs:
+            for prot_idx in range(len(self.graphs)):
+                export_data["filtered_graphs"].append(
+                    self.get_filtered_graph_data(prot_idx, global_idx[prot_idx])
+                )
+        else:
+            # Caller is responsible for storing filtered graphs once, deduped.
+            del export_data["filtered_graphs"]
 
         return export_data
+
+    def get_filtered_graph_data(self, prot_idx: int, model_idx: int) -> dict:
+        """Serialize a single protein's filtered graph (nodes + edges).
+
+        Split out of get_dashboard_data so pairwise/screening callers can
+        store each protein once instead of once per pair.
+        """
+        g, pdb_file, name = self.graphs[prot_idx]
+        f_nodes, f_edges = [], []
+        for n in g.nodes():
+            parts = str(n).split(':')
+            mapping = [{"model_idx": model_idx, "chain": parts[0], "resn": parts[1], "resi": parts[2]}] if len(parts) >= 3 else []
+            f_nodes.append({"id": str(n), "label": str(n), "title": f"Chain: {parts[0] if len(parts)>=1 else '?'}\n{n}", "group": parts[0] if len(parts)>=1 else "?", "mapping": mapping})
+        for u, v, data in g.edges(data=True):
+            dist_val = data.get('distance')
+            f_edges.append({"id": f"{u}-{v}", "from": str(u), "to": str(v), "title": f"Distance: {float(dist_val):.2f} Å" if dist_val is not None else "", "raw_dist": float(dist_val) if isinstance(dist_val, (int, float)) else None})
+        return {"id": model_idx, "name": name, "nodes": f_nodes, "edges": f_edges}

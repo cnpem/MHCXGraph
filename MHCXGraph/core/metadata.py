@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import pydssp
 import re
-import torch
-
 import numpy as np
 
 from MHCXGraph.utils.logging_utils import get_log
+from MHCXGraph.pydssp import pydssp
 
 log = get_log()
 
@@ -51,7 +49,7 @@ def secondary_structure(G, **ctx):
         if len(coords) == 0:
             raise ValueError(f"No residues with complete backbone atoms (N,CA,C,O) were found. Chain: {chain_id}")
 
-        coord = torch.from_numpy(np.asarray(coords, dtype=np.float32))
+        coord = np.asarray(coords, dtype=np.float32)
         return coord, used_residues, sequence
 
     def assign_ss_to_chain(chain, chain_id, include_noncanonical_residues, max_gap_helix):
