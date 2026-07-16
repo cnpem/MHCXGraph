@@ -8,7 +8,6 @@ from pathlib import Path
 from MHCXGraph.cli.cli_parser import parse_args
 from MHCXGraph.core.residue_tracking import ResidueTracker
 from MHCXGraph.core.tracking import init_tracker
-from MHCXGraph.scripts.create_heatmaps import create_heatmap
 from MHCXGraph.scripts.renumber_MHCI_imgt import load_mhci_templates, process_structure_file_mhci
 from MHCXGraph.scripts.renumber_MHCII_imgt import load_mhcii_templates, process_structure_file_mhcii
 from MHCXGraph.utils.logging_utils import setup_logging
@@ -480,7 +479,6 @@ def run_screening_mode(ref_spec, target_specs, base_output, run_name, config, lo
 
         del target_graph
 
-        del target_graph
 
     emit_output(master_export, screening_base_dir, generate_dashboard, log)
 
@@ -506,10 +504,6 @@ def run(args):
 
     tracker_residues = setup_trackers(output_dir=output_dir, settings=settings)
     association_config = build_association_config(settings, run_mode, tracker_residues)
-
-    # Dashboard HTML generation is on by default. Set to False in the manifest
-    # to skip the (relatively expensive) HTML assembly and write only the raw
-    # graph_data JSON, from which a dashboard can be regenerated later.
     generate_dashboard = settings.get("generate_dashboard", True)
 
     specs = create_graphs(manifest)
@@ -649,6 +643,8 @@ def main():
         renumber(args)
 
     elif args.command == "heatmap":
+        from MHCXGraph.scripts.create_heatmaps import create_heatmap
+
         create_heatmap(args)
 
 if __name__ == "__main__":

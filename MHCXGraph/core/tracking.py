@@ -192,7 +192,7 @@ def get_current(_default_none: bool = False) -> Tracker | None:
         if _default_none:
             return None  # usado apenas internamente
         # default “preguiçoso” para não quebrar quem esquecer de inicializar
-        return init_tracker()  # CrossSteps/<rand>
+        return init_tracker(enabled=False)  # CrossSteps/<rand>
     return _global_tracker
 
 def set_enabled(flag: bool) -> None:
