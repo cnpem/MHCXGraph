@@ -70,6 +70,17 @@ def parse_args():
         )
 
 
+    parser_standalone = subparsers.add_parser(
+        "standalone-dashboard",
+        help="Generate a data-free MHCXGraph_Standalone.html that a user can download once and "
+             "reuse to load any graph_data_*.json export (no manifest, no re-run required)."
+    )
+    parser_standalone.add_argument(
+        "-o", "--output-dir",
+        default=os.getcwd(),
+        help="Directory to write MHCXGraph_Standalone.html into (default: current directory).",
+    )
+
     parser_heatmap = subparsers.add_parser("heatmap")
     parser_heatmap.add_argument("-i", '--input-dir', required=True, nargs='?', default=os.getcwd())
     parser_heatmap.add_argument("-o", "--output-dir", required=True, help="Output directory.")

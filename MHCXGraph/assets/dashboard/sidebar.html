@@ -28,6 +28,13 @@
         </select>
     </div>
 
+    <div class="control-group" id="not-found-panel" style="display: none; background: var(--hover-bg); border-color: var(--border);">
+        <h3 onclick="toggleComp('not-found-body', this.querySelector('span'))" style="cursor: pointer; margin-bottom: 0; color: var(--text-main); border-bottom: none;">
+            <span class="collapse-toggle">▶</span> <span id="not-found-title">No cross-reactivity found</span>
+        </h3>
+        <div id="not-found-body" style="display: none; margin-top: 10px; max-height: 180px; overflow-y: auto; font-size: 12px; line-height: 1.6;"></div>
+    </div>
+
     <div class="control-group" id="metadata-panel"></div>
 
     <div class="control-group" style="max-height: 160px; overflow-y: auto;">

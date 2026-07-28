@@ -45,6 +45,32 @@ let visObserver = null;
 let molObserver = null;
 const cardRefs = {};      /* pairKey -> { topCard, topBody, botCard, botBody } */
 
+/* When the user hits "Unload all" we must stop the IntersectionObservers from
+ * immediately re-loading the still-visible cards (which made the per-card
+ * buttons flip straight back to "Unload"). Explicit user actions (per-card
+ * Load, "Load all") clear the pause. */
+let gridAutoLoadPaused = false;
+
+/* ------------------------------------------------------------------------- *
+ * Empty-pair handling.
+ * A screening/pairwise pair with no associated cross-reactive nodes carries
+ * `nodes: []`. Those pairs pollute the grid, tree and selector with dead
+ * "0 nodes" cards, so everywhere that enumerates pairs for RENDERING uses the
+ * visible subset; the empty ones are surfaced once in the collapsed
+ * "not found" sidebar panel instead.
+ * ------------------------------------------------------------------------- */
+function isEmptyPair(pData) {
+    return !(pData && pData.nodes && pData.nodes.length > 0);
+}
+function getVisiblePairKeys() {
+    const pairs = (masterData && masterData.pairs) || {};
+    return Object.keys(pairs).filter(k => !isEmptyPair(pairs[k]));
+}
+function getEmptyPairKeys() {
+    const pairs = (masterData && masterData.pairs) || {};
+    return Object.keys(pairs).filter(k => isEmptyPair(pairs[k]));
+}
+
 /* ========================================================================= */
 /* Stats and threshold detection                                             */
 /* ========================================================================= */
@@ -52,7 +78,7 @@ const cardRefs = {};      /* pairKey -> { topCard, topBody, botCard, botBody } *
 function computeGridStats() {
     const pairs = (masterData && masterData.pairs) || {};
     let totalNodes = 0, totalEdges = 0;
-    const keys = Object.keys(pairs);
+    const keys = getVisiblePairKeys();   /* empty pairs never render, so ignore them here */
     keys.forEach(k => {
         const p = pairs[k];
         totalNodes += (p.nodes || []).length;
@@ -136,9 +162,10 @@ window.loadAllGridPairs = function(btn) {
         if (!confirm(`This will instantiate ${gridStats.pairCount} graphs and 3D viewers at once. ` +
                      `On a heavy dataset this can freeze the page. Continue?`)) return;
     }
+    gridAutoLoadPaused = false;   /* explicit user intent to load */
     if (btn) btn.disabled = true;
     /* Stagger to keep the UI responsive */
-    const keys = Object.keys(masterData.pairs);
+    const keys = getVisiblePairKeys();
     let i = 0;
     function step() {
         const slice = keys.slice(i, i + 4);
@@ -151,7 +178,9 @@ window.loadAllGridPairs = function(btn) {
 };
 
 window.unloadAllGridPairs = function() {
-    Object.keys(masterData.pairs).forEach(k => {
+    /* Stop observers from re-loading the still-visible cards behind us. */
+    gridAutoLoadPaused = true;
+    getVisiblePairKeys().forEach(k => {
         unloadVisForPair(k);
         unloadMolForPair(k);
     });
@@ -533,6 +562,7 @@ window.toggleMolForPair = function(pairKey, btn) {
 function makeObserver(loader) {
     if (typeof IntersectionObserver === 'undefined') return null;
     return new IntersectionObserver(entries => {
+        if (gridAutoLoadPaused) return;   /* user chose "Unload all" — stay unloaded */
         entries.forEach(e => {
             if (!e.isIntersecting) return;
             const k = e.target.dataset.pair;
@@ -551,6 +581,8 @@ function buildGridTop() {
         const singleNet = document.getElementById('single-network');
         if (singleNet) singleNet.style.display = 'none';
 
+        /* Outer = scroll container (NOT a grid, so the banner is a normal
+         * block and no longer gets stretched into a 350px grid row). */
         let gridWrapper = document.getElementById('dynamic-grid-networks');
         if (!gridWrapper) {
             gridWrapper = document.createElement('div');
@@ -568,31 +600,37 @@ function buildGridTop() {
         gridNetworks.forEach(g => { try { g.network.destroy(); } catch (e) {} });
         gridNetworks = []; gridNodesDatasets = {}; gridEdgesDatasets = {};
         visLoadedKeys = [];
+        gridAutoLoadPaused = false;   /* fresh view — auto-load allowed again */
         if (visObserver) visObserver.disconnect();
 
         /* Reset card refs (the bottom builder also writes here) */
         Object.keys(cardRefs).forEach(k => { cardRefs[k].topCard = null; cardRefs[k].topBody = null; });
 
         gridWrapper.innerHTML = '';
-        gridWrapper.style.display = 'grid';
+        gridWrapper.style.display = 'block';
 
         gridStats = computeGridStats();
         lazyMode = decideLazyMode(gridStats);
 
+        if (lazyMode) buildHeavyWarningBanner(gridWrapper);
+
+        /* Inner = the actual CSS grid of cards. */
+        const cardsGrid = document.createElement('div');
+        cardsGrid.className = 'grid-cards';
         const numPairs = gridStats.pairCount;
         const cols = numPairs > 4 ? 3 : (numPairs > 1 ? 2 : 1);
-        gridWrapper.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
-        gridWrapper.style.gridAutoRows = '350px';
-        gridWrapper.style.gap = '15px';
-
-        if (lazyMode) buildHeavyWarningBanner(gridWrapper);
+        cardsGrid.style.display = 'grid';
+        cardsGrid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+        cardsGrid.style.gridAutoRows = '350px';
+        cardsGrid.style.gap = '15px';
+        gridWrapper.appendChild(cardsGrid);
 
         visObserver = lazyMode ? makeObserver(loadVisForPair) : null;
 
-        Object.keys(masterData.pairs).forEach(pairKey => {
+        getVisiblePairKeys().forEach(pairKey => {
             const pData = masterData.pairs[pairKey];
             const { card, body } = makeTopCard(pairKey, pData);
-            gridWrapper.appendChild(card);
+            cardsGrid.appendChild(card);
             cardRefs[pairKey] = Object.assign(cardRefs[pairKey] || {}, { topCard: card, topBody: body });
 
             if (!lazyMode) {
@@ -649,7 +687,7 @@ function buildGridBottom() {
 
         molObserver = lazyMode ? makeObserver(loadMolForPair) : null;
 
-        Object.keys(masterData.pairs).forEach(pairKey => {
+        getVisiblePairKeys().forEach(pairKey => {
             const pData = masterData.pairs[pairKey];
             const { card, body } = makeBotCard(pairKey, pData);
             gridWrapper.appendChild(card);

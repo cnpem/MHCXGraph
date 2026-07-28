@@ -125,11 +125,14 @@
         .metrics-table tbody tr:hover { background: var(--hover-bg); }
         .class-badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin: 2px; color: #fff;}
 
-        #sidebar-toggle { position: absolute; top: 10px; left: 10px; z-index: 100; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 4px; padding: 6px 10px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.1); font-size: 16px; color: var(--text-main);}
-        #theme-toggle { position: fixed; top: 10px; right: 15px; z-index: 1000; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 4px; padding: 6px 10px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.1); font-size: 16px; color: var(--text-main);}
+        /* Reserved top strip: nothing else may render underneath it. */
+        #top-toolbar { position: relative; flex-shrink: 0; height: 48px; box-sizing: border-box; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: var(--bg-panel); border-bottom: 1px solid var(--border); z-index: 300; }
+        #sidebar-toggle { position: static; z-index: 1; background: var(--bg-control); border: 1px solid var(--border); border-radius: 4px; padding: 6px 10px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.1); font-size: 16px; color: var(--text-main); line-height: 1;}
+        #theme-toggle { position: static; margin-left: auto; z-index: 1; background: var(--bg-control); border: 1px solid var(--border); border-radius: 4px; padding: 6px 10px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.1); font-size: 16px; color: var(--text-main); line-height: 1;}
         #sidebar-toggle:hover, #theme-toggle:hover { background: var(--hover-bg); }
-        
-        #view-controls { position: absolute; top: 15px; left: 50%; transform: translateX(-50%); z-index: 100; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; align-items: center; gap: 8px; }
+
+        /* Centered inside the toolbar strip, so it never sits over the panels/cards. */
+        #view-controls { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 2; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; padding: 4px 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; align-items: center; gap: 8px; }
         #viewer-toolbar { position: absolute; top: 10px; left: 15px; z-index: 100; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; align-items: center; gap: 10px; font-size: 13px;}
         select, input[type="range"] { background: var(--bg-panel); color: var(--text-main); border: 1px solid var(--border); padding: 4px 8px; border-radius: 4px; outline: none; font-size: 13px;}
         
@@ -157,18 +160,21 @@
     __SIDEBAR_HTML_INJECTION__
 
     <div id="main-content">
-        <button id="sidebar-toggle" onclick="toggleSidebar()" title="Toggle Sidebar">☰</button>
-        <button id="theme-toggle" onclick="toggleTheme()" title="Toggle Theme">☀️ / 🌙</button>
-        
-        <div id="view-controls" style="display: none;">
-            <b style="font-size: 13px; color: var(--text-main);">Focus Graph View:</b>
-            <select id="main-graph-selector" onchange="switchGraphViewMode()">
-                <option value="associated">🌐 Associated Graph</option>
-                <option value="filtered">Filtered Graphs</option>
-                <option value="analysis" id="opt-analysis-tab">📊 Analysis & Metrics</option>
-            </select>
+        <div id="top-toolbar">
+            <button id="sidebar-toggle" onclick="toggleSidebar()" title="Toggle Sidebar">☰</button>
+
+            <div id="view-controls" style="display: none;">
+                <b style="font-size: 13px; color: var(--text-main);">Focus Graph View:</b>
+                <select id="main-graph-selector" onchange="switchGraphViewMode()">
+                    <option value="associated">🌐 Associated Graph</option>
+                    <option value="filtered">Filtered Graphs</option>
+                    <option value="analysis" id="opt-analysis-tab">📊 Analysis & Metrics</option>
+                </select>
+            </div>
+
+            <button id="theme-toggle" onclick="toggleTheme()" title="Toggle Theme">☀️ / 🌙</button>
         </div>
-        
+
         <div id="top-panel">
             <div id="single-network"></div>
         </div>

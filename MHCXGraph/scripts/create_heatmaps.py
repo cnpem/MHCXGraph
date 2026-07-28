@@ -482,6 +482,8 @@ def create_heatmap(args):
         figsize=(10, 8),
         dendrogram_ratio=0.15,
         cbar_kws={"label": "Similarity index"},
+        xticklabels=True,
+        yticklabels=True
     )
 
     row_order = cluster_grid.dendrogram_row.reordered_ind

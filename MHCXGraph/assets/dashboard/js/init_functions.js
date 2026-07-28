@@ -34,8 +34,10 @@ function init() {
         Object.values(masterData.pairs).forEach(pd => hydrateFilteredGraphs(pd));
 
         let sel = document.getElementById('pair-selector');
-        Object.keys(masterData.pairs).forEach(k => { sel.innerHTML += `<option value="${k}">🔍 Focus: ${k.replace('_vs_', ' vs ')}</option>`; });
-        
+        getVisiblePairKeys().forEach(k => { sel.innerHTML += `<option value="${k}">🔍 Focus: ${k.replace('_vs_', ' vs ')}</option>`; });
+
+        initNotFoundPanel();
+
         assignAllPairGraphColors(); 
         autoLoadStructures().then(() => { switchPairView('GRID'); });
     } else {
@@ -183,6 +185,45 @@ function initMetadataGlobalFallback() {
     } catch(e) { logError("initMetadataGlobalFallback failed", e); }
 }
 
+function initNotFoundPanel() {
+    try {
+        const panel = document.getElementById('not-found-panel');
+        const body = document.getElementById('not-found-body');
+        const titleEl = document.getElementById('not-found-title');
+        if (!panel || !body || !titleEl) return;
+
+        const empties = getEmptyPairKeys();
+        if (empties.length === 0) { panel.style.display = 'none'; return; }
+        panel.style.display = 'block';
+
+        const isScreening = masterData.actual_mode === 'screening';
+        const ref = masterData.reference_structure;
+
+        titleEl.textContent = isScreening
+            ? `No cross-reactivity found (${empties.length})`
+            : `Empty pairs — no shared nodes (${empties.length})`;
+
+        const rows = empties.map(k => {
+            const full = k.replace('_vs_', ' vs ');
+            let label = full;
+            if (isScreening && ref) {
+                const parts = k.split('_vs_');
+                label = (parts[0] === ref ? parts[1] : parts[0]) || full;
+            }
+            return `<div title="${full}" style="padding: 2px 0; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">• ${label}</div>`;
+        }).join('');
+
+        body.innerHTML = `
+            <div style="margin-bottom: 6px; color: var(--text-faint); font-size: 11px;">
+                ${isScreening
+                    ? 'Targets screened against the reference with no cross-reactive residues.'
+                    : 'Pairs whose associated graph has no nodes.'}
+            </div>
+            ${rows}
+        `;
+    } catch (e) { logError("initNotFoundPanel failed", e); }
+}
+
 function initMetadata() {
     try {
         if (!graphData) return;
@@ -298,7 +339,7 @@ function initHierarchyGrid() {
     const tree = document.getElementById('hierarchy-tree'); let html = '';
     if (!masterData.pairs) return;
     const nCountBadge = (n) => `<span style="font-size: 10px; color: var(--text-muted); margin-left: 6px;">[${n} nodes]</span>`;
-    Object.keys(masterData.pairs).forEach(pairKey => {
+    getVisiblePairKeys().forEach(pairKey => {
         let pData = masterData.pairs[pairKey]; let pkSafe = pairKey.replace(/[^a-zA-Z0-9]/g, '_');
         const pairN = (pData.nodes || []).length;
         html += `<div class="tree-item tree-level-1" style="background: var(--bg-control); border: 1px solid var(--border); margin-top: 10px;"><span class="collapse-toggle" onclick="toggleComp('grid_${pkSafe}', this)">▼</span><label style="color: var(--btn-bg);"><b>${pairKey.replace('_vs_', ' vs ')}</b>${nCountBadge(pairN)}</label></div>`;
