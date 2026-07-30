@@ -1,4 +1,30 @@
-# MHCXGraph
+<p align="center">
+  <img
+    src="https://raw.githubusercontent.com/cnpem/MHCXGraph/main/MHCXGraph/assets/images/MHCXGraph%20logo.png"
+    alt="MHCXGraph logo"
+    width="620"
+  >
+</p>
+
+<h1 align="center">MHCXGraph</h1>
+
+<p align="center">
+  <a href="https://pypi.org/project/MHCXGraph/">
+    <img src="https://img.shields.io/pypi/v/MHCXGraph?logo=pypi&logoColor=white" alt="PyPI version">
+  </a>
+  <a href="https://pypi.org/project/MHCXGraph/">
+    <img src="https://img.shields.io/pypi/pyversions/MHCXGraph?logo=python&logoColor=white" alt="Supported Python versions">
+  </a>
+  <a href="https://cnpem.github.io/MHCXGraph/">
+    <img src="https://img.shields.io/badge/docs-online-blue?logo=readthedocs&logoColor=white" alt="Documentation">
+  </a>
+  <a href="https://doi.org/10.64898/2026.04.07.717034">
+    <img src="https://img.shields.io/badge/DOI-10.64898%2F2026.04.07.717034-blue" alt="DOI">
+  </a>
+  <a href="https://github.com/cnpem/MHCXGraph/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/cnpem/MHCXGraph" alt="License">
+  </a>
+</p>
 
 A Python package for detecting potential T cell receptor cross-reactivity based on peptide–MHC structures.
 
